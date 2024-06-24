@@ -41,6 +41,10 @@ class FirestoreService {
           [String? companyId]) =>
       _db.collection('approved_companies').doc(companyId ?? _cid);
 
+  /// `organization_setup_requests/{requestId}` — pre-login organization setup submissions.
+  static CollectionReference<Map<String, dynamic>> get organizationSetupRequestsCol =>
+      _db.collection('organization_setup_requests');
+
   // ── Company-Scoped Subcollections ────────────────────────────────────────
   // All operational data lives UNDER the company document so that
   // Firestore console shows everything nested per company.

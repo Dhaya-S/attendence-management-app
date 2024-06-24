@@ -80,6 +80,34 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // 1.5 Pre-login organization setup requests
+    match /organization_setup_requests/{requestId} {
+      allow create: if
+        request.resource.data.flow == "pre_login_organization_setup" &&
+        request.resource.data.status == "pending_admin_setup" &&
+        request.resource.data.workspaceStatus == "active" &&
+        request.resource.data.organizationName is string &&
+        request.resource.data.organizationName.size() > 1 &&
+        request.resource.data.contactPerson is string &&
+        request.resource.data.contactPerson.size() > 1 &&
+        request.resource.data.contactNumber is string &&
+        request.resource.data.contactNumber.size() > 5 &&
+        request.resource.data.contactEmail is string &&
+        request.resource.data.contactEmail.size() > 5 &&
+        request.resource.data.addressLine1 is string &&
+        request.resource.data.addressLine1.size() > 3 &&
+        request.resource.data.city is string &&
+        request.resource.data.city.size() > 1 &&
+        request.resource.data.state is string &&
+        request.resource.data.country is string &&
+        request.resource.data.postalCode is string &&
+        request.resource.data.postalCode.size() > 3 &&
+        request.resource.data.timeZone is string &&
+        request.resource.data.organizationType is string &&
+        request.resource.data.organizationSize is string;
+      allow read, update, delete: if isAdmin();
+    }
+
 
     // 2. Company master data + ALL subcollections
     match /approved_companies/{companyId} {

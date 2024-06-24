@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/pre_login_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/utils/app_session.dart';
@@ -50,10 +50,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
           builder: (context, snapshot) {
             final user = snapshot.data;
 
-            // 2. No user found -> Show Login Screen
+            // 2. No user found -> Show pre-login landing screen
             if (user == null) {
               _sessionLoaded = false;
-              return const LoginScreen();
+              return const PreLoginScreen();
             }
 
             // 3. User exists -> Load Session if not already loaded
