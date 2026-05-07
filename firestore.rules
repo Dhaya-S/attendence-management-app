@@ -1,0 +1,269 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --- HELPERS ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+       return isSignedIn() && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid));
+    }
+    
+    // Get the companyId of the currently signed-in user
+    function currentUserCompanyId() {
+      let email = request.auth.token.email;
+      let userPath = /databases/$(database)/documents/approved_users/$(email);
+      return exists(userPath) ? get(userPath).data.companyId : "NONE";
+    }
+
+    // Check if the current user is a manager
+    function isManager() {
+      let email = request.auth.token.email;
+      let userPath = /databases/$(database)/documents/approved_users/$(email);
+      return exists(userPath) && get(userPath).data.role == "manager";
+    }
+
+    // --- RULES ---
+
+    // 1. Global mapping used during login
+    match /approved_users/{email} {
+      allow read: if isSignedIn() && (
+        request.auth.token.email == email || 
+        (resource != null && resource.data.companyId == currentUserCompanyId()) || 
+        isManager() ||
+        isAdmin()
+      );
+      
+      allow write: if isAdmin() || (
+        isSignedIn() && (
+          // Allow users to update their own document (e.g. status)
+          request.auth.token.email == email ||
+          // Allow managers to create/update employees for their company
+          (isManager() && request.resource.data.companyId == currentUserCompanyId()) ||
+          (isManager() && resource != null && resource.data.companyId == currentUserCompanyId())
+        )
+      );
+    }
+    
+    match /admin_users/{uid} {
+       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+    
+    match /company_users/{uid} {
+       allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- MAIL EXTENSION ---
+    match /mail/{id} {
+      allow read, write: if isAdmin();
+    }
+
+
+    // 2. Company master data + ALL subcollections
+    match /approved_companies/{companyId} {
+      allow read: if isSignedIn() && (
+        currentUserCompanyId() == companyId || isAdmin()
+      );
+      allow write: if isAdmin();
+
+      // ── Users subcollection ──────────────────────────────────────
+      match /users/{employeeId} {
+        allow read: if isSignedIn() && (
+          request.auth.token.email == employeeId ||
+          (resource != null && resource.data.email == request.auth.token.email) ||
+          currentUserCompanyId() == companyId ||
+          isAdmin()
+        );
+        allow write: if isAdmin() || (
+          isSignedIn() && (
+            // Self-update
+            request.auth.token.email == employeeId ||
+            // Manager write (create or update)
+            (isManager() && currentUserCompanyId() == companyId)
+          )
+        );
+
+        // ── Nested Attendance ─────────────────────────────────────
+        match /attendance/{dateId} {
+          allow read, write: if isSignedIn() && (
+            request.auth.token.email == employeeId ||
+            currentUserCompanyId() == companyId ||
+            isAdmin()
+          );
+        }
+
+        // ── Nested Leave Requests ─────────────────────────────────
+        match /leave_requests/{id} {
+          allow read, write: if isSignedIn() && (
+            request.auth.token.email == employeeId ||
+            currentUserCompanyId() == companyId ||
+            isAdmin()
+          );
+        }
+
+        // ── Nested Overtime Requests ──────────────────────────────
+        match /overtime_requests/{id} {
+          allow read, write: if isSignedIn() && (
+            request.auth.token.email == employeeId ||
+            currentUserCompanyId() == companyId ||
+            isAdmin()
+          );
+        }
+
+        // ── Nested Notifications ──────────────────────────────────
+        match /notifications/{id} {
+          allow read, write: if isSignedIn() && (
+            request.auth.token.email == employeeId ||
+            currentUserCompanyId() == companyId ||
+            isAdmin()
+          );
+        }
+      }
+
+      // These sections are now nested under /users/{employeeId}
+      // Keep these for backward compatibility during migration if needed, 
+      // but they should eventually be removed.
+
+      // ── Global Notifications subcollection ────────────────────────────
+      match /global_notifications/{notifId} {
+        allow read: if isSignedIn() && (
+          currentUserCompanyId() == companyId ||
+          isAdmin()
+        );
+        allow write: if isSignedIn() && (
+          (isManager() && currentUserCompanyId() == companyId) ||
+          isAdmin()
+        );
+      }
+
+      // ── Company Calendar subcollection ─────────────────────────
+      match /company_calendar/{dateId} {
+        allow read: if isSignedIn() && (
+          currentUserCompanyId() == companyId ||
+          isAdmin()
+        );
+        allow write: if isSignedIn() && (
+          (isManager() && currentUserCompanyId() == companyId) ||
+          isAdmin()
+        );
+      }
+    }
+
+    // 3. Collection Group Queries
+    match /{path=**}/attendance/{dateId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        (resource == null && request.resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+    
+    match /{path=**}/leave_requests/{requestId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        (resource == null && request.resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+
+    match /{path=**}/overtime_requests/{requestId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        (resource == null && request.resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+
+    match /{path=**}/notifications/{id} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        (resource == null && request.resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+
+    // 4. Legacy top-level collections
+    match /companies/{companyId} {
+      allow read, write: if isSignedIn() && (
+        resource.data.managerEmail == request.auth.token.email || 
+        currentUserCompanyId() == companyId || 
+        isAdmin()
+      );
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        request.auth.token.email == userId || 
+        resource.data.email == request.auth.token.email ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+      allow write: if isSignedIn() && (
+        request.auth.token.email == userId ||
+        (isManager() && request.resource.data.companyId == currentUserCompanyId()) ||
+        (isManager() && resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+
+    match /notifications/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+      allow write: if isSignedIn() && (
+        (isManager() && request.resource.data.companyId == currentUserCompanyId()) ||
+        (isManager() && resource != null && resource.data.companyId == currentUserCompanyId()) ||
+        isAdmin()
+      );
+    }
+
+    match /leave_requests/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.companyId == currentUserCompanyId()
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+    }
+
+    match /overtime_requests/{id} {
+      allow read: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.companyId == currentUserCompanyId()
+      );
+      allow update, delete: if isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.companyId == currentUserCompanyId() ||
+        isAdmin()
+      );
+    }
+
+    match /attendance/{targetUid}/{allSubcollections=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == targetUid || isAdmin());
+    }
+
+    // 5. Fallbacks (Closed)
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

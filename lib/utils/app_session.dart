@@ -1,0 +1,83 @@
+/// AppSession — Global in-memory state for the authenticated user.
+///
+/// After a successful login, [companyId], [role], and company location
+/// are stored here so every screen can access them without re-querying
+/// Firestore on every navigation push.
+class AppSession {
+  // ── Singleton ────────────────────────────────────────────────────────────
+  static final AppSession _instance = AppSession._internal();
+  factory AppSession() => _instance;
+  AppSession._internal();
+
+  // ── Authenticated User Info ──────────────────────────────────────────────
+  String? uid;
+  String? email;
+  String? role; // 'manager' | 'employee'
+  String? companyId;
+  String? companyName;
+  String? userName;
+
+  // ── Company Office Location (fetched from approved_companies doc) ─────────
+  double? officeLat;
+  double? officeLng;
+
+  /// Radius (in metres) within which check-in is allowed.
+  double allowedRadius = 500;
+
+  /// Shift start time in HH:mm format (24h)
+  String shiftStartTime = "09:00";
+
+  /// Grace period in minutes
+  int gracePeriod = 15;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  bool get isManager => role == 'manager';
+  bool get isEmployee => role == 'employee';
+
+  /// True only when the session has been fully populated after login.
+  bool get isReady =>
+      uid != null && companyId != null && role != null;
+
+  /// Populate the session after successful login + approved_users look-up.
+  void populate({
+    required String uid,
+    required String email,
+    required String role,
+    required String companyId,
+    String? companyName,
+    String? userName,
+    double? officeLat,
+    double? officeLng,
+    double? allowedRadius,
+    String? shiftStartTime,
+    int? gracePeriod,
+  }) {
+    this.uid = uid;
+    this.email = email;
+    this.role = role;
+    this.companyId = companyId;
+    this.companyName = companyName;
+    this.userName = userName;
+    this.officeLat = officeLat;
+    this.officeLng = officeLng;
+    if (allowedRadius != null) this.allowedRadius = allowedRadius;
+    if (shiftStartTime != null) this.shiftStartTime = shiftStartTime;
+    if (gracePeriod != null) this.gracePeriod = gracePeriod;
+  }
+
+  /// Clear everything on sign-out.
+  void clear() {
+    uid = null;
+    email = null;
+    role = null;
+    companyId = null;
+    companyName = null;
+    userName = null;
+    officeLat = null;
+    officeLng = null;
+    allowedRadius = 500;
+    shiftStartTime = "09:00";
+    gracePeriod = 15;
+  }
+}

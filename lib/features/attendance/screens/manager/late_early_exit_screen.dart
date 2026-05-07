@@ -1,0 +1,451 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
+
+class LateEarlyExitScreen extends StatefulWidget {
+  const LateEarlyExitScreen({super.key});
+
+  @override
+  State<LateEarlyExitScreen> createState() => _LateEarlyExitScreenState();
+}
+
+class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
+  static const Color _indigo = Color(0xFF6366F1);
+  static const Color _amber = Color(0xFFFFB020);
+  static const Color _rose = Color(0xFFF43F5E);
+  static const Color _slate = Color(0xFF1E293B);
+
+  DateTime _currentDate = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  String get _monthName => DateFormat('MMMM yyyy').format(_currentDate);
+
+  void _previousMonth() => setState(
+      () => _currentDate = DateTime(_currentDate.year, _currentDate.month - 1));
+  void _nextMonth() => setState(
+      () => _currentDate = DateTime(_currentDate.year, _currentDate.month + 1));
+
+  @override
+  Widget build(BuildContext context) {
+    final startOfMonth =
+        DateTime(_currentDate.year, _currentDate.month, 1);
+    final endOfMonth =
+        DateTime(_currentDate.year, _currentDate.month + 1, 0, 23, 59, 59);
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: _slate, size: 20),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        centerTitle: true,
+        title: const Text(
+          'Late & Early Exits',
+          style: TextStyle(
+              color: _slate, fontWeight: FontWeight.w800, fontSize: 18),
+        ),
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirestoreService.companyUsersQuery.snapshots(),
+        builder: (context, usersSnap) {
+          final usersDocs = usersSnap.data?.docs ?? [];
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: FirestoreService.allAttendanceRecordsCol
+                .snapshots(),
+            builder: (context, recordsSnap) {
+              if (recordsSnap.connectionState == ConnectionState.waiting &&
+                  !recordsSnap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final allDocs = recordsSnap.data?.docs ?? [];
+
+              // ── Month filter ──────────────────────────────────
+              final monthRecords = allDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final dateTs = data['date'] as Timestamp?;
+                if (dateTs == null) return false;
+                final date = dateTs.toDate();
+                return !date.isBefore(startOfMonth) &&
+                    !date.isAfter(endOfMonth);
+              }).toList();
+
+
+              // ── Build month log lists ─────────────────────────
+              final List<Map<String, dynamic>> lateLogs = [];
+              final List<Map<String, dynamic>> earlyLogs = [];
+
+              for (final doc in monthRecords) {
+                final data = doc.data() as Map<String, dynamic>;
+                final uid = doc.reference.parent.parent?.id;
+
+                String empName = 'Employee';
+                String designation = '';
+                if (uid != null) {
+                  final match =
+                      usersDocs.where((u) => u.id == uid).toList();
+                  if (match.isNotEmpty) {
+                    final ud =
+                        match.first.data() as Map<String, dynamic>;
+                    empName = ud['name'] ?? 'Employee';
+                    designation = ud['designation'] ?? '';
+                  }
+                }
+
+                final checkInTs = data['checkIn'] as Timestamp?;
+                final checkOutTs = data['checkOut'] as Timestamp?;
+                final dateTs = data['date'] as Timestamp?;
+                if (dateTs == null) continue;
+                final date = dateTs.toDate();
+
+                if (checkInTs != null) {
+                  final ci = checkInTs.toDate();
+                  if (ci.isAfter(
+                      DateTime(ci.year, ci.month, ci.day, 9, 30))) {
+                    lateLogs.add({
+                      'name': empName,
+                      'designation': designation,
+                      'date': date,
+                      'checkIn': ci,
+                      'type': 'LATE ARRIVAL',
+                    });
+                  }
+                }
+
+                if (checkOutTs != null) {
+                  final co = checkOutTs.toDate();
+                  if (co.isBefore(
+                      DateTime(co.year, co.month, co.day, 18, 0))) {
+                    earlyLogs.add({
+                      'name': empName,
+                      'designation': designation,
+                      'date': date,
+                      'checkOut': co,
+                      'type': 'EARLY EXIT',
+                    });
+                  }
+                }
+              }
+
+              final allLogs = [...lateLogs, ...earlyLogs];
+              allLogs.sort((a, b) => (b['date'] as DateTime)
+                  .compareTo(a['date'] as DateTime));
+
+              // ── UI ────────────────────────────────────────────
+              return SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildMonthSelector(),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _statCard(
+                              'LATE ARRIVALS',
+                              '${lateLogs.length}'.padLeft(2, '0'),
+                              Icons.access_time_rounded,
+                              _amber),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: _statCard(
+                              'EARLY EXITS',
+                              '${earlyLogs.length}'.padLeft(2, '0'),
+                              Icons.logout_rounded,
+                              _rose),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    const SizedBox(height: 24),
+                    const Text(
+                      'Detailed Logs',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                          color: _slate),
+                    ),
+                    const SizedBox(height: 14),
+                    if (allLogs.isEmpty)
+                      _buildEmpty()
+                    else
+                      ...allLogs.map((log) => _logCard(log)),
+                    const SizedBox(height: 80),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Month Selector ────────────────────────────────────────────────────────
+  Widget _buildMonthSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded,
+                color: _indigo, size: 20),
+            onPressed: _previousMonth,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          Text(_monthName,
+              style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: _slate)),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded,
+                color: _indigo, size: 20),
+            onPressed: _nextMonth,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Stat Card ─────────────────────────────────────────────────────────────
+  Widget _statCard(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                  color: color, borderRadius: BorderRadius.circular(4)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(label,
+                            style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.grey[500],
+                                letterSpacing: 0.5)),
+                      ),
+                      const Spacer(),
+                      Icon(icon, size: 14, color: color),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(value,
+                      style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          color: _slate,
+                          height: 1)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Log Card ──────────────────────────────────────────────────────────────
+  Widget _logCard(Map<String, dynamic> log) {
+    final bool isLate = log['type'] == 'LATE ARRIVAL';
+    final String name = log['name'] ?? 'Employee';
+    final DateTime date = log['date'];
+    final Color badgeColor = isLate ? _amber : _rose;
+
+    final String actualTime = isLate
+        ? DateFormat('hh:mm a').format(log['checkIn'] as DateTime)
+        : DateFormat('hh:mm a').format(log['checkOut'] as DateTime);
+    final String expectedTime = isLate ? '09:00 AM' : '06:00 PM';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Avatar
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+                color: badgeColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(14)),
+            alignment: Alignment.center,
+            child: Text(
+              name.isNotEmpty ? name[0].toUpperCase() : '?',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: badgeColor),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Name + badge
+                Row(
+                  mainAxisAlignment:
+                      MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(name,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: _slate),
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: badgeColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text(log['type'],
+                          style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              color: badgeColor,
+                              letterSpacing: 0.3)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                // Date + day name
+                Row(
+                  children: [
+                    Text(
+                      DateFormat('MMMM dd, yyyy').format(date),
+                      style: const TextStyle(
+                          fontSize: 12,
+                          color: _slate,
+                          fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      DateFormat('EEEE').format(date),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[500],
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                // Actual / Expected times
+                Row(
+                  children: [
+                    _timeChip('ACTUAL', actualTime, _slate),
+                    const SizedBox(width: 28),
+                    _timeChip('EXPECTED', expectedTime,
+                        Colors.grey[400]!),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeChip(String label, String time, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: Colors.grey[400],
+                letterSpacing: 0.5)),
+        const SizedBox(height: 2),
+        Text(time,
+            style: TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+      ],
+    );
+  }
+
+  // ── Empty State ───────────────────────────────────────────────────────────
+  Widget _buildEmpty() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 40),
+        child: Column(
+          children: [
+            Icon(Icons.check_circle_outline_rounded,
+                size: 64,
+                color: Colors.green.withOpacity(0.4)),
+            const SizedBox(height: 16),
+            const Text('No Issues Found',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: _slate)),
+            const SizedBox(height: 8),
+            Text(
+              'No late arrivals or early exits this month.',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
