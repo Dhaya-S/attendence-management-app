@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/employee/employee_main_screen.dart';
+import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/widgets/animated_mesh_gradient.dart';
+import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -34,7 +39,163 @@ class _SplashScreenState extends State<SplashScreen>
           curve: const Interval(0.4, 1.0, curve: Curves.easeIn)),
     );
 
-    _controller.forward();
+    _controller.forward().then((_) => _checkAuthAndNavigate());
+  }
+
+  /// After splash animation completes, decide where to go.
+  Future<void> _checkAuthAndNavigate() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    // No logged-in user → show login
+    if (currentUser == null) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+      return;
+    }
+
+    // Reload token to ensure it's still valid
+    try {
+      await currentUser.reload();
+    } catch (_) {
+      // Token invalid / user deleted → go to login
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+      return;
+    }
+
+    final email = currentUser.email?.toLowerCase() ?? '';
+
+    try {
+      // Restore role & companyId from approved_users
+      String? role;
+      String? companyId;
+
+      final approvedDoc =
+          await FirestoreService.approvedUserDoc(email).get();
+      if (approvedDoc.exists && approvedDoc.data() != null) {
+        final d = approvedDoc.data()!;
+        role = (d['role'] as String? ?? 'employee').toLowerCase();
+        companyId = d['companyId'] as String? ?? '';
+      } else {
+        // Fallback: check companies collection for manager
+        final companySearch =
+            await FirestoreService.findCompanyByManagerEmail(email);
+        if (companySearch.docs.isNotEmpty) {
+          role = 'manager';
+          companyId = companySearch.docs.first.id;
+        }
+      }
+
+      if (role == null || companyId == null || companyId.isEmpty) {
+        throw Exception('User record not found.');
+      }
+
+      // Restore company details
+      double? officeLat;
+      double? officeLng;
+      double? allowedRadius;
+      String? companyName;
+      String? shiftStartTime;
+      String? shiftEndTime;
+      int? gracePeriod;
+      int? paidLeavesPerYear;
+
+      final companyDoc =
+          await FirestoreService.companyDoc(companyId).get();
+      if (companyDoc.exists && companyDoc.data() != null) {
+        final d = companyDoc.data()!;
+        final companyStatus =
+            (d['status'] as String? ?? 'pending').trim().toLowerCase();
+        if (companyStatus != 'approved' && companyStatus != 'active') {
+          throw Exception('Company access blocked.');
+        }
+        companyName = d['companyName'] as String?;
+        shiftStartTime = d['shiftStartTime'] as String?;
+        shiftEndTime = d['shiftEndTime'] as String?;
+        gracePeriod = (d['gracePeriod'] as num?)?.toInt();
+        paidLeavesPerYear = (d['paidLeavesPerYear'] as num?)?.toInt();
+        final loc = d['location'] as Map<String, dynamic>?;
+        if (loc != null) {
+          final lat = loc['latitude'];
+          final lng = loc['longitude'];
+          officeLat = lat is String
+              ? double.tryParse(lat)
+              : (lat as num?)?.toDouble();
+          officeLng = lng is String
+              ? double.tryParse(lng)
+              : (lng as num?)?.toDouble();
+        }
+        allowedRadius = (d['allowedRadius'] as num?)?.toDouble();
+      }
+
+      // Restore user name
+      String? userName;
+      try {
+        final userDoc =
+            await FirestoreService.userDocByEmail(email).get();
+        userName = userDoc.data()?['name'] as String?;
+        if (userName == null || userName.trim().isEmpty) {
+          final q = await FirestoreService.usersCol
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            userName = q.docs.first.data()['name'] as String?;
+          }
+        }
+      } catch (_) {
+        userName = currentUser.displayName;
+      }
+
+      // Populate session
+      AppSession().populate(
+        uid: currentUser.uid,
+        email: email,
+        role: role,
+        companyId: companyId,
+        companyName: companyName,
+        officeLat: officeLat,
+        officeLng: officeLng,
+        allowedRadius: allowedRadius,
+        shiftStartTime: shiftStartTime,
+        shiftEndTime: shiftEndTime,
+        gracePeriod: gracePeriod,
+        paidLeavesPerYear: paidLeavesPerYear,
+      );
+      if (userName != null && userName.trim().isNotEmpty) {
+        AppSession().userName = userName;
+      }
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => role == 'manager'
+              ? const ManagerMainScreen()
+              : const EmployeeMainScreen(),
+        ),
+      );
+    } catch (e) {
+      debugPrint('Auto-login failed: $e');
+      // Session restore failed — sign out and show login
+      await FirebaseAuth.instance.signOut();
+      AppSession().clear();
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
+      }
+    }
   }
 
   @override
@@ -52,8 +213,11 @@ class _SplashScreenState extends State<SplashScreen>
             scale: _scaleAnimation,
             child: FadeTransition(
               opacity: _fadeAnimation,
-              child: Column(
-                children: [
+              child: SizedBox.expand(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                   const Spacer(flex: 3),
 
                   // 🏢 Enterprise Identity Icon with Premium Glow
@@ -117,54 +281,13 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const Spacer(flex: 4),
 
-                  // ▶ Primary CTA Container
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary.withOpacity(0.3),
-                            blurRadius: 15,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const LoginScreen(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          minimumSize: const Size(double.infinity, 60),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              "GET STARTED",
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            Icon(Icons.arrow_forward_rounded, size: 20),
-                          ],
-                        ),
-                      ),
+                  // Loading indicator while auth check runs
+                  const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primary),
                     ),
                   ),
 
@@ -188,6 +311,7 @@ class _SplashScreenState extends State<SplashScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

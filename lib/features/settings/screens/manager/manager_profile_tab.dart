@@ -117,8 +117,6 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
             const SizedBox(height: 24),
             _buildQuickActions(context),
             const SizedBox(height: 24),
-            _buildManagementPerformance(context),
-            const SizedBox(height: 24),
             _buildDownloadSection(context),
             const SizedBox(height: 24),
             _buildAccountSettings(context),
@@ -348,127 +346,6 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
     );
   }
 
-  Widget _buildManagementPerformance(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'MANAGEMENT PERFORMANCE',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textHint,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            boxShadow: AppTheme.softShadow,
-          ),
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _usersStream,
-            builder: (context, usersSnapshot) {
-              final employeeDocs = usersSnapshot.data?.docs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                return (data['role'] ?? 'employee').toString().toLowerCase() == 'employee';
-              }).toList() ?? [];
-              
-              final totalEmp = employeeDocs.length;
-              final employeeIds = employeeDocs.map((d) => d.id).toList();
-
-              return StreamBuilder<QuerySnapshot>(
-                stream: _leaveRequestsStream,
-                builder: (context, leaveSnapshot) {
-                  double avgApprovalSpeed = 0.0;
-                  if (leaveSnapshot.hasData) {
-                    int totalReviewed = 0;
-                    double totalSeconds = 0;
-                    for (var doc in leaveSnapshot.data!.docs) {
-                      final data = doc.data() as Map<String, dynamic>;
-                      final reqDate = data['requestDate'] as Timestamp?;
-                      final revDate = data['reviewedAt'] as Timestamp?;
-                      if (reqDate != null && revDate != null) {
-                        totalReviewed++;
-                        totalSeconds += revDate.toDate().difference(reqDate.toDate()).inSeconds.toDouble();
-                      }
-                    }
-                    if (totalReviewed > 0) {
-                      avgApprovalSpeed = (totalSeconds / totalReviewed) / 3600.0; // In hours
-                    }
-                  }
-
-                  String approvalSpeedStr = avgApprovalSpeed > 0 
-                      ? '${avgApprovalSpeed.toStringAsFixed(1)} hrs' 
-                      : '-- hrs';
-                  double approvalPercent = (1.0 - (avgApprovalSpeed / 24.0)).clamp(0.0, 1.0); // 24h as baseline for 100%
-
-                  return StreamBuilder<QuerySnapshot>(
-                    stream: _attendanceRecordsStream,
-                    builder: (context, attSnapshot) {
-                      int present = 0;
-                      int totalWorkTime = 0;
-                      int checkoutCount = 0;
-
-                      if (attSnapshot.hasData) {
-                        final lowerCaseEmployeeIds = employeeIds.map((id) => id.toString().toLowerCase()).toSet();
-                        for (var doc in attSnapshot.data!.docs) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final rawUserId = data['userId'] ?? data['email'] ?? data['uid'] ?? doc.reference.parent.parent?.id;
-                          if (rawUserId == null) continue;
-                          
-                          final userId = rawUserId.toString().toLowerCase();
-                          
-                          // Only count if they are a known employee
-                          if (lowerCaseEmployeeIds.contains(userId)) {
-                            final checkInVal = data['checkIn'];
-                            if (checkInVal != null && checkInVal is Timestamp) {
-                              present++;
-                              final checkOutVal = data['checkOut'];
-                              if (checkOutVal != null && checkOutVal is Timestamp) {
-                                checkoutCount++;
-                                final cIn = checkInVal.toDate();
-                                final cOut = checkOutVal.toDate();
-                                totalWorkTime += cOut.difference(cIn).inMinutes;
-                              }
-                            }
-                          }
-                        }
-                      }
-
-                      final attRate = totalEmp > 0 ? (present / totalEmp) : 0.0;
-                      final attRateStr = '${(attRate * 100).round()}%';
-
-                      final avgMins = checkoutCount > 0 ? (totalWorkTime / checkoutCount) : 0;
-                      final avgHrs = avgMins / 60.0;
-                      final avgHrsStr = '${avgHrs.toStringAsFixed(1)}h';
-                      final avgPercent = avgHrs / 9.0;
-
-                      return Column(
-                        children: [
-                          _performanceRow('Attendance Rate', attRateStr,
-                              attRate.clamp(0.0, 1.0), AppTheme.primary),
-                          const SizedBox(height: 16),
-                          _performanceRow('Approval Speed', approvalSpeedStr,
-                              approvalPercent, const Color(0xFF8B93FF)),
-                          const SizedBox(height: 16),
-                          _performanceRow('Avg Work Hours', avgHrsStr,
-                              avgPercent.clamp(0.0, 1.0), AppTheme.warning),
-                        ],
-                      );
-                    },
-                  );
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildDownloadSection(BuildContext context) {
     return Column(
@@ -716,44 +593,6 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
     }
   }
 
-  Widget _performanceRow(
-      String label, String value, double percent, Color color) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.textPrimary,
-              ),
-            ),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: percent,
-            backgroundColor: AppTheme.surface,
-            valueColor: AlwaysStoppedAnimation<Color>(color),
-            minHeight: 6,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildAccountSettings(BuildContext context) {
     return Column(
@@ -900,6 +739,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                   onPressed: () async {
                     Navigator.pop(context);
                     await FirebaseAuth.instance.signOut();
+                    AppSession().clear();
                     if (context.mounted) {
                       Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(builder: (_) => const LoginScreen()),

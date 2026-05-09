@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/screens/common/password_recovery_flow.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -341,6 +342,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Icons.location_on_outlined,
                         maxLines: 3),
                     const SizedBox(height: 12),
+                    OutlinedButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const PasswordRecoveryFlow(isChangePassword: true),
+                          ),
+                        );
+                      },
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 56),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: AppTheme.buttonRadius),
+                        side: const BorderSide(color: AppTheme.primary, width: 1.5),
+                      ),
+                      child: const Text(
+                        'CHANGE PASSWORD',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.5,
+                            color: AppTheme.primary),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: _isSaving ? null : _saveProfile,
                       style: ElevatedButton.styleFrom(

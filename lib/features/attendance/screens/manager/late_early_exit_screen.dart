@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class LateEarlyExitScreen extends StatefulWidget {
   const LateEarlyExitScreen({super.key});
@@ -109,8 +110,11 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
                 if (checkInTs != null) {
                   final ci = checkInTs.toDate();
-                  if (ci.isAfter(
-                      DateTime(ci.year, ci.month, ci.day, 9, 30))) {
+                  final sParts = AppSession().shiftStartTime.split(':');
+                  final lateThreshold = DateTime(ci.year, ci.month, ci.day,
+                      int.parse(sParts[0]), int.parse(sParts[1]))
+                      .add(Duration(minutes: AppSession().gracePeriod));
+                  if (ci.isAfter(lateThreshold)) {
                     lateLogs.add({
                       'name': empName,
                       'designation': designation,
@@ -123,8 +127,10 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
                 if (checkOutTs != null) {
                   final co = checkOutTs.toDate();
-                  if (co.isBefore(
-                      DateTime(co.year, co.month, co.day, 18, 0))) {
+                  final eParts = AppSession().shiftEndTime.split(':');
+                  final endThreshold = DateTime(co.year, co.month, co.day,
+                      int.parse(eParts[0]), int.parse(eParts[1]));
+                  if (co.isBefore(endThreshold)) {
                     earlyLogs.add({
                       'name': empName,
                       'designation': designation,
@@ -297,7 +303,9 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
     final String actualTime = isLate
         ? DateFormat('hh:mm a').format(log['checkIn'] as DateTime)
         : DateFormat('hh:mm a').format(log['checkOut'] as DateTime);
-    final String expectedTime = isLate ? '09:00 AM' : '06:00 PM';
+    final String expectedTime = isLate
+        ? _formatShiftTime(AppSession().shiftStartTime)
+        : _formatShiftTime(AppSession().shiftEndTime);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -420,6 +428,15 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                 fontSize: 13, fontWeight: FontWeight.w800, color: color)),
       ],
     );
+  }
+
+  // ── Shift Time Formatter ──────────────────────────────────────────────────
+  String _formatShiftTime(String hhmm) {
+    final parts = hhmm.split(':');
+    final hour = int.tryParse(parts[0]) ?? 0;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    final dt = DateTime(2000, 1, 1, hour, minute);
+    return DateFormat('hh:mm a').format(dt);
   }
 
   // ── Empty State ───────────────────────────────────────────────────────────

@@ -650,30 +650,31 @@ class _LateAdjustmentReviewScreenState
       final data = doc.data() as Map<String, dynamic>;
       
       // Fallback for userId if missing in fields
-      String? userId = data['userId'] as String?;
+      String? employeeEmail = data['userEmail'] as String?;
       final pathParts = doc.reference.path.split('/');
-      if (userId == null && pathParts.length >= 2) {
-        userId = pathParts[1];
+      if (employeeEmail == null && pathParts.length >= 4 && pathParts[2] == 'users') {
+        employeeEmail = pathParts[3];
       }
+      final String employeeIdForNotif = (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
       
       // Fallback for recordDate if missing in fields
       if (recordDate == null || recordDate.isEmpty) {
-        if (pathParts.length >= 4) {
-          recordDate = pathParts[3];
+        if (pathParts.length >= 6) {
+          recordDate = pathParts[5];
         } else {
           recordDate = doc.id;
         }
       }
 
-      if (userId == null) {
-        throw 'Could not identify employee ID from this record.';
+      if (employeeEmail == null) {
+        throw 'Could not identify employee email from this record.';
       }
 
       // Fetch the employee's name for consistent notifications
       String userName = data['userName'] as String? ?? 'Employee';
       if (userName == 'Employee') {
         final employeeDoc = await FirestoreService.usersCol
-            .where('uid', isEqualTo: userId).limit(1).get();
+            .where('uid', isEqualTo: employeeIdForNotif).limit(1).get();
         if (employeeDoc.docs.isNotEmpty) {
           userName = employeeDoc.docs.first.data()?['name'] ?? userName;
         }
@@ -721,9 +722,9 @@ class _LateAdjustmentReviewScreenState
       });
 
       // Notify the employee
-      await FirestoreService.userNotificationsCol(userId).add({
+      await FirestoreService.userNotificationsCol(employeeEmail!).add({
         'companyId': FirestoreService.companyId,
-        'userId': userId,
+        'userId': employeeIdForNotif,
         'title': 'Adjustment Approved ✅',
         'body':
             'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
@@ -759,29 +760,31 @@ class _LateAdjustmentReviewScreenState
       final data = doc.data() as Map<String, dynamic>;
       
       // Fallback for userId if missing in fields
-      String? userId = data['userId'] as String?;
+      // Identify the employee (email is used as document ID in /users/{email})
+      String? employeeEmail = data['userEmail'] as String?;
       final pathParts = doc.reference.path.split('/');
-      if (userId == null && pathParts.length >= 2) {
-        userId = pathParts[1];
+      if (employeeEmail == null && pathParts.length >= 4 && pathParts[2] == 'users') {
+        employeeEmail = pathParts[3];
       }
+      final String employeeIdForNotif = (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
 
       // Fallback for recordDate if missing in fields
       String? recordDate = data['recordDate'] as String?;
       if (recordDate == null || recordDate.isEmpty) {
-        if (pathParts.length >= 4) {
-          recordDate = pathParts[3];
+        if (pathParts.length >= 6) {
+          recordDate = pathParts[5];
         } else {
           recordDate = doc.id;
         }
       }
 
-      if (userId == null) throw 'Could not identify employee.';
+      if (employeeEmail == null) throw 'Could not identify employee.';
 
       // Get user name if missing
       String userName = data['userName'] as String? ?? 'Employee';
       if (userName == 'Employee') {
         final employeeDoc = await FirestoreService.usersCol
-            .where('uid', isEqualTo: userId).limit(1).get();
+            .where('uid', isEqualTo: employeeIdForNotif).limit(1).get();
         if (employeeDoc.docs.isNotEmpty) {
           userName = employeeDoc.docs.first.data()?['name'] ?? userName;
         }
@@ -796,9 +799,9 @@ class _LateAdjustmentReviewScreenState
       });
 
       // Notify the employee
-      await FirestoreService.userNotificationsCol(userId).add({
+      await FirestoreService.userNotificationsCol(employeeEmail!).add({
         'companyId': FirestoreService.companyId,
-        'userId': userId,
+        'userId': employeeIdForNotif,
         'title': 'Adjustment Request Denied ❌',
         'body': note.isNotEmpty
             ? 'Your adjustment request for $recordDate was denied: "$note"'

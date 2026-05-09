@@ -141,7 +141,9 @@ class _LoginScreenState extends State<LoginScreen>
       String? companyName;
       String? fetchedUserName;
       String? shiftStartTime;
+      String? shiftEndTime;
       int? gracePeriod;
+      int? paidLeavesPerYear;
 
       try {
         final companyDoc =
@@ -162,7 +164,9 @@ class _LoginScreenState extends State<LoginScreen>
 
           companyName = d['companyName'] as String?;
           shiftStartTime = d['shiftStartTime'] as String?;
+          shiftEndTime = d['shiftEndTime'] as String?;
           gracePeriod = (d['gracePeriod'] as num?)?.toInt();
+          paidLeavesPerYear = (d['paidLeavesPerYear'] as num?)?.toInt();
           final loc = d['location'] as Map<String, dynamic>?;
           if (loc != null) {
             // Support both Number and String formats for coordinates
@@ -192,7 +196,9 @@ class _LoginScreenState extends State<LoginScreen>
         officeLng: officeLng,
         allowedRadius: allowedRadius,
         shiftStartTime: shiftStartTime,
+        shiftEndTime: shiftEndTime,
         gracePeriod: gracePeriod,
+        paidLeavesPerYear: paidLeavesPerYear,
       );
 
       // ── Step 5: Fetch user name for session ─────────────────────────────
@@ -289,14 +295,19 @@ class _LoginScreenState extends State<LoginScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: false, // Prevents DDC Web engine ViewInsets assertions
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
           child: SlideTransition(
             position: _slideAnim,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.only(
+                left: 28,
+                right: 28,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
               child: Column(
                 children: [
                   const SizedBox(height: 60),

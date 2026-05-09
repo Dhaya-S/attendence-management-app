@@ -259,7 +259,13 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       }
     }
     double avgHours = (presentCount > 0) ? totalHours / presentCount : 0.0;
-    double progress = (avgHours / 8.0).clamp(0.0, 1.0);
+    final sParts = AppSession().shiftStartTime.split(':');
+    final eParts = AppSession().shiftEndTime.split(':');
+    final startH = int.parse(sParts[0]) + int.parse(sParts[1]) / 60.0;
+    final endH = int.parse(eParts[0]) + int.parse(eParts[1]) / 60.0;
+    final shiftHours = (endH - startH).clamp(1.0, 24.0);
+    double progress = (avgHours / shiftHours).clamp(0.0, 1.0);
+    final targetLabel = '${shiftHours.toStringAsFixed(1)}H';
 
     return Container(
       padding: const EdgeInsets.all(28),
@@ -279,8 +285,8 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                 Text('${avgHours.toStringAsFixed(1)}h', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: _slate, letterSpacing: -1)),
                 const SizedBox(height: 8),
                 Text(
-                  (avgHours >= 8.0) ? 'ON TRACK (TARGET 8.0H)' : 'BELOW TARGET (TARGET 8.0H)',
-                  style: TextStyle(fontSize: 11, color: (avgHours >= 8.0) ? _teal : _rose, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                  (avgHours >= shiftHours) ? 'ON TRACK (TARGET ${targetLabel})' : 'BELOW TARGET (TARGET ${targetLabel})',
+                  style: TextStyle(fontSize: 11, color: (avgHours >= shiftHours) ? _teal : _rose, fontWeight: FontWeight.w800, letterSpacing: 0.5),
                 ),
               ],
             ),
@@ -348,9 +354,11 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       final checkOutTs = data['checkOut'] as Timestamp?;
       if (checkOutTs != null) {
         final checkOut = checkOutTs.toDate();
-        final targetOut = DateTime(checkOut.year, checkOut.month, checkOut.day, 18, 0);
+        final eParts = AppSession().shiftEndTime.split(':');
+        final targetOut = DateTime(checkOut.year, checkOut.month, checkOut.day,
+            int.parse(eParts[0]), int.parse(eParts[1]));
         if (checkOut.isAfter(targetOut)) {
-          userScore += 5.0; 
+          userScore += 5.0;
         }
       }
       scores[uid] = userScore;
@@ -641,8 +649,13 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       
       if (checkInTs != null && checkOutTs != null) {
         final hours = checkOutTs.toDate().difference(checkInTs.toDate()).inMinutes / 60.0;
-        if (hours > 9.0) {
-          employeeOT[employeeId] = (employeeOT[employeeId] ?? 0.0) + (hours - 9.0);
+        final eParts = AppSession().shiftEndTime.split(':');
+        final sParts = AppSession().shiftStartTime.split(':');
+        final endH = int.parse(eParts[0]) + int.parse(eParts[1]) / 60.0;
+        final startH = int.parse(sParts[0]) + int.parse(sParts[1]) / 60.0;
+        final standardHours = endH - startH;
+        if (hours > standardHours) {
+          employeeOT[employeeId] = (employeeOT[employeeId] ?? 0.0) + (hours - standardHours);
           
           // Seed lookup from record data if not already present
           if (!userLookup.containsKey(employeeId) && data['userName'] != null) {

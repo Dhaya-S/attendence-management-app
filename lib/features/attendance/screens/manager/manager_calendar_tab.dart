@@ -688,7 +688,6 @@ class _CalendarActionSheet extends StatefulWidget {
 
 class _CalendarActionSheetState extends State<_CalendarActionSheet> {
   String _selectedType = 'leave'; // 'leave' or 'wfh'
-  bool _isFullDay = true;
   final TextEditingController _reasonController = TextEditingController();
 
   @override
@@ -779,24 +778,7 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
             isSelected: _selectedType == 'wfh',
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Leave type', style: AppTheme.h3.copyWith(fontSize: 14)),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    _buildTypeToggle('Full Day', true),
-                    _buildTypeToggle('Half Day', false),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          // Removed Half Day option as per user request
           const SizedBox(height: 24),
           TextField(
             controller: _reasonController,
@@ -819,7 +801,7 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
             child: ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                widget.onApply(_selectedType, _isFullDay, _reasonController.text);
+                widget.onApply(_selectedType, true, _reasonController.text);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF5B67F5),
@@ -900,25 +882,4 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
     );
   }
 
-  Widget _buildTypeToggle(String label, bool value) {
-    bool isSelected = _isFullDay == value;
-    return GestureDetector(
-      onTap: () => setState(() => _isFullDay = value),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF5B67F5) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.grey[600],
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
 }

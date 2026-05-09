@@ -381,17 +381,11 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                       child: const Icon(Icons.person, color: Colors.white, size: 24),
                     ),
                   )
-                : Image.asset(
-                    'assets/avatar.png',
+                : Container(
                     width: 44,
                     height: 44,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 44,
-                      height: 44,
-                      color: AppTheme.primaryLight,
-                      child: const Icon(Icons.person, color: Colors.white, size: 24),
-                    ),
+                    color: AppTheme.primaryLight,
+                    child: const Icon(Icons.person, color: Colors.white, size: 24),
                   ),
           ),
         );
@@ -623,7 +617,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
             const SizedBox(height: 10),
             if (currentRemark.isEmpty)
               GestureDetector(
-                onTap: () => _showRemarkDialog(currentRemark),
+                onTap: () => _showRemarkDialog(currentStatus: data?['status']),
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -896,8 +890,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     );
   }
 
-  void _showRemarkDialog(String currentRemark) {
-    final controller = TextEditingController(text: currentRemark);
+  void _showRemarkDialog({String? currentStatus}) {
+    final controller = TextEditingController();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -965,8 +959,10 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                 'remarkStatus': 'pending',
                 'requestTime': FieldValue.serverTimestamp(),
                 'userId': user?.uid,
+                'userEmail': user?.email,
                 'userName': userName,
                 'recordDate': docId,
+                'status': currentStatus, // Keep existing status
               }, SetOptions(merge: true));
               
               if (mounted) {

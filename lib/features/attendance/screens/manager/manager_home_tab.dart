@@ -170,7 +170,12 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                     if (checkInTs != null) {
                       final checkIn = checkInTs.toDate();
                       final remarkStatus = data['remarkStatus'] as String?;
-                      final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+                      
+                      final sParts = AppSession().shiftStartTime.split(':');
+                      final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
+                          int.parse(sParts[0]), int.parse(sParts[1]))
+                          .add(Duration(minutes: AppSession().gracePeriod));
+
                       // Don't mark WFH as late unless specified, or just keep original logic
                       if (checkIn.isAfter(lateThreshold) && remarkStatus != 'approved' && workMode != 'wfh') {
                         lateCount++;
@@ -452,7 +457,12 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                             if (checkInTs != null) {
                               final checkIn = checkInTs.toDate();
                               final remarkStatus = data['remarkStatus'] as String?;
-                              final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+                              
+                              final sParts = AppSession().shiftStartTime.split(':');
+                              final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
+                                  int.parse(sParts[0]), int.parse(sParts[1]))
+                                  .add(Duration(minutes: AppSession().gracePeriod));
+
                               if (checkIn.isAfter(lateThreshold) && remarkStatus != 'approved') lateCount++;
                             }
                           }

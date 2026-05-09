@@ -20,6 +20,20 @@ class AttendanceApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Attendance Management',
+      builder: (context, child) {
+        final data = MediaQuery.of(context);
+        return MediaQuery(
+          data: data.copyWith(
+            viewInsets: EdgeInsets.fromLTRB(
+              data.viewInsets.left.clamp(0.0, double.infinity),
+              data.viewInsets.top.clamp(0.0, double.infinity),
+              data.viewInsets.right.clamp(0.0, double.infinity),
+              data.viewInsets.bottom.clamp(0.0, double.infinity),
+            ),
+          ),
+          child: child!,
+        );
+      },
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(

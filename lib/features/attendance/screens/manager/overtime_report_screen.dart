@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 
 class OvertimeReportScreen extends StatefulWidget {
@@ -51,8 +52,12 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
     final duration = checkOut.toDate().difference(checkIn.toDate());
     final hoursWorked = duration.inMinutes / 60.0;
     
-    // Standard working hours is 9 (09:30 to 18:30)
-    const double standardHours = 9.0;
+    // Dynamic standard hours from company shift settings
+    final sParts = AppSession().shiftStartTime.split(':');
+    final eParts = AppSession().shiftEndTime.split(':');
+    final startH = int.parse(sParts[0]) + int.parse(sParts[1]) / 60.0;
+    final endH = int.parse(eParts[0]) + int.parse(eParts[1]) / 60.0;
+    final standardHours = endH - startH;
     
     if (hoursWorked > standardHours) {
       return hoursWorked - standardHours;

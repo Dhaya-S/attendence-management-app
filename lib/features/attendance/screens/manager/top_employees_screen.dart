@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/widgets/live_attendance_builder.dart';
 
 class TopEmployeesScreen extends StatefulWidget {
@@ -127,18 +128,23 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                     
                     if (checkInTs != null) {
                       final checkIn = checkInTs.toDate();
-                      final targetIn = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+                      final sParts = AppSession().shiftStartTime.split(':');
+                      final targetIn = DateTime(checkIn.year, checkIn.month, checkIn.day,
+                          int.parse(sParts[0]), int.parse(sParts[1]));
+                      final lateBuffer = targetIn.add(Duration(minutes: AppSession().gracePeriod));
                       if (checkIn.isBefore(targetIn)) {
                         scores[email] = scores[email]! + 5.0;
                         earlyIns[email] = (earlyIns[email] ?? 0) + 1;
-                      } else if (checkIn.isAfter(targetIn.add(const Duration(minutes: 5)))) {
+                      } else if (checkIn.isAfter(lateBuffer)) {
                         scores[email] = scores[email]! - 2.0;
                       }
                       
                       if (checkOutTs != null) {
                         final checkOut = checkOutTs.toDate();
                         workHours[email] = (workHours[email] ?? 0.0) + (checkOut.difference(checkIn).inMinutes / 60.0);
-                        final targetOut = DateTime(checkOut.year, checkOut.month, checkOut.day, 18, 0);
+                        final eParts = AppSession().shiftEndTime.split(':');
+                        final targetOut = DateTime(checkOut.year, checkOut.month, checkOut.day,
+                            int.parse(eParts[0]), int.parse(eParts[1]));
                         if (checkOut.isAfter(targetOut)) scores[email] = scores[email]! + 5.0;
                       }
                     }

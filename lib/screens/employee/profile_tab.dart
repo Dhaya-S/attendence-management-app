@@ -723,6 +723,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                   onPressed: () async {
                     Navigator.pop(context);
                     await FirebaseAuth.instance.signOut();
+                    AppSession().clear();
                     if (mounted) {
                       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
                     }
