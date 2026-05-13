@@ -43,18 +43,18 @@ class AppTheme {
   static const Color leaveStatus = Color(0xFFEF4444);
   static const Color absentStatus = Color(0xFF6B7280);
 
-  // ─── Border Radius (Rounded UI: 16–24) ────────────────────────────────
-  static const double radiusXL = 24.0;
-  static const double radiusLG = 20.0;
-  static const double radiusMD = 16.0;
-  static const double radiusSM = 12.0;
-  static const double radiusXS = 8.0;
+  // ─── Border Radius (Clean, professional) ──────────────────────────────
+  static const double radiusXL = 16.0;
+  static const double radiusLG = 14.0;
+  static const double radiusMD = 12.0;
+  static const double radiusSM = 10.0;
+  static const double radiusXS = 6.0;
 
   // Aliases for backward compat
-  static const double radiusCard = 20.0;
-  static const double radiusButton = 16.0;
-  static const double radiusInput = 14.0;
-  static const double radiusSmall = 8.0;
+  static const double radiusCard = 16.0;
+  static const double radiusButton = 12.0;
+  static const double radiusInput = 10.0;
+  static const double radiusSmall = 6.0;
 
   static BorderRadius get cardRadius => BorderRadius.circular(radiusCard);
   static BorderRadius get buttonRadius => BorderRadius.circular(radiusButton);
@@ -63,9 +63,9 @@ class AppTheme {
   static BorderRadius get xlRadius => BorderRadius.circular(radiusXL);
 
   // ─── Padding ──────────────────────────────────────────────────────────
-  static const double paddingScreen = 20;
-  static const double paddingCard = 16;
-  static const double paddingCardLarge = 20;
+  static const double paddingScreen = 16;
+  static const double paddingCard = 14;
+  static const double paddingCardLarge = 16;
 
   static const EdgeInsets screenPadding = EdgeInsets.all(paddingScreen);
   static const EdgeInsets cardPadding = EdgeInsets.all(paddingCard);
@@ -83,13 +83,7 @@ class AppTheme {
     return BoxDecoration(
       color: color ?? cardBackground,
       borderRadius: cardRadius,
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ],
+      border: Border.all(color: divider.withOpacity(0.5), width: 1),
     );
   }
 
@@ -100,64 +94,53 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
-  // ─── Shadows ──────────────────────────────────────────────────────────
-  static List<BoxShadow> get softShadow => [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.06),
-          blurRadius: 16,
-          offset: const Offset(0, 4),
-        ),
-      ];
+  // ─── Shadows (disabled for clean flat look) ──────────────────────────
+  static List<BoxShadow> get softShadow => [];
+  static List<BoxShadow> get mediumShadow => [];
 
-  static List<BoxShadow> get mediumShadow => [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.1),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-        ),
-      ];
-
-  // ─── Typography (Premium SaaS) ────────────────────────────────────────
-  static TextStyle get h1 => GoogleFonts.outfit(
-        fontSize: 24,
-        fontWeight: FontWeight.w800,
-        color: textPrimary,
-      );
-
-  static TextStyle get h2 => GoogleFonts.outfit(
-        fontSize: 20,
+  // ─── Typography (Clean, mobile-optimized) ─────────────────────────────
+  static TextStyle get h1 => GoogleFonts.inter(
+        fontSize: 22,
         fontWeight: FontWeight.w700,
         color: textPrimary,
+        letterSpacing: -0.3,
       );
 
-  static TextStyle get h3 => GoogleFonts.outfit(
+  static TextStyle get h2 => GoogleFonts.inter(
         fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: textPrimary,
+        letterSpacing: -0.2,
+      );
+
+  static TextStyle get h3 => GoogleFonts.inter(
+        fontSize: 16,
         fontWeight: FontWeight.w600,
         color: textPrimary,
       );
 
   static TextStyle get bodyLarge => GoogleFonts.inter(
-        fontSize: 16,
-        fontWeight: FontWeight.w500,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
         color: textSecondary,
       );
 
   static TextStyle get bodyMedium => GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
         color: textSecondary,
       );
 
   static TextStyle get bodySmall => GoogleFonts.inter(
         fontSize: 12,
-        fontWeight: FontWeight.w500,
+        fontWeight: FontWeight.w400,
         color: textMuted,
       );
 
-  static TextStyle get label => GoogleFonts.outfit(
-        fontSize: 12,
-        fontWeight: FontWeight.w700,
+  static TextStyle get label => GoogleFonts.inter(
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
         color: textMuted,
-        letterSpacing: 0.5,
+        letterSpacing: 0.3,
       );
 }

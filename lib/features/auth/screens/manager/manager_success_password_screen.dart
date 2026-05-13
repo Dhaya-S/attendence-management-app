@@ -30,11 +30,11 @@ class ManagerSuccessPasswordScreen extends StatelessWidget {
                 child: Center(
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      boxShadow: AppTheme.softShadow,
+                      border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                     ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -45,13 +45,6 @@ class ManagerSuccessPasswordScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: AppTheme.primary,
                             shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: AppTheme.primary.withOpacity(0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
                           ),
                           child: const Icon(Icons.check_rounded,
                               color: Colors.white, size: 40),
@@ -61,7 +54,7 @@ class ManagerSuccessPasswordScreen extends StatelessWidget {
                           'Success!',
                           style: TextStyle(
                             fontSize: 28,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                             letterSpacing: -0.5,
                           ),
@@ -93,7 +86,7 @@ class ManagerSuccessPasswordScreen extends StatelessWidget {
                                 'SECURITY IDENTITY VERIFIED',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w600,
                                   color: AppTheme.primary,
                                   letterSpacing: 0.5,
                                 ),

@@ -387,7 +387,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
                       'QUICK SELECT',
                       style: TextStyle(
                           fontSize: 10,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: AppTheme.textHint,
                           letterSpacing: 0.8),
                     ),
@@ -412,7 +412,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
                               color: isSelected
                                   ? AppTheme.primary
                                   : AppTheme.surface,
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: isSelected
                                     ? AppTheme.primary
@@ -477,7 +477,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       title.toUpperCase(),
       style: const TextStyle(
         fontSize: 12,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
         color: AppTheme.textHint,
         letterSpacing: 1.2,
       ),
@@ -489,13 +489,8 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 20,
-              offset: const Offset(0, 10)),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: child,
     );

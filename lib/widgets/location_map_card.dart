@@ -123,14 +123,7 @@ class _LocationMapCardState extends State<LocationMapCard> {
       height: widget.height ?? double.infinity,
       width: double.infinity,
       decoration: widget.height == null ? null : BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.height == null ? 0 : 20),

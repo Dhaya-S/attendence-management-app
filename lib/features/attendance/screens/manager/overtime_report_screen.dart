@@ -81,7 +81,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
         ),
         title: const Text(
           'Monthly Overtime',
-          style: TextStyle(color: _slate, fontSize: 18, fontWeight: FontWeight.w800),
+          style: TextStyle(color: _slate, fontSize: 18, fontWeight: FontWeight.w600),
         ),
         centerTitle: true,
         actions: [
@@ -177,7 +177,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
                       children: [
                         if (employeeList.isEmpty)
                           const Padding(
-                            padding: EdgeInsets.all(40.0),
+                            padding: EdgeInsets.all(20.0),
                             child: Center(
                               child: Text(
                                 'No overtime recorded for this month.',
@@ -194,7 +194,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
                                 _showAll ? 'All Employees with Overtime' : 'Top Employees in Overtime',
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w600,
                                   color: Color(0xFF6B7280),
                                   letterSpacing: 1.0,
                                 ),
@@ -240,10 +240,8 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -254,7 +252,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
           ),
           Text(
             _monthString,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _slate),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _slate),
           ),
           IconButton(
             icon: const Icon(Icons.chevron_right_rounded, color: _indigo),
@@ -287,7 +285,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [

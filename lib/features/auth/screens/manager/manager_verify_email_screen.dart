@@ -75,7 +75,7 @@ class _ManagerVerifyEmailScreenState extends State<ManagerVerifyEmailScreen> {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      boxShadow: AppTheme.softShadow,
+                      border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +84,7 @@ class _ManagerVerifyEmailScreenState extends State<ManagerVerifyEmailScreen> {
                           'SECURITY STEP',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.primary,
                             letterSpacing: 0.5,
                           ),
@@ -94,7 +94,7 @@ class _ManagerVerifyEmailScreenState extends State<ManagerVerifyEmailScreen> {
                           'Verify Email',
                           style: TextStyle(
                             fontSize: 24,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                             letterSpacing: -0.5,
                           ),

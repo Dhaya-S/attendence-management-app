@@ -210,7 +210,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    boxShadow: AppTheme.softShadow,
+                    border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                   ),
                   child: Column(
                     children: [
@@ -276,7 +276,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                                         'WFH',
                                         style: TextStyle(
                                           fontSize: 9,
-                                          fontWeight: FontWeight.w800,
+                                          fontWeight: FontWeight.w600,
                                           color: Color(0xFF6366F1),
                                         ),
                                       ),
@@ -305,7 +305,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    boxShadow: AppTheme.softShadow,
+                    border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,7 +360,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    boxShadow: AppTheme.softShadow,
+                    border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +387,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    boxShadow: AppTheme.softShadow,
+                    border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,7 +460,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                    boxShadow: AppTheme.softShadow,
+                    border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,7 +520,7 @@ class EmployeeDetailScreen extends StatelessWidget {
             value,
             style: const TextStyle(
               fontSize: 22,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
             ),
           ),
@@ -749,7 +749,8 @@ class EmployeeDetailScreen extends StatelessWidget {
         "Check-Out",
         "Total Hours",
         "Status",
-        "Work Mode"
+        "Work Mode",
+        "Late"
       ]);
 
       // Calculate days in the selected month
@@ -766,18 +767,34 @@ class EmployeeDetailScreen extends StatelessWidget {
         final dateForExcel = "'$dateStr";
 
         if (record != null) {
-          final checkIn = record['checkIn'] as Timestamp?;
-          final checkOut = record['checkOut'] as Timestamp?;
+          final checkInTs = record['checkIn'] as Timestamp?;
+          final checkOutTs = record['checkOut'] as Timestamp?;
+          final workMode = record['workMode'] ?? 'office';
+
+          String lateStatus = '--';
+          if (checkInTs != null) {
+            final checkIn = checkInTs.toDate();
+            final sParts = AppSession().shiftStartTime.split(':');
+            final targetIn = DateTime(checkIn.year, checkIn.month, checkIn.day, 
+                int.parse(sParts[0]), int.parse(sParts[1]));
+            final lateThreshold = targetIn.add(Duration(minutes: AppSession().gracePeriod));
+            if (checkIn.isAfter(lateThreshold)) {
+              lateStatus = 'LATE';
+            } else {
+              lateStatus = 'ON TIME';
+            }
+          }
 
           rows.add([
             dateForExcel,
             name,
             email,
-            checkIn != null ? DateFormat('HH:mm:ss').format(checkIn.toDate()) : '--',
-            checkOut != null ? DateFormat('HH:mm:ss').format(checkOut.toDate()) : '--',
+            checkInTs != null ? DateFormat('HH:mm:ss').format(checkInTs.toDate()) : '--',
+            checkOutTs != null ? DateFormat('HH:mm:ss').format(checkOutTs.toDate()) : '--',
             record['totalHours'] ?? '0.0',
             record['status']?.toString().toUpperCase() ?? 'PRESENT',
-            record['workMode'] ?? 'office'
+            workMode.toString().toUpperCase(),
+            lateStatus
           ]);
         } else {
           rows.add([
@@ -788,6 +805,7 @@ class EmployeeDetailScreen extends StatelessWidget {
             '--',
             '0.0',
             'ABSENT',
+            '--',
             '--'
           ]);
         }

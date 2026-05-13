@@ -48,38 +48,50 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
     final diff = _endDate.difference(_startDate).inDays + 1;
 
     return Container(
-      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.divider, borderRadius: BorderRadius.circular(2)))),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Select Dates', style: AppTheme.h2),
-              IconButton(icon: const Icon(Icons.close_rounded, color: AppTheme.textHint), onPressed: () => Navigator.pop(context)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildRangeDisplay(),
-          const SizedBox(height: 24),
-          _buildMonthHeader(),
-          const SizedBox(height: 16),
-          _buildCalendarGrid(),
-          const SizedBox(height: 32),
-          Text('QUICK SELECT', style: AppTheme.label.copyWith(fontSize: 10)),
-          const SizedBox(height: 12),
-          _buildQuickSelect(),
-          const SizedBox(height: 32),
-          _buildSummary(diff),
-          const SizedBox(height: 24),
-          _buildApplyButton(diff),
-          const SizedBox(height: 16),
-          Center(child: TextButton(onPressed: () => Navigator.pop(context), child: Text('Clear Selection', style: TextStyle(color: AppTheme.textHint, fontSize: 13, fontWeight: FontWeight.bold)))),
-        ],
+      decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.divider, borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Select Dates', style: AppTheme.h2),
+                IconButton(icon: const Icon(Icons.close_rounded, color: AppTheme.textHint), onPressed: () => Navigator.pop(context)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildRangeDisplay(),
+                    const SizedBox(height: 24),
+                    _buildMonthHeader(),
+                    const SizedBox(height: 16),
+                    _buildCalendarGrid(),
+                    const SizedBox(height: 24),
+                    Text('QUICK SELECT', style: AppTheme.label.copyWith(fontSize: 10, letterSpacing: 1.0)),
+                    const SizedBox(height: 12),
+                    _buildQuickSelect(),
+                    const SizedBox(height: 24),
+                    _buildSummary(diff),
+                    const SizedBox(height: 24),
+                    _buildApplyButton(diff),
+                    
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -93,7 +105,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
         children: [
           Icon(Icons.calendar_month_rounded, color: AppTheme.primary, size: 16),
           const SizedBox(width: 8),
-          Text('${DateFormat('MMMM dd').format(_startDate)} — ${DateFormat('MMMM dd, yyyy').format(_endDate)}', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w900, fontSize: 12)),
+          Text('${DateFormat('MMMM dd').format(_startDate)} — ${DateFormat('MMMM dd, yyyy').format(_endDate)}', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700, fontSize: 12)),
         ],
       ),
     );
@@ -121,7 +133,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => Text(d, style: AppTheme.label.copyWith(fontSize: 9, color: AppTheme.textHint, fontWeight: FontWeight.w900))).toList(),
+          children: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => Text(d, style: AppTheme.label.copyWith(fontSize: 9, color: AppTheme.textHint, fontWeight: FontWeight.w700))).toList(),
         ),
         const SizedBox(height: 16),
         ...List.generate(6, (week) {
@@ -143,7 +155,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: (isStart || isEnd) ? AppTheme.primary : (inRange ? AppTheme.primary.withOpacity(0.05) : null),
-                    borderRadius: (isStart && isEnd) ? BorderRadius.circular(20) : (isStart ? const BorderRadius.horizontal(left: Radius.circular(20)) : (isEnd ? const BorderRadius.horizontal(right: Radius.circular(20)) : null)),
+                    borderRadius: (isStart && isEnd) ? BorderRadius.circular(14) : (isStart ? const BorderRadius.horizontal(left: Radius.circular(20)) : (isEnd ? const BorderRadius.horizontal(right: Radius.circular(20)) : null)),
                   ),
                   child: Text('$dayIndex', style: TextStyle(color: (isStart || isEnd) ? Colors.white : AppTheme.textPrimary, fontWeight: (isStart || isEnd || inRange) ? FontWeight.w900 : FontWeight.bold, fontSize: 13)),
                 ),
@@ -175,7 +187,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
       child: Container(
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(20)),
+        decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
         child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
       ),
     );
@@ -184,7 +196,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
   Widget _buildSummary(int days) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: AppTheme.surface, borderRadius: BorderRadius.circular(14)),
       child: Row(
         children: [
           Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), shape: BoxShape.circle), child: Icon(Icons.timer_outlined, color: AppTheme.primary, size: 20)),
@@ -208,16 +220,26 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
     return Container(
       width: double.infinity,
       height: 56,
-      decoration: BoxDecoration(gradient: LinearGradient(colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)]), borderRadius: BorderRadius.circular(28), boxShadow: [BoxShadow(color: Color(0xFF6366F1).withOpacity(0.3), blurRadius: 16, offset: const Offset(0, 8))]),
+      decoration: BoxDecoration(
+        color: AppTheme.primary,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primary.withOpacity(0.3),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: () => Navigator.pop(context, {'start': _startDate, 'end': _endDate}),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(14),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('Apply Dates', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w900)),
+              const Text('Apply Dates', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
               const SizedBox(width: 8),
               const Icon(Icons.check_rounded, color: Colors.white, size: 18),
             ],

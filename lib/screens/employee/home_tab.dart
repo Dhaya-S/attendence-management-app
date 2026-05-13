@@ -153,9 +153,9 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       builder: (context) => ElasticIn(
         child: Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           child: Container(
-            padding: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -276,7 +276,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
                             Flexible(
-                              child: Text(firstName, style: AppTheme.h1.copyWith(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: Colors.black)),
+                              child: Text(firstName, style: AppTheme.h1.copyWith(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.black)),
                             ),
                             if (approvedBy != null) ...[
                               const SizedBox(width: 8),
@@ -306,7 +306,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                             const SizedBox(width: 4),
                             Text(
                               DateFormat('EEEE, MMM d').format(DateTime.now()),
-                              style: AppTheme.label.copyWith(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                              style: AppTheme.label.copyWith(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w600, letterSpacing: 0.5),
                             ),
                           ],
                         ),
@@ -362,12 +362,9 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))
-            ],
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(14),
             child: imgUrl != null && imgUrl.isNotEmpty
                 ? Image.network(
                     imgUrl,
@@ -397,18 +394,15 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
-        ],
       ),
       child: Column(
         children: [
           SizedBox(
             height: 160,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
               child: Stack(
                 children: [
                   LocationMapCard(
@@ -434,7 +428,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Office Location', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w800)),
+                      Text('Office Location', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
                       Row(
                         children: [
@@ -442,7 +436,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                           const SizedBox(width: 8),
                           Text(
                             _currentLocationData?.isWithinRadius == true ? 'INSIDE OFFICE RANGE' : 'OUTSIDE OFFICE RANGE',
-                            style: AppTheme.label.copyWith(fontSize: 10, color: _currentLocationData?.isWithinRadius == true ? AppTheme.success : AppTheme.danger, letterSpacing: 0.8, fontWeight: FontWeight.w800),
+                            style: AppTheme.label.copyWith(fontSize: 10, color: _currentLocationData?.isWithinRadius == true ? AppTheme.success : AppTheme.danger, letterSpacing: 0.8, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
@@ -469,7 +463,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: Text('View Map', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontWeight: FontWeight.w800)),
+                  child: Text('View Map', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -485,11 +479,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 40, offset: const Offset(0, 15))
-        ],
       ),
       child: Column(
         children: [
@@ -515,7 +506,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Working Status', style: AppTheme.bodySmall.copyWith(color: AppTheme.textHint, fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text(isCheckedIn ? 'On Duty' : 'Off Duty', style: AppTheme.h2.copyWith(fontSize: 18, fontWeight: FontWeight.w800)),
+                      Text(isCheckedIn ? 'On Duty' : 'Off Duty', style: AppTheme.h2.copyWith(fontSize: 18, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ],
@@ -531,7 +522,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                   style: AppTheme.label.copyWith(
                     fontSize: 10,
                     color: isCheckedIn ? const Color(0xFF166534) : const Color(0xFF991B1B),
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 0.5
                   )
                 ),
@@ -560,13 +551,13 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
       decoration: BoxDecoration(
         color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
         children: [
-          Text(label, style: AppTheme.label.copyWith(fontSize: 10, color: AppTheme.textHint, fontWeight: FontWeight.w800, letterSpacing: 0.8)),
+          Text(label, style: AppTheme.label.copyWith(fontSize: 10, color: AppTheme.textHint, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
           const SizedBox(height: 6),
-          Text(time, style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: -0.5, color: AppTheme.textPrimary)),
+          Text(time, style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: AppTheme.textPrimary)),
         ],
       ),
     );
@@ -610,7 +601,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                 const SizedBox(width: 6),
                 Text(
                   currentRemark.isEmpty ? 'Late Adjustment Request' : 'Adjustment Request Status', 
-                  style: AppTheme.label.copyWith(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w800, letterSpacing: 0.5)
+                  style: AppTheme.label.copyWith(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w600, letterSpacing: 0.5)
                 ),
               ],
             ),
@@ -623,7 +614,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                   padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppTheme.divider.withOpacity(0.3)),
                   ),
                   child: Row(
@@ -650,7 +641,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: bgColor,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: statusColor.withOpacity(0.1)),
                 ),
                 child: Row(
@@ -673,7 +664,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                           Text(
                             remarkStatus == 'approved' ? 'Request Approved' : 
                             remarkStatus == 'denied' ? 'Request Denied' : 'Request Submitted', 
-                            style: TextStyle(color: statusColor, fontWeight: FontWeight.w800, fontSize: 14)
+                            style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, fontSize: 14)
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -689,7 +680,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                      child: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.w900, fontSize: 9, letterSpacing: 0.5)),
+                      child: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 9, letterSpacing: 0.5)),
                     ),
                   ],
                 ),
@@ -707,7 +698,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         decoration: BoxDecoration(
           color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey[200]!),
         ),
         child: Row(
@@ -719,7 +710,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               "ATTENDANCE COMPLETE FOR TODAY",
               style: AppTheme.label.copyWith(
                 color: AppTheme.textHint,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
                 fontSize: 11,
                 letterSpacing: 1.0
               ),
@@ -742,9 +733,9 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         color: isCheckedIn ? const Color(0xFFEF4444) : const Color(0xFF6366F1),
         size: 20
       ),
-      text: isCheckedIn ? "SLIDE TO CHECK OUT" : "SLIDE TO CHECK IN",
+      text: isCheckedIn ? "     SLIDE TO CHECK OUT" : "     SLIDE TO CHECK IN",
       textStyle: AppTheme.bodyMedium.copyWith(
-        fontWeight: FontWeight.w900,
+        fontWeight: FontWeight.w700,
         color: Colors.white,
         fontSize: 14,
         letterSpacing: 1.0
@@ -756,11 +747,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 10))
-        ],
       ),
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -769,11 +757,11 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('SHIFT OVERVIEW', style: AppTheme.label.copyWith(fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w900)),
+              Text('SHIFT OVERVIEW', style: AppTheme.label.copyWith(fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFF6366F1).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: Text('Full-time', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontSize: 10, fontWeight: FontWeight.w900)),
+                child: Text('Full-time', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontSize: 10, fontWeight: FontWeight.w700)),
               ),
             ],
           ),
@@ -792,7 +780,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           ),
           const SizedBox(height: 24),
           ClipRRect(
-            borderRadius: BorderRadius.circular(100),
+            borderRadius: BorderRadius.circular(16),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 8,
@@ -811,13 +799,13 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           children: [
-            Text(label, style: TextStyle(fontSize: 10, color: text.withOpacity(0.7), fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+            Text(label, style: TextStyle(fontSize: 10, color: text.withOpacity(0.7), fontWeight: FontWeight.w600, letterSpacing: 0.5)),
             const SizedBox(height: 4),
-            Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: text, letterSpacing: -0.5)),
+            Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: text, letterSpacing: -0.5)),
           ],
         ),
       ),
@@ -830,7 +818,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4),
-          child: Text('QUICK ACTIONS', style: AppTheme.label.copyWith(fontSize: 13, letterSpacing: 1.8, color: AppTheme.textHint, fontWeight: FontWeight.w900)),
+          child: Text('QUICK ACTIONS', style: AppTheme.label.copyWith(fontSize: 13, letterSpacing: 1.8, color: AppTheme.textHint, fontWeight: FontWeight.w700)),
         ),
         const SizedBox(height: 24),
         GridView.count(
@@ -865,11 +853,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 8))
-          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -883,7 +868,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               child: Icon(icon, color: const Color(0xFF6366F1), size: 24),
             ),
             const SizedBox(height: 12),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary, letterSpacing: -0.2)),
+            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary, letterSpacing: -0.2)),
           ],
         ),
       ),
@@ -903,9 +888,10 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           right: 24,
           top: 24,
         ),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -914,7 +900,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Adjustment Request', style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w800)),
+              Text('Adjustment Request', style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
               IconButton(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.close_rounded),
@@ -932,7 +918,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               filled: true,
               fillColor: const Color(0xFFF9FAFB),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
               contentPadding: const EdgeInsets.all(20),
@@ -985,7 +971,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     behavior: SnackBarBehavior.floating,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     margin: const EdgeInsets.all(20),
-                    elevation: 10,
+                    elevation: 0,
                   ),
                 );
               }
@@ -996,7 +982,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               elevation: 0,
             ),
-            child: const Text('Send to Manager', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 16)),
+            child: const Text('Send to Manager', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
           ),
           ],
         ),
@@ -1032,9 +1018,6 @@ class _FullMapScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)
-            ],
           ),
           child: IconButton(
             icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary, size: 20),
@@ -1060,10 +1043,8 @@ class _FullMapScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(32),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 40, offset: const Offset(0, 15))
-                  ],
+                  borderRadius: BorderRadius.circular(16),
+                  border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1080,7 +1061,7 @@ class _FullMapScreen extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Office Range Area', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w800)),
+                              Text('Office Range Area', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
                               const SizedBox(height: 4),
                               Text(
                                 'You must be within ${allowedRadius.toInt()}m to check-in.',

@@ -82,7 +82,7 @@ class _ManagerNotificationsScreenState
                           color: isActive
                               ? AppTheme.primarySurface
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(14),
                           border: Border.all(
                             color:
                                 isActive ? AppTheme.primary : AppTheme.divider,
@@ -578,7 +578,7 @@ class _ManagerNotificationsScreenState
                           badgeText,
                           style: TextStyle(
                             fontSize: 10,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: badgeColor,
                           ),
                         ),

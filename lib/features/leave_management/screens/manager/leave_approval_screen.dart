@@ -89,7 +89,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
                 if (snapshot.hasError) {
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(32),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -202,7 +202,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          boxShadow: AppTheme.softShadow,
+          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,15 +370,27 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
 
       // 2. Separately try to notify the employee
       try {
-        await FirestoreService.userNotificationsCol(data['userEmail'] ?? '').add({
-          'companyId': FirestoreService.companyId,
-          'userId': data['userId'],
-          'title': newStatus == 'approved' ? 'Leave Approved' : 'Leave Rejected',
-          'body': 'Your ${data['leaveType']} request has been ${newStatus}.',
-          'type': newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
-          'isRead': false,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+        String employeeEmail = data['userEmail'] ?? '';
+        if (employeeEmail.isEmpty) {
+          // Robust fallback: extract email from path approved_companies/{cid}/users/{email}/leave_requests/{id}
+          final parts = docRef.path.split('/');
+          final usersIdx = parts.indexOf('users');
+          if (usersIdx != -1 && usersIdx + 1 < parts.length) {
+            employeeEmail = parts[usersIdx + 1];
+          }
+        }
+
+        if (employeeEmail.isNotEmpty) {
+          await FirestoreService.userNotificationsCol(employeeEmail).add({
+            'companyId': FirestoreService.companyId,
+            'userId': data['userId'],
+            'title': newStatus == 'approved' ? 'Leave Approved' : 'Leave Rejected',
+            'body': 'Your ${data['leaveType']} request has been $newStatus.',
+            'type': newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
+            'isRead': false,
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+        }
       } catch (notifError) {
         debugPrint('Notification could not be sent: $notifError');
         // We don't show a blocking error here because the leave was already approved

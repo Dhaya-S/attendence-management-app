@@ -314,16 +314,19 @@ class _LoginScreenState extends State<LoginScreen>
 
                   // Logo
                   Container(
-                    width: 72,
-                    height: 72,
+                    width: 80,
+                    height: 80,
                     decoration: BoxDecoration(
-                      color: AppTheme.primarySurface,
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                      border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                     ),
-                    child: const Icon(
-                      Icons.shield_rounded,
-                      size: 36,
-                      color: AppTheme.primary,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMD),
+                      child: Image.asset(
+                        'assets/logo.png',
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -332,7 +335,7 @@ class _LoginScreenState extends State<LoginScreen>
                     'Attendance Pro',
                     style: TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                       letterSpacing: -0.5,
                     ),

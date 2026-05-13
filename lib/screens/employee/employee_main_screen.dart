@@ -47,15 +47,9 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
         ),
       ),
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          border: Border(top: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
         ),
         child: SafeArea(
           child: Padding(

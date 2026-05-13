@@ -131,12 +131,6 @@ class NotificationAction extends StatelessWidget {
               decoration: BoxDecoration(
                 color: backgroundColor ?? Colors.white,
                 shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                  )
-                ],
               ),
               child: IconButton(
                 icon: Icon(

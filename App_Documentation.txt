@@ -1,0 +1,87 @@
+# Attendance Management System - Application Documentation
+
+## 1. Project Overview
+The Attendance Management System is a comprehensive mobile application designed to streamline employee attendance tracking, leave management, and reporting for both employees and managers. It provides real-time location-based check-ins, automated overtime calculations, and detailed monthly reports.
+
+---
+
+## 2. Technology Stack
+- **Framework**: Flutter (Dart) - Cross-platform development for Android, iOS, and Web.
+- **Backend-as-a-Service (BaaS)**: Firebase
+    - **Authentication**: Secure email/password login and user management.
+    - **Cloud Firestore**: Real-time NoSQL database for storing user profiles, attendance records, and leave requests.
+    - **Firebase Storage**: For storing employee profile images.
+- **Key Libraries**:
+    - `geolocator` & `google_maps_flutter`: For office range verification and map visualization.
+    - `intl`: For date and time formatting.
+    - `fl_chart` & `percent_indicator`: For visual analytics and progress tracking.
+    - `slide_to_act`: For the interactive check-in/out mechanism.
+
+---
+
+## 3. Core Functionalities
+
+### A. Authentication & Session Management
+- **Login**: Users authenticate using their email.
+- **AppSession**: A global singleton that stores the user's role (Manager/Employee), company settings (Office coordinates, shift timings, grace periods), and profile data in-memory after login to ensure fast UI performance.
+
+### B. Attendance Process (Employee)
+- **Location Verification**: The app checks the user's GPS coordinates against the company's office coordinates stored in Firestore.
+- **Check-In/Out**: Employees use a "Slide to Check-In/Out" mechanism.
+    - **Office Mode**: Check-in within the `allowedRadius` (default: 500m).
+    - **WFH Mode**: Check-in outside the office range.
+- **Status Tracking**: The app displays "On Duty" or "Off Duty" based on the current day's record.
+
+### C. Management (Manager)
+- **Employee Onboarding**: Managers can add new employees and assign roles.
+- **Approval Workflow**: Managers review and approve/reject leave requests and attendance adjustment requests (e.g., late entry reasons).
+- **Reports**: Access to "Monthly Absence Overviews" and "Daily Attendance Summaries".
+
+---
+
+## 4. Calculation Logic & Rules
+
+### A. Working Days Calculation
+The system calculates the number of expected working days in a month for each user:
+1. **Effective Start Date**: Uses the user's account creation date or their first-ever check-in date (whichever is earlier).
+2. **Exclusions**: Weekends (Saturdays and Sundays) are automatically excluded from the working days count.
+3. **Range**: Counts from the `Effective Start Date` to the current date (for the current month) or the last day of the month (for past months).
+
+### B. Absence Calculation
+- **Absent Days**: `Total Working Days - Total Present Days`.
+- **High Absence Flag**: Triggered if an employee has more than 3 absent days in a month.
+- **On Track Flag**: Triggered if an employee has 1 or 0 absent days.
+
+### C. Timing & Shift Logic
+- **Shift Duration**: Standard shift is 9 hours.
+- **Check-In Timing**:
+    - **On-Time**: Check-in <= `Shift Start Time` + `Grace Period`.
+    - **Late**: Check-in > `Shift Start Time` + `Grace Period`.
+- **Worked Hours**: `Check-Out Time - Check-In Time`.
+- **Remaining Time**: `9 Hours - Worked Hours`.
+
+### D. Overtime Calculation
+- **Threshold**: Any duration exceeding 9 hours is considered overtime.
+- **Auto-Submission**: Upon checking out, if the worked duration exceeds 9 hours, the system automatically creates an "Overtime Request" in the database for the extra minutes worked.
+- **Approval**: Overtime must be approved by a manager to be officially counted toward the employee's stats.
+
+### E. Leave Management
+- **Leave Types**: Sick Leave, Casual Leave, Paid Leave, and Unpaid Leave.
+- **Balance Tracking**: The system tracks "Used Leaves" based on approved "Paid Leave" requests.
+- **Leave Count**: Present days calculations exclude dates where an approved "Leave" request exists.
+
+### F. Analytics & Rates
+- **Attendance Rate**: `(Present Days / Total Working Days) * 100`.
+- **Status Tiers**:
+    - **Excellent**: Rate >= 90%
+    - **Average**: Rate >= 75%
+    - **Low**: Rate < 75%
+
+---
+
+## 5. Database Structure (Firestore)
+- `approved_companies/{companyId}`: Global settings like office location and shift times.
+- `approved_companies/{companyId}/users/{email}`: User profile and role information.
+- `approved_companies/{companyId}/users/{email}/attendance`: Daily records indexed by date (`yyyy-MM-dd`).
+- `approved_companies/{companyId}/users/{email}/leave_requests`: Leave applications.
+- `approved_companies/{companyId}/users/{email}/overtime_requests`: Overtime tracking.

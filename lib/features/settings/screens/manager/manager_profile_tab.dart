@@ -98,7 +98,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                   name,
                   style: TextStyle(
                     color: AppTheme.textPrimary,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     fontSize: 16,
                   ),
                 ),
@@ -155,7 +155,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Stack(
             alignment: Alignment.topCenter,
@@ -182,13 +182,6 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                           shape: BoxShape.circle,
                           color: Colors.white,
                           border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: ClipOval(
                           child: imageUrl != null && imageUrl.isNotEmpty
@@ -223,7 +216,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                     name,
                     style: TextStyle(
                       fontSize: 20,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
@@ -315,7 +308,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
@@ -352,7 +345,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'REPORTS & DOWNLOADS',
+          'REPORTS',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -365,29 +358,23 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
               _settingsItem(
                   Icons.download_rounded,
-                  'Download Employee Details',
+                  'Employee Details',
                   AppTheme.primary,
                   AppTheme.primarySurface,
-                  () => _showMonthPicker(context, type: 'details')),
+                  () => _showReportConfigModal(context, type: 'details')),
               _settingsItem(
                   Icons.assessment_outlined,
-                  'Download Monthly Attendance Report',
+                  'Monthly Attendance Report',
                   const Color(0xFF8B93FF),
                   const Color(0xFF8B93FF).withOpacity(0.1),
-                  () => _showMonthPicker(context, type: 'summary')),
-              Padding(
-                padding: const EdgeInsets.only(left: 60, bottom: 12),
-                child: Text(
-                  'Selected Month: ${DateFormat('MMMM yyyy').format(_selectedReportMonth)}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textMuted, fontWeight: FontWeight.w500),
-                ),
-              ),
+                  () => _showReportConfigModal(context, type: 'summary')),
+             
             ],
           ),
         ),
@@ -395,27 +382,156 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
     );
   }
 
-  Future<void> _showMonthPicker(BuildContext context, {required String type}) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedReportMonth,
-      firstDate: DateTime(2023),
-      lastDate: DateTime.now(),
-      initialDatePickerMode: DatePickerMode.year,
-      helpText: 'Select Month for Report',
+  Future<void> _showReportConfigModal(BuildContext parentContext, {required String type}) async {
+    DateTime tempDate = _selectedReportMonth;
+    final List<String> months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    await showModalBottomSheet(
+      context: parentContext,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  type == 'summary' ? 'Attendance Report' : 'Employee Details',
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Select the period you want to export',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                ),
+                const SizedBox(height: 32),
+                
+                // Year Selector
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left, color: AppTheme.primary),
+                        onPressed: () => setModalState(() => tempDate = DateTime(tempDate.year - 1, tempDate.month)),
+                      ),
+                      Text(
+                        '${tempDate.year}',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right, color: AppTheme.primary),
+                        onPressed: tempDate.year < DateTime.now().year 
+                          ? () => setModalState(() => tempDate = DateTime(tempDate.year + 1, tempDate.month))
+                          : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Month Grid
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    childAspectRatio: 2.2,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 10,
+                  ),
+                  itemCount: 12,
+                  itemBuilder: (context, index) {
+                    final isSelected = tempDate.month == index + 1;
+                    final isFuture = tempDate.year == DateTime.now().year && index + 1 > DateTime.now().month;
+                    
+                    return GestureDetector(
+                      onTap: isFuture ? null : () => setModalState(() => tempDate = DateTime(tempDate.year, index + 1)),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppTheme.primary : (isFuture ? Colors.transparent : AppTheme.surface),
+                          borderRadius: BorderRadius.circular(10),
+                          border: isSelected ? null : Border.all(color: Colors.grey[100]!),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          months[index].substring(0, 3),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? Colors.white : (isFuture ? Colors.grey[300] : AppTheme.textPrimary),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 32),
+                
+                // Download Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _selectedReportMonth = tempDate;
+                      });
+                      Navigator.pop(context); // This pops the Modal
+                      if (type == 'summary') {
+                        _downloadAttendanceSummaryReport(parentContext);
+                      } else {
+                        _downloadEmployeeDetails(parentContext);
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.file_download_outlined, color: Colors.white),
+                        const SizedBox(width: 10),
+                        Text(
+                          'DOWNLOAD ${type == 'summary' ? 'REPORT' : 'DETAILS'}',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          );
+        },
+      ),
     );
-    if (picked != null) {
-      setState(() {
-        _selectedReportMonth = DateTime(picked.year, picked.month);
-      });
-      if (context.mounted) {
-        if (type == 'summary') {
-          _downloadAttendanceSummaryReport(context);
-        } else {
-          _downloadEmployeeDetails(context);
-        }
-      }
-    }
   }
 
   Future<void> _downloadEmployeeDetails(BuildContext context) async {
@@ -526,7 +642,8 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
         "Check-Out",
         "Total Hours",
         "Status",
-        "Work Mode"
+        "Work Mode",
+        "Late"
       ]);
 
       // Calculate days in the selected month
@@ -549,17 +666,34 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           final dateForExcel = "'$dateStr"; // Leading quote to prevent #### and preserve format
 
           if (record != null) {
-            final checkIn = record['checkIn'] as Timestamp?;
-            final checkOut = record['checkOut'] as Timestamp?;
+            final checkInTs = record['checkIn'] as Timestamp?;
+            final checkOutTs = record['checkOut'] as Timestamp?;
+            final workMode = record['workMode'] ?? 'office';
+            
+            String lateStatus = '--';
+            if (checkInTs != null) {
+              final checkIn = checkInTs.toDate();
+              final sParts = AppSession().shiftStartTime.split(':');
+              final targetIn = DateTime(checkIn.year, checkIn.month, checkIn.day, 
+                  int.parse(sParts[0]), int.parse(sParts[1]));
+              final lateThreshold = targetIn.add(Duration(minutes: AppSession().gracePeriod));
+              if (checkIn.isAfter(lateThreshold)) {
+                lateStatus = 'LATE';
+              } else {
+                lateStatus = 'ON TIME';
+              }
+            }
+
             rows.add([
               dateForExcel,
               name,
               email,
-              checkIn != null ? DateFormat('HH:mm:ss').format(checkIn.toDate()) : '--',
-              checkOut != null ? DateFormat('HH:mm:ss').format(checkOut.toDate()) : '--',
+              checkInTs != null ? DateFormat('HH:mm:ss').format(checkInTs.toDate()) : '--',
+              checkOutTs != null ? DateFormat('HH:mm:ss').format(checkOutTs.toDate()) : '--',
               record['totalHours'] ?? '0.0',
               record['status']?.toString().toUpperCase() ?? 'PRESENT',
-              record['workMode'] ?? 'office'
+              workMode.toString().toUpperCase(),
+              lateStatus
             ]);
           } else {
             // Mark as ABSENT
@@ -571,6 +705,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
               '--',
               '0.0',
               'ABSENT',
+              '--',
               '--'
             ]);
           }
@@ -602,7 +737,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           'Account Settings',
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             color: AppTheme.textPrimary,
           ),
         ),
@@ -611,7 +746,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
@@ -667,7 +802,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           'Support & Privacy',
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w600,
             color: AppTheme.textPrimary,
           ),
         ),
@@ -676,7 +811,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusLG),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
@@ -686,6 +821,14 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                     context,
                     MaterialPageRoute(
                         builder: (_) => const PrivacyPolicyScreen()));
+              }),
+              _divider(),
+              _settingsItem(Icons.help_outline_rounded, 'Contact Support',
+                  AppTheme.info, AppTheme.infoLight, () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ContactSupportScreen()));
               }),
               _divider(),
               _settingsItem(Icons.logout_rounded, 'Logout', AppTheme.danger,
@@ -701,7 +844,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Column(
           children: [
             Container(
@@ -856,6 +999,8 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
         "Name",
         "Email",
         "Present Days",
+        "WFH Days",
+        "Late Days",
         "Paid Leave",
         "Absent",
         "Applied Leave"
@@ -926,6 +1071,28 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
         int presentCount = dayStatus.values.where((s) => s == 'PRESENT').length;
         int paidLeaveCount = dayStatus.values.where((s) => s == 'LEAVE').length;
         int absentCount = 0;
+        int wfhCount = 0;
+        int lateCount = 0;
+
+        // 1.1 Calculate WFH and Late for the summary
+        for (var doc in attendanceSnapshot.docs) {
+          if (!doc.id.startsWith(monthStr)) continue;
+          final data = doc.data() as Map<String, dynamic>;
+          final docEmail = (data['email'] ?? data['userId'] ?? '').toString().toLowerCase();
+          if (docEmail != email) continue;
+
+          if (data['workMode'] == 'wfh') wfhCount++;
+          
+          final checkInTs = data['checkIn'] as Timestamp?;
+          if (checkInTs != null) {
+            final checkIn = checkInTs.toDate();
+            final sParts = AppSession().shiftStartTime.split(':');
+            final targetIn = DateTime(checkIn.year, checkIn.month, checkIn.day, 
+                int.parse(sParts[0]), int.parse(sParts[1]));
+            final lateThreshold = targetIn.add(Duration(minutes: AppSession().gracePeriod));
+            if (checkIn.isAfter(lateThreshold)) lateCount++;
+          }
+        }
 
         // 3. Count Absents (Days passed - Present - Leave, excluding Sundays)
         for (int day = 1; day <= activeDays; day++) {
@@ -943,6 +1110,8 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
           name,
           email,
           presentCount,
+          wfhCount,
+          lateCount,
           paidLeaveCount,
           absentCount,
           appliedLeaveCount

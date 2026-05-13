@@ -86,7 +86,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
                       'Total Employees on Leave: $onLeave',
                       style: const TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary,
                       ),
                     );
@@ -212,7 +212,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [

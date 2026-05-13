@@ -312,7 +312,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               decoration: BoxDecoration(
                 color: isSelected ? AppTheme.primary : Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: isSelected ? AppTheme.primary : AppTheme.divider),
               ),
               child: Text(months[index], style: TextStyle(color: isSelected ? Colors.white : AppTheme.textMuted, fontWeight: FontWeight.bold, fontSize: 12)),

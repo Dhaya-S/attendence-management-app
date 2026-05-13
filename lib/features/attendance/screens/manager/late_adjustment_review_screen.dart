@@ -220,14 +220,8 @@ class _LateAdjustmentReviewScreenState
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppTheme.divider.withOpacity(0.5)),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 16,
-              offset: const Offset(0, 6)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -246,7 +240,7 @@ class _LateAdjustmentReviewScreenState
                   child: Text(
                     userName.isNotEmpty ? userName[0].toUpperCase() : 'E',
                     style: const TextStyle(
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         fontSize: 18,
                         color: AppTheme.primary),
                   ),
@@ -260,7 +254,7 @@ class _LateAdjustmentReviewScreenState
                     Text(userName,
                         style: const TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary)),
                     Text('Date: $recordDate  •  $timeAgo',
                         style: TextStyle(
@@ -277,7 +271,7 @@ class _LateAdjustmentReviewScreenState
                 child: Text(statusLabel,
                     style: TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         color: statusColor)),
               ),
             ],
@@ -429,9 +423,10 @@ class _LateAdjustmentReviewScreenState
             right: 24,
             top: 24,
           ),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+            border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -442,7 +437,7 @@ class _LateAdjustmentReviewScreenState
                 children: [
                   Text('Approve Request',
                       style: AppTheme.h2.copyWith(
-                          fontSize: 20, fontWeight: FontWeight.w800)),
+                          fontSize: 20, fontWeight: FontWeight.w600)),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded),
@@ -483,7 +478,7 @@ class _LateAdjustmentReviewScreenState
                             selectedTime.format(context),
                             style: const TextStyle(
                                 fontSize: 22,
-                                fontWeight: FontWeight.w900,
+                                fontWeight: FontWeight.w700,
                                 color: AppTheme.textPrimary),
                           ),
                         ],
@@ -548,7 +543,7 @@ class _LateAdjustmentReviewScreenState
                 child: const Text('Confirm Approval',
                     style: TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w600,
                         fontSize: 16)),
               ),
             ],
@@ -572,9 +567,10 @@ class _LateAdjustmentReviewScreenState
           right: 24,
           top: 24,
         ),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+          border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -585,7 +581,7 @@ class _LateAdjustmentReviewScreenState
               children: [
                 Text('Deny Request',
                     style: AppTheme.h2.copyWith(
-                        fontSize: 20, fontWeight: FontWeight.w800)),
+                        fontSize: 20, fontWeight: FontWeight.w600)),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close_rounded),
@@ -631,7 +627,7 @@ class _LateAdjustmentReviewScreenState
               child: const Text('Confirm Denial',
                   style: TextStyle(
                       color: Colors.white,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       fontSize: 16)),
             ),
           ],

@@ -97,7 +97,7 @@ class OvertimeTrackerScreen extends StatelessWidget {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(color: Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(20)),
+            decoration: BoxDecoration(color: Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(14)),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

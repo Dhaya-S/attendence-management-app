@@ -25,7 +25,7 @@ class GlassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final br = borderRadius ?? BorderRadius.circular(20);
+    final br = borderRadius ?? BorderRadius.circular(14);
 
     Widget content = ClipRRect(
       borderRadius: br,

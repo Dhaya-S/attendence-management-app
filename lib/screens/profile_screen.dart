@@ -361,7 +361,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         'CHANGE PASSWORD',
                         style: TextStyle(
                             fontSize: 14,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: 1.5,
                             color: AppTheme.primary),
                       ),
@@ -375,7 +375,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         minimumSize: const Size(double.infinity, 56),
                         shape: RoundedRectangleBorder(
                             borderRadius: AppTheme.buttonRadius),
-                        elevation: 2,
+                        elevation: 0,
                       ),
                       child: _isSaving
                           ? const SizedBox(
@@ -388,7 +388,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               'SAVE CHANGES',
                               style: TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w900,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: 1.5),
                             ),
                     ),
@@ -420,7 +420,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label.toUpperCase(),
             style: TextStyle(
               fontSize: 10,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textMuted.withOpacity(0.8),
               letterSpacing: 1.2,
             ),

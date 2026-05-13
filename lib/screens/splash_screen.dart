@@ -220,51 +220,47 @@ class _SplashScreenState extends State<SplashScreen>
                   children: [
                   const Spacer(flex: 3),
 
-                  // 🏢 Enterprise Identity Icon with Premium Glow
+                  // App Logo
                   Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
+                    width: 100,
+                    height: 100,
+                    decoration: const BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withOpacity(0.2),
-                          blurRadius: 30,
-                          spreadRadius: 5,
-                        ),
-                      ],
                     ),
-                    child: const Center(
-                      child: Icon(
-                        Icons.verified_user_rounded,
-                        size: 80,
-                        color: AppTheme.primary,
+                    child: ClipOval(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Image.asset(
+                          'assets/logo.png',
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
-                  // 🏷 App Name with Spacing
+                  // App Name
                   const Text(
                     "ATTENDANCE",
                     style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
-                      letterSpacing: 4,
+                      letterSpacing: 3,
                     ),
                   ),
                   const Text(
                     "TRACKER",
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: AppTheme.primary,
-                      letterSpacing: 8,
+                      letterSpacing: 6,
                     ),
                   ),
+
 
                   const SizedBox(height: 12),
 

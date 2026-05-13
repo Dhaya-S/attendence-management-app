@@ -199,7 +199,7 @@ class AllMilestonesScreen extends StatelessWidget {
       width: 110,
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withOpacity(0.1))),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14), border: Border.all(color: color.withOpacity(0.1))),
       child: Stack(
         children: [
           Column(
@@ -211,7 +211,7 @@ class AllMilestonesScreen extends StatelessWidget {
                 child: Icon(icon, color: color, size: 24),
               ),
               const SizedBox(height: 8),
-              Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: AppTheme.textPrimary)),
+              Text(label, textAlign: TextAlign.center, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
             ],
           ),
           if (isNew) Positioned(top: 0, right: 0, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: const Color(0xFFDB2777), borderRadius: BorderRadius.circular(4)), child: const Text('NEW', style: TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold)))),

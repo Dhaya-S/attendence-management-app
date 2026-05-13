@@ -16,6 +16,7 @@ import '../../utils/location_service.dart';
 import '../../features/settings/screens/manager/privacy_policy_screen.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/features/settings/screens/manager/contact_support_screen.dart';
 
 class EmployeeProfileTab extends StatefulWidget {
   const EmployeeProfileTab({super.key});
@@ -146,7 +147,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
       alignment: Alignment.centerLeft,
       child: Padding(
         padding: const EdgeInsets.only(left: 4.0),
-        child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.black87)),
+        child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87)),
       ),
     );
   }
@@ -173,8 +174,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
               padding: const EdgeInsets.symmetric(vertical: 24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
               ),
               child: Column(
                 children: [
@@ -222,7 +223,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                   // Active employee badge
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                    decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -238,7 +239,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: Colors.green.withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: Colors.green.withOpacity(0.4)),
                       ),
                       child: Row(
@@ -324,14 +325,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.04),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                )
-              ],
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
             ),
             child: Column(
               children: [
@@ -460,9 +455,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
             return Container(
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(14),
                 border: const Border(left: BorderSide(color: Colors.orange, width: 4)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
               ),
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -471,7 +465,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${DateFormat('MMMM').format(now).toUpperCase()} SUMMARY', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.orange, letterSpacing: 1.2)),
+                      Text('${DateFormat('MMMM').format(now).toUpperCase()} SUMMARY', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.orange, letterSpacing: 1.2)),
                       Icon(Icons.trending_up_rounded, color: Colors.grey.shade400, size: 18),
                     ],
                   ),
@@ -548,8 +542,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       padding: const EdgeInsets.all(20),
       child: StreamBuilder<DocumentSnapshot>(
@@ -615,8 +609,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         children: [
@@ -640,13 +634,17 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         children: [
           _menuItem(Icons.privacy_tip_outlined, const Color(0xFFF7F9FC), Colors.blueGrey, 'Privacy Policy', onTap: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+          }),
+          const Divider(height: 1, thickness: 1, color: Color(0xFFF7F9FC)),
+          _menuItem(Icons.help_outline_rounded, const Color(0xFFEEF2FF), const Color(0xFF5C6BC0), 'Contact Support', onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ContactSupportScreen()));
           }),
           const Divider(height: 1, thickness: 1, color: Color(0xFFF7F9FC)),
           _menuItem(Icons.logout_rounded, const Color(0xFFFFEBEE), Colors.redAccent, 'Logout', isDestructive: true, onTap: _handleLogout),
@@ -685,7 +683,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Column(
           children: [
             Container(

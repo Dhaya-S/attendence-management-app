@@ -325,7 +325,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          boxShadow: AppTheme.softShadow,
+          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
         ),
         child: Row(
           children: [
@@ -382,7 +382,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                             'WFH',
                             style: TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFF6366F1),
                             ),
                           ),

@@ -5,6 +5,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import 'dart:convert';
+import 'dart:async';
 
 import '../../theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -26,51 +27,60 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
   final String _calendarId = 'en.indian%23holiday%40group.v.calendar.google.com';
   List<dynamic> _holidays = [];
   bool _isLoadingHolidays = false;
+  StreamSubscription? _holidaySubscription;
 
   @override
   void initState() {
     super.initState();
     _attendanceStream = FirestoreService.userAttendanceCol(user?.email ?? '').snapshots();
-    _fetchHolidays();
+    _listenHolidays();
   }
 
-  Future<void> _fetchHolidays() async {
+  @override
+  void dispose() {
+    _holidaySubscription?.cancel();
+    super.dispose();
+  }
+
+  void _listenHolidays() {
     setState(() => _isLoadingHolidays = true);
     try {
-      final List<dynamic> parsed = [];
-
-      // Fetch company specific events
       final cid = FirestoreService.companyId;
-      final companyEvents = await FirebaseFirestore.instance
+      _holidaySubscription?.cancel();
+      _holidaySubscription = FirebaseFirestore.instance
           .collection('approved_companies')
           .doc(cid)
           .collection('company_calendar')
-          .get();
+          .snapshots()
+          .listen((snapshot) {
+        final List<dynamic> parsed = [];
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final date = (data['date'] as Timestamp).toDate();
+          parsed.add({
+            'summary': data['reason'] ?? (data['type'] == 'leave' ? 'Company Holiday' : 'WFH Day'),
+            'start': {'date': DateFormat('yyyy-MM-dd').format(date)},
+            'type': data['type'], // 'leave' or 'wfh'
+            'isCompanyEvent': true,
+          });
+        }
 
-      for (var doc in companyEvents.docs) {
-        final data = doc.data();
-        final date = (data['date'] as Timestamp).toDate();
-        parsed.add({
-          'summary': data['reason'] ?? (data['type'] == 'leave' ? 'Company Holiday' : 'WFH Day'),
-          'start': {'date': DateFormat('yyyy-MM-dd').format(date)},
-          'type': data['type'], // 'leave' or 'wfh'
-          'isCompanyEvent': true,
+        parsed.sort((a, b) {
+          final dateA = DateTime.parse(a['start']?['date'] ?? a['start']?['dateTime']);
+          final dateB = DateTime.parse(b['start']?['date'] ?? b['start']?['dateTime']);
+          return dateA.compareTo(dateB);
         });
-      }
 
-      parsed.sort((a, b) {
-        final dateA = DateTime.parse(a['start']?['date'] ?? a['start']?['dateTime']);
-        final dateB = DateTime.parse(b['start']?['date'] ?? b['start']?['dateTime']);
-        return dateA.compareTo(dateB);
-      });
-
-      setState(() {
-        _holidays = parsed;
-        _isLoadingHolidays = false;
+        if (mounted) {
+          setState(() {
+            _holidays = parsed;
+            _isLoadingHolidays = false;
+          });
+        }
       });
     } catch (e) {
-      debugPrint('Error fetching company holidays: $e');
-      setState(() => _isLoadingHolidays = false);
+      debugPrint('Error listening to company holidays: $e');
+      if (mounted) setState(() => _isLoadingHolidays = false);
     }
   }
 
@@ -288,11 +298,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, 10)),
-          
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -406,7 +413,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bg.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(0.1)),
       ),
       child: Column(
@@ -417,7 +424,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Icon(icon, color: color, size: 20),
-              Text(trend, style: TextStyle(color: trend.startsWith('+') ? Colors.green : (trend.startsWith('-') ? Colors.red : Colors.grey), fontSize: 10, fontWeight: FontWeight.w900)),
+              Text(trend, style: TextStyle(color: trend.startsWith('+') ? Colors.green : (trend.startsWith('-') ? Colors.red : Colors.grey), fontSize: 10, fontWeight: FontWeight.w700)),
             ],
           ),
           const SizedBox(height: 12),
@@ -438,7 +445,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: const Color(0xFFF0FDF4),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: const Color(0xFF16A34A).withOpacity(0.1)),
       ),
       child: Row(
@@ -481,9 +488,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
         border: Border(right: BorderSide(color: nextHoliday['type'] == 'wfh' ? const Color(0xFF10B981) : const Color(0xFFEF4444), width: 6)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 5))],
       ),
       padding: const EdgeInsets.all(24),
       child: Row(
@@ -538,8 +544,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
@@ -548,7 +554,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
             decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(16)),
             child: Column(
               children: [
-                Text(date.split(' ')[0], style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900)),
+                Text(date.split(' ')[0], style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w700)),
                 Text(date.split(' ')[1], style: TextStyle(color: color, fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),

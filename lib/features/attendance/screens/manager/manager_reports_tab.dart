@@ -149,8 +149,8 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -160,7 +160,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             children: [
               Text('Select Month', style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w600, letterSpacing: 0.5)),
               const SizedBox(height: 2),
-              Text(_monthName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: _slate)),
+              Text(_monthName, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: _slate)),
             ],
           ),
           IconButton(icon: Icon(Icons.chevron_right_rounded, color: Colors.grey[400]), onPressed: _nextMonth),
@@ -185,11 +185,11 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
     rate = (maxPossible > 0) ? ((totalRecords / maxPossible) * 100.0).clamp(0.0, 100.0) : 0.0;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: _indigo.withOpacity(0.06), blurRadius: 40, offset: const Offset(0, 20))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
@@ -199,13 +199,13 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               children: [
                 Text('Attendance Rate', style: TextStyle(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.w700, letterSpacing: 0.3)),
                 const SizedBox(height: 10),
-                Text('${rate.toStringAsFixed(1)}%', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: _slate, letterSpacing: -1)),
+                Text('${rate.toStringAsFixed(1)}%', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700, color: _slate, letterSpacing: -1)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Icon(Icons.trending_up_rounded, size: 16, color: _teal),
                     const SizedBox(width: 4),
-                    Text('+2.1% from last month', style: TextStyle(fontSize: 11, color: _teal, fontWeight: FontWeight.w800)),
+                    Text('+2.1% from last month', style: TextStyle(fontSize: 11, color: _teal, fontWeight: FontWeight.w600)),
                   ],
                 ),
               ],
@@ -236,10 +236,6 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       decoration: BoxDecoration(
         color: color,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
-        boxShadow: [
-          if (heightFactor > 0.7)
-            BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-        ],
       ),
     );
   }
@@ -268,11 +264,11 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
     final targetLabel = '${shiftHours.toStringAsFixed(1)}H';
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: _teal.withOpacity(0.06), blurRadius: 40, offset: const Offset(0, 20))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
@@ -282,11 +278,11 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               children: [
                 Text('Avg. Working Hours', style: TextStyle(fontSize: 13, color: Colors.grey[500], fontWeight: FontWeight.w700, letterSpacing: 0.3)),
                 const SizedBox(height: 10),
-                Text('${avgHours.toStringAsFixed(1)}h', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w900, color: _slate, letterSpacing: -1)),
+                Text('${avgHours.toStringAsFixed(1)}h', style: TextStyle(fontSize: 38, fontWeight: FontWeight.w700, color: _slate, letterSpacing: -1)),
                 const SizedBox(height: 8),
                 Text(
                   (avgHours >= shiftHours) ? 'ON TRACK (TARGET ${targetLabel})' : 'BELOW TARGET (TARGET ${targetLabel})',
-                  style: TextStyle(fontSize: 11, color: (avgHours >= shiftHours) ? _teal : _rose, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                  style: TextStyle(fontSize: 11, color: (avgHours >= shiftHours) ? _teal : _rose, fontWeight: FontWeight.w600, letterSpacing: 0.5),
                 ),
               ],
             ),
@@ -305,7 +301,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                   strokeCap: StrokeCap.round,
                 ),
               ),
-              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: _slate)),
+              Text('${(progress * 100).toInt()}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: _slate)),
             ],
           ),
         ],
@@ -397,12 +393,12 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Top Employees', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate)),
+            Text('Top Employees', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate)),
             GestureDetector(
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const TopEmployeesScreen()));
               },
-              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _indigo)),
+              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -435,14 +431,14 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
 
   Widget _topPerformerCard({required String name, String? imageUrl, required String role, required String score, required Color color, required String insight}) {
     return Container(
-      width: 220,
-      height: 200,
-      margin: const EdgeInsets.only(right: 20),
-      padding: const EdgeInsets.all(24),
+      width: 170,
+      height: 170,
+      margin: const EdgeInsets.only(right: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, 15))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,29 +447,29 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color.withOpacity(0.3), width: 2.5)),
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: color.withOpacity(0.3), width: 2)),
                 alignment: Alignment.center,
                 child: ClipOval(
                   child: imageUrl != null && imageUrl.isNotEmpty
                       ? (imageUrl.startsWith('http')
-                          ? Image.network(imageUrl, width: 52, height: 52, fit: BoxFit.cover)
-                          : Image.memory(base64Decode(imageUrl), width: 52, height: 52, fit: BoxFit.cover))
-                      : Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
+                          ? Image.network(imageUrl, width: 44, height: 44, fit: BoxFit.cover)
+                          : Image.memory(base64Decode(imageUrl), width: 44, height: 44, fit: BoxFit.cover))
+                      : Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
                 ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('VALUE', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.grey[400], letterSpacing: 1)),
-                  Text(score, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate)),
+                  Text('VALUE', style: TextStyle(fontSize: 8, fontWeight: FontWeight.w700, color: Colors.grey[400], letterSpacing: 1)),
+                  Text(score, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _slate)),
                 ],
               ),
             ],
           ),
           const Spacer(),
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w900, color: _slate, fontSize: 14, letterSpacing: -0.3), maxLines: 1, overflow: TextOverflow.ellipsis),
+          Text(name, style: const TextStyle(fontWeight: FontWeight.w700, color: _slate, fontSize: 13, letterSpacing: -0.3), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -483,7 +479,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               children: [
                 Icon((role == 'Top Performer') ? Icons.emoji_events_rounded : Icons.local_fire_department_rounded, size: 10, color: color),
                 const SizedBox(width: 4),
-                Text(role, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: color, letterSpacing: 0.2)),
+                Text(role, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: color, letterSpacing: 0.1)),
               ],
             ),
           ),
@@ -498,12 +494,12 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: _slate)),
+            Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _slate)),
             TextButton(
               onPressed: onViewAll, 
               child: Text(
                 isShowingAll ? 'SHOW LESS' : 'VIEW ALL', 
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _indigo)
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)
               ),
             ),
           ],
@@ -511,7 +507,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
           child: child,
         ),
       ],
@@ -576,12 +572,12 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Late Arrivals (This Month)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate)),
+            Text('Late Arrivals (This Month)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate)),
             GestureDetector(
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const LateEarlyExitScreen()));
               },
-              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _indigo)),
+              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -590,8 +586,8 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: content,
         ),
@@ -606,19 +602,19 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Monthly Absence Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate)),
+            Text('Monthly Absence Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate)),
             GestureDetector(
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const MonthlyAbsenceScreen()));
               },
-              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _indigo)),
+              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
           child: _buildMonthlyAbsentList(usersDocs, allMonthRecords, firstCheckInDates),
         ),
       ],
@@ -706,12 +702,12 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Month Overtime Summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate)),
+            const Text('Month Overtime Summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate)),
             GestureDetector(
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const OvertimeReportScreen()));
               },
-              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _indigo)),
+              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -720,8 +716,8 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white, 
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: content,
         ),
@@ -801,7 +797,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                   ? (imageUrl.startsWith('http')
                       ? Image.network(imageUrl, width: 44, height: 44, fit: BoxFit.cover)
                       : Image.memory(base64Decode(imageUrl), width: 44, height: 44, fit: BoxFit.cover))
-                  : Text((name.isNotEmpty == true) ? name[0].toUpperCase() : '?', style: TextStyle(fontWeight: FontWeight.w900, color: _indigo.withOpacity(0.6), fontSize: 16)),
+                  : Text((name.isNotEmpty == true) ? name[0].toUpperCase() : '?', style: TextStyle(fontWeight: FontWeight.w700, color: _indigo.withOpacity(0.6), fontSize: 16)),
             ),
           ),
           const SizedBox(width: 16),
@@ -809,7 +805,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: TextStyle(fontWeight: FontWeight.w900, color: _slate, fontSize: 13, letterSpacing: -0.2)),
+                Text(name, style: TextStyle(fontWeight: FontWeight.w700, color: _slate, fontSize: 13, letterSpacing: -0.2)),
                 const SizedBox(height: 2),
                 Text(sub, style: TextStyle(fontSize: 11, color: (sub.contains('Absent') == true) ? _rose : (Colors.grey[500] ?? Colors.grey), fontWeight: FontWeight.w600)),
               ],
@@ -822,7 +818,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
                 children: [
                   Container(width: 6, height: 6, decoration: BoxDecoration(shape: BoxShape.circle, color: (date == 'Today' || date.contains('Today') == true) ? const Color(0xFFFFB800) : Colors.grey[300])),
                   const SizedBox(width: 8),
-                  Text(date, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.grey[600])),
+                  Text(date, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey[600])),
                 ],
               ),
             ],

@@ -18,6 +18,8 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
   static const Color _slate = Color(0xFF1E293B);
 
   DateTime _currentDate = DateTime.now();
+  String _selectedFilter = 'all'; // 'all', 'late', 'early'
+  bool _isAscending = false; // Sort order for date
 
   @override
   void initState() {
@@ -51,7 +53,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
         title: const Text(
           'Late & Early Exits',
           style: TextStyle(
-              color: _slate, fontWeight: FontWeight.w800, fontSize: 18),
+              color: _slate, fontWeight: FontWeight.w600, fontSize: 18),
         ),
       ),
       body: StreamBuilder<QuerySnapshot>(
@@ -142,9 +144,20 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                 }
               }
 
-              final allLogs = [...lateLogs, ...earlyLogs];
-              allLogs.sort((a, b) => (b['date'] as DateTime)
-                  .compareTo(a['date'] as DateTime));
+              List<Map<String, dynamic>> allLogs;
+              if (_selectedFilter == 'late') {
+                allLogs = lateLogs;
+              } else if (_selectedFilter == 'early') {
+                allLogs = earlyLogs;
+              } else {
+                allLogs = [...lateLogs, ...earlyLogs];
+              }
+
+              allLogs.sort((a, b) {
+                final dateA = a['date'] as DateTime;
+                final dateB = b['date'] as DateTime;
+                return _isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
+              });
 
               // ── UI ────────────────────────────────────────────
               return SingleChildScrollView(
@@ -162,7 +175,10 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                               'LATE ARRIVALS',
                               '${lateLogs.length}'.padLeft(2, '0'),
                               Icons.access_time_rounded,
-                              _amber),
+                              _amber,
+                              isSelected: _selectedFilter == 'late',
+                              onTap: () => setState(() => _selectedFilter = _selectedFilter == 'late' ? 'all' : 'late'),
+                          ),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -170,18 +186,47 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                               'EARLY EXITS',
                               '${earlyLogs.length}'.padLeft(2, '0'),
                               Icons.logout_rounded,
-                              _rose),
+                              _rose,
+                              isSelected: _selectedFilter == 'early',
+                              onTap: () => setState(() => _selectedFilter = _selectedFilter == 'early' ? 'all' : 'early'),
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Detailed Logs',
-                      style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          color: _slate),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Detailed Logs',
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: _slate),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() => _isAscending = !_isAscending),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Text(
+                                  _isAscending ? 'Oldest first' : 'Newest first',
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _slate),
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(_isAscending ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, size: 14, color: _slate),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     if (allLogs.isEmpty)
@@ -205,7 +250,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
@@ -221,7 +266,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
           Text(_monthName,
               style: const TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: _slate)),
           IconButton(
             icon: const Icon(Icons.chevron_right_rounded,
@@ -237,19 +282,16 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
   // ── Stat Card ─────────────────────────────────────────────────────────────
   Widget _statCard(
-      String label, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
-      ),
+      String label, String value, IconData icon, Color color, {bool isSelected = false, VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: isSelected ? color.withOpacity(0.3) : const Color(0xFFF0F1F3), width: 1.5),
+        ),
       child: IntrinsicHeight(
         child: Row(
           children: [
@@ -269,7 +311,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                         child: Text(label,
                             style: TextStyle(
                                 fontSize: 9,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.grey[500],
                                 letterSpacing: 0.5)),
                       ),
@@ -281,7 +323,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                   Text(value,
                       style: const TextStyle(
                           fontSize: 28,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w700,
                           color: _slate,
                           height: 1)),
                 ],
@@ -290,8 +332,9 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   // ── Log Card ──────────────────────────────────────────────────────────────
   Widget _logCard(Map<String, dynamic> log) {
@@ -312,13 +355,8 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-              color: Colors.black.withOpacity(0.03),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -335,7 +373,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
               name.isNotEmpty ? name[0].toUpperCase() : '?',
               style: TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w700,
                   color: badgeColor),
             ),
           ),
@@ -353,7 +391,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                       child: Text(name,
                           style: const TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: _slate),
                           overflow: TextOverflow.ellipsis),
                     ),
@@ -367,7 +405,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                       child: Text(log['type'],
                           style: TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w700,
                               color: badgeColor,
                               letterSpacing: 0.3)),
                     ),
@@ -382,7 +420,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                       style: const TextStyle(
                           fontSize: 12,
                           color: _slate,
-                          fontWeight: FontWeight.w800),
+                          fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -419,13 +457,13 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
         Text(label,
             style: TextStyle(
                 fontSize: 9,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: Colors.grey[400],
                 letterSpacing: 0.5)),
         const SizedBox(height: 2),
         Text(time,
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.w800, color: color)),
+                fontSize: 13, fontWeight: FontWeight.w600, color: color)),
       ],
     );
   }
@@ -453,7 +491,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
             const Text('No Issues Found',
                 style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: _slate)),
             const SizedBox(height: 8),
             Text(

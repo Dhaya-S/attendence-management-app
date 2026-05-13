@@ -251,7 +251,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
                           'Total Employees Tracked: ${allSummary.length}',
                           style: const TextStyle(
                             fontSize: 20,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                           ),
                         ),
@@ -419,7 +419,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
@@ -532,7 +532,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
                 '$rate%',
                 style: const TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary,
                 ),
               ),
@@ -548,7 +548,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
                   statusLabel,
                   style: TextStyle(
                     fontSize: 9,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w600,
                     color: statusColor,
                     letterSpacing: 0.5,
                   ),
@@ -571,7 +571,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
           const SizedBox(height: 16),
           const Text('Perfect Attendance!',
               style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.w800, color: _slate)),
+                  fontSize: 18, fontWeight: FontWeight.w600, color: _slate)),
           const SizedBox(height: 8),
           Text('No absences recorded for this filter.',
               style: TextStyle(fontSize: 13, color: Colors.grey[500])),

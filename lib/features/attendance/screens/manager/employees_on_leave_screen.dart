@@ -127,14 +127,13 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: isActive ? _indigo : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: isActive ? [] : [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w600,
           color: isActive ? Colors.white : Colors.grey[500],
         ),
       ),
@@ -147,15 +146,15 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 20, offset: const Offset(0, 10))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('LEAVE OVERVIEW', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Colors.grey[400], letterSpacing: 1)),
+          Text('LEAVE OVERVIEW', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[400], letterSpacing: 1)),
           const SizedBox(height: 8),
-          Text('Total Employees on\nLeave: $totalActive', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _slate, height: 1.2)),
+          Text('Total Employees on\nLeave: $totalActive', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: _slate, height: 1.2)),
           const SizedBox(height: 24),
           // Progress bar
           if (totalActive > 0)
@@ -222,14 +221,14 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
             decoration: BoxDecoration(
               color: isActive ? _indigo.withOpacity(0.1) : Colors.white,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(color: isActive ? Colors.transparent : Colors.grey[200]!, width: 1),
             ),
             child: Text(
               status,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: isActive ? _indigo : Colors.grey[500],
               ),
             ),
@@ -266,8 +265,8 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,7 +281,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
             alignment: Alignment.center,
             child: Text(
               leave['name'][0].toUpperCase(),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate),
             ),
           ),
           const SizedBox(width: 16),
@@ -290,7 +289,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(leave['name'], style: const TextStyle(fontWeight: FontWeight.w900, color: _slate, fontSize: 16)),
+                Text(leave['name'], style: const TextStyle(fontWeight: FontWeight.w700, color: _slate, fontSize: 16)),
                 const SizedBox(height: 2),
                 Text('Employee', style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500)),
                 const SizedBox(height: 12),
@@ -307,7 +306,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
                         children: [
                           Container(width: 6, height: 6, decoration: BoxDecoration(color: typeColor, shape: BoxShape.circle)),
                           const SizedBox(width: 4),
-                          Text(leave['type'], style: TextStyle(color: typeColor, fontSize: 10, fontWeight: FontWeight.w800)),
+                          Text(leave['type'], style: TextStyle(color: typeColor, fontSize: 10, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -323,9 +322,9 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${leave['days']} Day${leave['days'] > 1 ? 's' : ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: _slate)),
+              Text('${leave['days']} Day${leave['days'] > 1 ? 's' : ''}', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _slate)),
               const SizedBox(height: 4),
-              Text(leave['status'].toString().toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: statusColor, letterSpacing: 0.5)),
+              Text(leave['status'].toString().toUpperCase(), style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: statusColor, letterSpacing: 0.5)),
             ],
           ),
         ],

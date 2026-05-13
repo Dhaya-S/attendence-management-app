@@ -123,7 +123,7 @@ class _PasswordRecoveryFlowState extends State<PasswordRecoveryFlow> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primary,
                     minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     elevation: 0,
                   ),
                   child: _isSending 

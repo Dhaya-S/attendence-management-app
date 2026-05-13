@@ -85,11 +85,11 @@ class _ManagerVerifyOtpScreenState extends State<ManagerVerifyOtpScreen> {
                   physics: const BouncingScrollPhysics(),
                   child: Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(32),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      boxShadow: AppTheme.softShadow,
+                      border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                     ),
                     child: Column(
                       children: [
@@ -108,7 +108,7 @@ class _ManagerVerifyOtpScreenState extends State<ManagerVerifyOtpScreen> {
                           'Verify OTP',
                           style: TextStyle(
                             fontSize: 24,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                             letterSpacing: -0.5,
                           ),
@@ -184,7 +184,7 @@ class _ManagerVerifyOtpScreenState extends State<ManagerVerifyOtpScreen> {
                               horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: AppTheme.surface,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(14),
                           ),
                           child: Text(
                             '00 : ${_secondsLeft.toString().padLeft(2, '0')}',

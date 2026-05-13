@@ -255,7 +255,7 @@ class _ManagerEditProfileScreenState extends State<ManagerEditProfileScreen> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-            boxShadow: AppTheme.softShadow,
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
@@ -308,7 +308,7 @@ class _ManagerEditProfileScreenState extends State<ManagerEditProfileScreen> {
                     name,
                     style: const TextStyle(
                       fontSize: 18,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w600,
                       color: AppTheme.textPrimary,
                     ),
                   ),
@@ -351,7 +351,7 @@ class _ManagerEditProfileScreenState extends State<ManagerEditProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,7 +360,7 @@ class _ManagerEditProfileScreenState extends State<ManagerEditProfileScreen> {
             'PERSONAL INFORMATION',
             style: TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w600,
               color: AppTheme.textHint,
               letterSpacing: 0.5,
             ),

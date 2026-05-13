@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'dart:async';
 
 class ManagerCalendarTab extends StatefulWidget {
   final Function(int)? onTabChange;
@@ -28,6 +29,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
   List<Map<String, dynamic>> _holidays = [];
   bool _isLoading = true;
   bool _showAllHolidays = false;
+  StreamSubscription? _holidaySubscription;
 
   static const String _apiKey = 'AIzaSyCvsRp7brHoYQdglX9YH2dtl15VSUdwS-M';
   static const String _calendarId =
@@ -67,48 +69,52 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
     super.initState();
     _focusedDay = DateTime.now();
     _selectedDay = DateTime.now();
-    _fetchHolidays();
+    _listenHolidays();
+  }
+
+  @override
+  void dispose() {
+    _holidaySubscription?.cancel();
+    super.dispose();
   }
 
   // Removed _fetchAttendance
 
 
-  Future<void> _fetchHolidays() async {
+  void _listenHolidays() {
     try {
-      setState(() => _isLoading = true);
-      
-      final List<Map<String, dynamic>> parsed = [];
-
-      // Fetch company specific events
       final cid = FirestoreService.companyId;
-      final companyEvents = await FirebaseFirestore.instance
+      _holidaySubscription?.cancel();
+      _holidaySubscription = FirebaseFirestore.instance
           .collection('approved_companies')
           .doc(cid)
           .collection('company_calendar')
-          .get();
+          .snapshots()
+          .listen((snapshot) {
+        final List<Map<String, dynamic>> parsed = [];
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final date = (data['date'] as Timestamp).toDate();
+          final type = data['type']; // 'leave' or 'wfh'
+          parsed.add({
+            'name': data['reason'] ?? (type == 'leave' ? 'Company Holiday' : 'WFH Day'),
+            'date': date,
+            'type': type,
+            'isCompanyEvent': true,
+          });
+        }
 
-      for (var doc in companyEvents.docs) {
-        final data = doc.data();
-        final date = (data['date'] as Timestamp).toDate();
-        final type = data['type']; // 'leave' or 'wfh'
-        parsed.add({
-          'name': data['reason'] ?? (data['type'] == 'leave' ? 'Company Holiday' : 'WFH Day'),
-          'date': date,
-          'type': type,
-          'isCompanyEvent': true,
-        });
-      }
+        parsed.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
 
-      parsed.sort((a, b) => (a['date'] as DateTime).compareTo(b['date'] as DateTime));
-
-      if (mounted) {
-        setState(() {
-          _holidays = parsed;
-          _isLoading = false;
-        });
-      }
+        if (mounted) {
+          setState(() {
+            _holidays = parsed;
+            _isLoading = false;
+          });
+        }
+      });
     } catch (e) {
-      debugPrint('Error fetching holidays: $e');
+      debugPrint('Error listening to holidays: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -269,7 +275,8 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
               onRefresh: () async {
-                await _fetchHolidays();
+                // Subscription handles updates, but this allows manual trigger
+                _listenHolidays();
               },
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -313,7 +320,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
@@ -328,7 +335,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF5B67F5),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
@@ -391,12 +398,6 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
           selectedDecoration: BoxDecoration(
             color: const Color(0xFF5B67F5),
             shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                  color: const Color(0xFF5B67F5).withOpacity(0.35),
-                  blurRadius: 8,
-                  offset: const Offset(0, 4))
-            ],
           ),
           selectedTextStyle:
               const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
@@ -487,7 +488,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          boxShadow: AppTheme.softShadow,
+          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,7 +534,6 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
           border: Border(left: BorderSide(color: _colorOf(type), width: 6)),
-          boxShadow: AppTheme.softShadow,
         ),
         padding: const EdgeInsets.all(20),
         child: Row(
@@ -623,7 +623,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-        boxShadow: AppTheme.softShadow,
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
@@ -644,7 +644,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                 Text(DateFormat('dd').format(date),
                     style: TextStyle(
                         fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w700,
                         color: _colorOf(type))),
               ],
             ),
@@ -693,9 +693,10 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+        border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
       ),
       padding: EdgeInsets.only(
         left: 24,

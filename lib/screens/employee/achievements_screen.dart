@@ -44,7 +44,7 @@ class AchievementsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   const Text('ACHIEVEMENTS', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: AppTheme.textPrimary, letterSpacing: -1)),
+                   const Text('ACHIEVEMENTS', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: AppTheme.textPrimary, letterSpacing: -1)),
                    const SizedBox(height: 8),
                    Text('Track your attendance milestones and performance rewards.', style: AppTheme.bodySmall),
                    const SizedBox(height: 24),
@@ -128,13 +128,13 @@ class AchievementsScreen extends StatelessWidget {
   Widget _buildPill(String label, Color bg, Color text, IconData icon) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: text, size: 14),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(color: text, fontSize: 10, fontWeight: FontWeight.w900)),
+          Text(label, style: TextStyle(color: text, fontSize: 10, fontWeight: FontWeight.w700)),
         ],
       ),
     );
@@ -147,8 +147,7 @@ class AchievementsScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [const Color(0xFFF97316), const Color(0xFFFB923C)]),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: const Color(0xFFF97316).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: Stack(
         children: [
@@ -157,7 +156,7 @@ class AchievementsScreen extends StatelessWidget {
             children: [
               Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)), child: Text(streak >= 5 ? 'EARNED' : 'IN PROGRESS', style: const TextStyle(color: Color(0xFFF97316), fontSize: 8, fontWeight: FontWeight.bold))),
               const SizedBox(height: 24),
-              Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+              Text(title, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
               const SizedBox(height: 8),
               Text(streak >= 5 ? "You haven't missed a single clock-in this week. Keep the fire burning!" : "Complete 5 consecutive days to earn this badge.", style: const TextStyle(color: Colors.white, fontSize: 12, height: 1.5)),
             ],
@@ -187,7 +186,7 @@ class AchievementsScreen extends StatelessWidget {
                   Text('$target Day Perfect Attendance', style: AppTheme.bodySmall.copyWith(fontWeight: FontWeight.bold, color: AppTheme.textPrimary)),
                 ],
               ),
-              Text('$streak/$target days', style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.primary, fontSize: 12)),
+              Text('$streak/$target days', style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 16),
@@ -253,8 +252,8 @@ class AchievementsScreen extends StatelessWidget {
   Widget _buildPerformanceStats(Map<String, dynamic> stats) {
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(24)),
-      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(14)),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -276,9 +275,9 @@ class AchievementsScreen extends StatelessWidget {
   Widget _statItem(String val, String label) {
     return Column(
       children: [
-        Text(val, style: const TextStyle(color: Color(0xFF6366F1), fontSize: 28, fontWeight: FontWeight.w900)),
+        Text(val, style: const TextStyle(color: Color(0xFF6366F1), fontSize: 28, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
-        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1)),
       ],
     );
   }

@@ -37,7 +37,7 @@ class LeaveDetailScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new,
               color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: const Text(
           'Leave Request Detail',
@@ -61,7 +61,7 @@ class LeaveDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                boxShadow: AppTheme.softShadow,
+                border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
               ),
               child: Column(
                 children: [
@@ -122,7 +122,7 @@ class LeaveDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                boxShadow: AppTheme.softShadow,
+                border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,7 +191,7 @@ class LeaveDetailScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                boxShadow: AppTheme.softShadow,
+                border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,13 +295,22 @@ class LeaveDetailScreen extends StatelessWidget {
       });
 
       // Notify Employee
-      final userEmail = leaveData['userEmail'] ?? leaveData['userId'] ?? '';
-      if (userEmail.isNotEmpty) {
-        await FirestoreService.userNotificationsCol(userEmail).add({
+      String employeeEmail = leaveData['userEmail'] ?? '';
+      if (employeeEmail.isEmpty) {
+        // Robust fallback: extract email from path approved_companies/{cid}/users/{email}/leave_requests/{id}
+        final parts = leaveRef.path.split('/');
+        final usersIdx = parts.indexOf('users');
+        if (usersIdx != -1 && usersIdx + 1 < parts.length) {
+          employeeEmail = parts[usersIdx + 1];
+        }
+      }
+
+      if (employeeEmail.isNotEmpty) {
+        await FirestoreService.userNotificationsCol(employeeEmail).add({
           'companyId': FirestoreService.companyId,
           'userId': leaveData['userId'],
           'title': newStatus == 'approved' ? 'Leave Approved' : 'Leave Rejected',
-          'body': 'Your ${leaveData['leaveType']} request has been ${newStatus}.',
+          'body': 'Your ${leaveData['leaveType']} request has been $newStatus.',
           'type': newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
           'isRead': false,
           'timestamp': FieldValue.serverTimestamp(),

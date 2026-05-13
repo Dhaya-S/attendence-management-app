@@ -159,15 +159,15 @@ class AttendanceApp extends StatelessWidget {
 
         // Card Theme
         cardTheme: CardThemeData(
-          elevation: 2,
+          elevation: 0,
           shape: AppTheme.cardShape,
-          margin: const EdgeInsets.symmetric(vertical: 8),
+          margin: const EdgeInsets.symmetric(vertical: 6),
         ),
 
         // Elevated Button Theme
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            elevation: 2,
+            elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(
               borderRadius: AppTheme.buttonRadius,

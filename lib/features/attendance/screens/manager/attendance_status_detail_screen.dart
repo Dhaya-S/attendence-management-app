@@ -6,6 +6,7 @@ import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 import 'package:attendance_app/features/employee_management/screens/manager/employee_detail_screen.dart';
 import 'package:attendance_app/widgets/live_attendance_builder.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class AttendanceStatusDetailScreen extends StatefulWidget {
   final String initialFilter;
@@ -188,7 +189,7 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
   }
 
   Widget _buildFilterChips() {
-    final filters = ['All', 'Present', 'Late', 'Leave', 'Absent'];
+    final filters = ['All', 'Present', 'Late', 'Leave', 'Absent', 'WFH'];
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
@@ -243,15 +244,22 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
       if (_currentFilter == 'Present') return att != null;
       if (_currentFilter == 'Late') {
         if (att == null) return false;
+        final workMode = att['workMode'] as String?;
+        if (workMode == 'wfh') return false;
+        
         final checkInTs = att['checkIn'] as Timestamp?;
         if (checkInTs == null) return false;
         final checkIn = checkInTs.toDate();
         final remarkStatus = att['remarkStatus'] as String?;
-        final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+        final sParts = AppSession().shiftStartTime.split(':');
+        final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
+            int.parse(sParts[0]), int.parse(sParts[1]))
+            .add(Duration(minutes: AppSession().gracePeriod));
         return checkIn.isAfter(lateThreshold) && remarkStatus != 'approved';
       }
       if (_currentFilter == 'Leave') return leave != null;
       if (_currentFilter == 'Absent') return att == null && leave == null;
+      if (_currentFilter == 'WFH') return att != null && att['workMode'] == 'wfh';
       return true;
     }).toList();
 
@@ -294,7 +302,10 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
           final checkInTs = att['checkIn'] as Timestamp?;
           if (checkInTs != null) {
             final checkIn = checkInTs.toDate();
-            final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+          final sParts = AppSession().shiftStartTime.split(':');
+          final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
+              int.parse(sParts[0]), int.parse(sParts[1]))
+              .add(Duration(minutes: AppSession().gracePeriod));
             if (checkIn.isAfter(lateThreshold) && status != 'WFH') {
               status = 'Late';
               statusColor = AppTheme.warning;
@@ -330,7 +341,7 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-          boxShadow: AppTheme.softShadow,
+          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
         ),
         child: Row(
           children: [
@@ -387,7 +398,7 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
                             'WFH',
                             style: TextStyle(
                               fontSize: 9,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w600,
                               color: Color(0xFF6366F1),
                             ),
                           ),

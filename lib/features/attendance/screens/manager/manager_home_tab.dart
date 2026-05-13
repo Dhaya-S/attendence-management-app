@@ -226,8 +226,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -235,8 +235,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Team Presence', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
-                                Text('$percent%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF6366F1))),
+                                const Text('Team Presence', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+                                Text('$percent%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF6366F1))),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -253,7 +253,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Present: $presentToday (WFH: $wfhCount)', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+                                 Text('Present: $presentToday', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
                                 const Text('Goal: 100%', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
                               ],
                             ),
@@ -351,7 +351,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                       firstName,
                       style: AppTheme.h1.copyWith(
                         fontSize: 20,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
                         color: Colors.black,
                       ),
@@ -370,7 +370,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                           style: AppTheme.label.copyWith(
                             fontSize: 10,
                             color: Colors.black,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
                           ),
                         ),
@@ -554,14 +554,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,7 +566,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
               value,
               style: TextStyle(
                 fontSize: 28,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w600,
                 color: valueColor,
               ),
             ),
@@ -622,10 +616,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
-                ],
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,7 +629,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         'Team Presence',
                         style: TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF1F2937),
                         ),
                       ),
@@ -645,7 +637,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         '$percent%',
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF6366F1),
                         ),
                       ),
@@ -694,45 +686,47 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
 
   // ─── Leave Requests Preview ───────────────────────────────────────────
   Widget _buildLeaveRequestsPreview() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Leave Requests',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1F2937),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Leave Requests',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1F2937),
+                ),
               ),
-            ),
-            StreamBuilder<QuerySnapshot>(
-              stream: FirestoreService.companyLeaveRequestsQuery
-                  .where('status', isEqualTo: 'pending')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                final count = snapshot.data?.docs.length ?? 0;
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: count > 0 ? const Color(0xFFFFE4E6) : const Color(0xFFD1FAE5),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '$count PENDING',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: count > 0 ? const Color(0xFFE11D48) : const Color(0xFF059669),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirestoreService.companyLeaveRequestsQuery
+                    .where('status', isEqualTo: 'pending')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data?.docs.length ?? 0;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: count > 0 ? const Color(0xFFFFE4E6) : const Color(0xFFD1FAE5),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
+                    child: Text(
+                      '$count PENDING',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: count > 0 ? const Color(0xFFE11D48) : const Color(0xFF059669),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         const SizedBox(height: 12),
         GestureDetector(
           onTap: () {
@@ -742,27 +736,25 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
             );
           },
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
-              ],
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
             ),
             child: Row(
               children: [
                 // Mockup has overlapping avatars, we'll use an icon for simplicity
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 40,
+                  height: 40,
                   decoration: const BoxDecoration(
                     color: Color(0xFFF3F4F6),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.people_alt_rounded, color: Color(0xFF4B5563), size: 24),
+                  child: const Icon(Icons.people_alt_rounded, color: Color(0xFF4B5563), size: 20),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -770,8 +762,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                       const Text(
                         'Check Leave Requests',
                         style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
                           color: Color(0xFF1F2937),
                         ),
                       ),
@@ -779,7 +771,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                       const Text(
                         'Waiting for your review',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: Color(0xFF6B7280),
                           fontWeight: FontWeight.w500,
                         ),
@@ -788,16 +780,16 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
                     color: const Color(0xFF6366F1), // Royal blue / purple
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(
                     'Review All',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -807,97 +799,95 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
 
 
   // ─── Quick Actions ────────────────────────────────────────────────────
   Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'QUICK ACTIONS',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF6B7280),
-            letterSpacing: 1.0,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'QUICK ACTIONS',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6B7280),
+              letterSpacing: 1.0,
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _quickActionBtn(
-              Icons.badge_outlined,
-              'History',
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const EmployeeListScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 12),
-            _quickActionBtn(
-              Icons.calendar_today_outlined,
-              'Calendar',
-              () => widget.onTabChange?.call(1),
-            ),
-            const SizedBox(width: 12),
-            _quickActionBtn(
-              Icons.check_circle_outline_rounded,
-              'Overtime',
-              () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const OvertimeReportScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _quickActionBtn(
+                Icons.badge_outlined,
+                'History',
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EmployeeListScreen(),
+                    ),
+                  );
+                },
+              ),
+              _quickActionBtn(
+                Icons.calendar_today_outlined,
+                'Calendar',
+                () => widget.onTabChange?.call(1),
+              ),
+              _quickActionBtn(
+                Icons.check_circle_outline_rounded,
+                'Overtime',
+                () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const OvertimeReportScreen(),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _quickActionBtn(IconData icon, String label, VoidCallback onTap) {
-    return Expanded(
+    return SizedBox(
+      width: (MediaQuery.of(context).size.width - 56) / 3, // Precise 3-column split with spacing
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              )
-            ],
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
           ),
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF3F4F6),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: const Color(0xFF4B5563), size: 24),
+                child: Icon(icon, color: const Color(0xFF4B5563), size: 20),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF4B5563),
                 ),

@@ -42,7 +42,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
         centerTitle: true,
         leading: Navigator.canPop(context) ? IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 18),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ) : null,
         title: Text('Leave Management', style: AppTheme.h1.copyWith(fontSize: 18)),
       ),
@@ -85,9 +85,9 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
                   const SizedBox(height: 24),
                   _buildReasonSection(),
                   const SizedBox(height: 32),
-                  _buildRecentTable(requests),
-                  const SizedBox(height: 32),
                   _buildSubmitButton(),
+                  const SizedBox(height: 40),
+                  _buildRecentTable(requests),
                   const SizedBox(height: 100),
                 ],
               ),
@@ -244,7 +244,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
   Widget _durationChip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(14)),
       child: Text(label, style: const TextStyle(fontSize: 10, color: AppTheme.primary, fontWeight: FontWeight.bold)),
     );
   }
@@ -359,17 +359,14 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
       height: 60,
       decoration: BoxDecoration(
         color: AppTheme.primary,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: AppTheme.primary.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 6)),
-        ],
+        borderRadius: BorderRadius.circular(14),
       ),
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submitLeaveRequest,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           shadowColor: Colors.transparent,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
         child: _isSubmitting 
           ? const CircularProgressIndicator(color: Colors.white)
@@ -461,7 +458,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
       context: context,
       builder: (context) => ElasticIn(
         child: AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

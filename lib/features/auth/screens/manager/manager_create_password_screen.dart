@@ -133,7 +133,7 @@ class _ManagerCreatePasswordScreenState
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(AppTheme.radiusXL),
-                      boxShadow: AppTheme.softShadow,
+                      border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -142,7 +142,7 @@ class _ManagerCreatePasswordScreenState
                           'SECURITY UPDATE',
                           style: TextStyle(
                             fontSize: 12,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.primary,
                             letterSpacing: 0.5,
                           ),
@@ -152,7 +152,7 @@ class _ManagerCreatePasswordScreenState
                           'New Password',
                           style: TextStyle(
                             fontSize: 24,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary,
                             letterSpacing: -0.5,
                           ),
@@ -189,7 +189,7 @@ class _ManagerCreatePasswordScreenState
                           'REQUIREMENTS',
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: FontWeight.w600,
                             color: AppTheme.textHint,
                             letterSpacing: 0.5,
                           ),

@@ -68,11 +68,10 @@ class TopEmployeesScreen extends StatelessWidget {
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(AppTheme.radiusMD),
-                        boxShadow: AppTheme.softShadow,
                         border: index == 0
                             ? Border.all(
                                 color: AppTheme.primary.withOpacity(0.3))
@@ -82,8 +81,8 @@ class TopEmployeesScreen extends StatelessWidget {
                         children: [
                           // Rank
                           Container(
-                            width: 28,
-                            height: 28,
+                            width: 24,
+                            height: 24,
                             decoration: BoxDecoration(
                               color: index == 0
                                   ? AppTheme.primary
@@ -94,7 +93,7 @@ class TopEmployeesScreen extends StatelessWidget {
                               child: Text(
                                 '${index + 1}',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w700,
                                   color: index == 0
                                       ? Colors.white
@@ -105,11 +104,12 @@ class TopEmployeesScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 12),
                           CircleAvatar(
-                            radius: 22,
+                            radius: 18,
                             backgroundColor: AppTheme.primarySurface,
                             child: Text(
                               name.toString().substring(0, 1).toUpperCase(),
                               style: const TextStyle(
+                                fontSize: 13,
                                 fontWeight: FontWeight.w700,
                                 color: AppTheme.primary,
                               ),
@@ -123,7 +123,7 @@ class TopEmployeesScreen extends StatelessWidget {
                                 Text(
                                   name.toString(),
                                   style: const TextStyle(
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: AppTheme.textPrimary,
                                   ),
@@ -131,7 +131,7 @@ class TopEmployeesScreen extends StatelessWidget {
                                 Text(
                                   role.toString(),
                                   style: TextStyle(
-                                      fontSize: 12, color: AppTheme.textMuted),
+                                      fontSize: 11, color: AppTheme.textMuted),
                                 ),
                               ],
                             ),
@@ -139,8 +139,8 @@ class TopEmployeesScreen extends StatelessWidget {
                           Text(
                             '$rate%',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                               color: rate > 90
                                   ? AppTheme.success
                                   : AppTheme.warning,

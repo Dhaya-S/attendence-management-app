@@ -6,6 +6,9 @@ import 'package:animate_do/animate_do.dart';
 import '../../theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
+import 'package:attendance_app/screens/employee/attendance_history_screen.dart';
+import 'package:attendance_app/screens/employee/leave_tab.dart';
+
 class EmployeeNotificationsScreen extends StatefulWidget {
   const EmployeeNotificationsScreen({super.key});
 
@@ -52,7 +55,7 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 18),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => Navigator.maybePop(context),
         ),
         title: Text('Notifications', style: AppTheme.h3),
         centerTitle: true,
@@ -114,7 +117,7 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
                 final data = docs[index].data() as Map<String, dynamic>;
                 return FadeInUp(
                   duration: Duration(milliseconds: 300 + (index * 50)),
-                  child: _notificationCard(data),
+                  child: _notificationCard(context, data),
                 );
               },
             ),
@@ -124,7 +127,7 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
     );
   }
 
-  Widget _notificationCard(Map<String, dynamic> data) {
+  Widget _notificationCard(BuildContext context, Map<String, dynamic> data) {
     final title = data['title'] ?? 'Notification';
     final body = data['body'] ?? data['message'] ?? '';
     final type = data['type'] ?? 'info';
@@ -142,12 +145,12 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
         color = AppTheme.primary;
         break;
       case 'leave_approved':
+      case 'leave_rejected':
       case 'adjustment_approved':
       case 'attendance_corrected':
         icon = Icons.check_circle_rounded;
         color = AppTheme.success;
         break;
-      case 'leave_rejected':
       case 'adjustment_denied':
         icon = Icons.cancel_rounded;
         color = AppTheme.danger;
@@ -157,35 +160,45 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
         color = AppTheme.primary;
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration(),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.05), shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary)),
-                    Text(DateFormat('hh:mm a').format(timestamp), style: AppTheme.label.copyWith(fontSize: 9)),
-                  ],
-                ),
-                Text(body, style: AppTheme.label.copyWith(fontSize: 10, color: AppTheme.textHint)),
-              ],
+    return GestureDetector(
+      onTap: () {
+        if (type == 'leave_approved' || type == 'leave_rejected') {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeLeaveTab()));
+        } else if (type == 'check_in' || type == 'check_out' || type == 'adjustment_approved' || type == 'adjustment_denied' || type == 'attendance_corrected') {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceHistoryScreen()));
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: AppTheme.cardDecoration(),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color.withOpacity(0.05), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 18),
             ),
-          ),
-        ],
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary))),
+                      Text(DateFormat('hh:mm a').format(timestamp), style: AppTheme.label.copyWith(fontSize: 9)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(body, style: AppTheme.label.copyWith(fontSize: 10, color: AppTheme.textHint)),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

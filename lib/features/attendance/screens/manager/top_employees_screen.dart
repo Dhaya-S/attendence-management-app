@@ -218,14 +218,8 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -244,7 +238,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
               const SizedBox(height: 2),
               Text(_monthName,
                   style: const TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w800, color: _slate)),
+                      fontSize: 16, fontWeight: FontWeight.w600, color: _slate)),
             ],
           ),
           IconButton(
@@ -260,13 +254,12 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: _indigo,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: _indigo.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Top Rankings', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900)),
+          const Text('Top Rankings', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -281,7 +274,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
 
               return Column(
                 children: [
-                   Text('${score.toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+                   Text('${score.toInt()}%', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                    const SizedBox(height: 8),
                    AnimatedContainer(
                      duration: Duration(milliseconds: 500 + (idx * 100)),
@@ -290,6 +283,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                      decoration: BoxDecoration(
                        color: Colors.white.withOpacity(idx == 0 ? 1.0 : 0.4 - (idx * 0.05)),
                        borderRadius: BorderRadius.circular(12),
+                       border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
                      ),
                    ),
                    const SizedBox(height: 12),
@@ -307,11 +301,11 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
   Widget _buildTopPerformerSpotlight(Map<String, dynamic> topUser) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [BoxShadow(color: _indigo.withOpacity(0.04), blurRadius: 40, offset: const Offset(0, 20))],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Column(
         children: [
@@ -319,36 +313,36 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
             alignment: Alignment.center,
             children: [
               Container(
-                width: 120,
-                height: 120,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: const Color(0xFFF1F5F9),
-                  border: Border.all(color: _indigo, width: 4),
+                  border: Border.all(color: _indigo, width: 3),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   topUser['name'][0].toUpperCase(),
-                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: _indigo),
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, color: _indigo),
                 ),
               ),
               Positioned(
                 bottom: 0,
                 right: 0,
                 child: Container(
-                  padding: const EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(5),
                   decoration: const BoxDecoration(
                     color: _indigo,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.workspace_premium, color: Colors.white, size: 20),
+                  child: const Icon(Icons.workspace_premium, color: Colors.white, size: 16),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          Text(topUser['name'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: _slate)),
-          const SizedBox(height: 8),
+          Text(topUser['name'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: _slate)),
+          const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -358,20 +352,20 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.emoji_events, size: 14, color: _indigo),
+                const Icon(Icons.emoji_events, size: 12, color: _indigo),
                 const SizedBox(width: 4),
-                const Text('TOP PERFORMER', style: TextStyle(color: _indigo, fontSize: 10, fontWeight: FontWeight.w900)),
+                const Text('TOP PERFORMER', style: TextStyle(color: _indigo, fontSize: 9, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text('${topUser['score']}%', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: _slate, height: 1)),
-              const SizedBox(width: 8),
-              Text('SCORE', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.grey[400], letterSpacing: 1)),
+              Text('${topUser['score']}%', style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w700, color: _slate, height: 1)),
+              const SizedBox(width: 6),
+              Text('SCORE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey[400], letterSpacing: 1)),
             ],
           ),
           const SizedBox(height: 8),
@@ -379,7 +373,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
             _selectedMetric == 'Highest Score' ? 'Highest attendance score this month' : 
             _selectedMetric == 'Most Hours' ? '${topUser['hours']}h logged this month' :
             '${topUser['attendance']}% attendance rate',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500], fontWeight: FontWeight.w500),
+            style: TextStyle(fontSize: 11, color: Colors.grey[500], fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -401,13 +395,12 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                 color: isActive ? Colors.white : Colors.transparent,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: isActive ? Colors.transparent : Colors.grey[300]!, width: 1),
-                boxShadow: isActive ? [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 4))] : [],
               ),
               child: Text(
                 metric,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w600,
                   color: isActive ? _slate : Colors.grey[500],
                 ),
               ),
@@ -446,20 +439,20 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))],
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFF0F1F3), width: 1),
       ),
       child: Row(
         children: [
           Stack(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F5F9),
                   shape: BoxShape.circle,
@@ -467,7 +460,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                 alignment: Alignment.center,
                 child: Text(
                   emp['name'][0].toUpperCase(),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: _slate),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _slate),
                 ),
               ),
               if (emp['isPresentToday'] == true)
@@ -475,8 +468,8 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                   right: 0,
                   bottom: 0,
                   child: Container(
-                    width: 14,
-                    height: 14,
+                    width: 12,
+                    height: 12,
                     decoration: BoxDecoration(
                       color: _teal,
                       shape: BoxShape.circle,
@@ -486,13 +479,13 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
                 ),
             ],
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(emp['name'], style: const TextStyle(fontWeight: FontWeight.w900, color: _slate, fontSize: 16)),
-                const SizedBox(height: 6),
+                Text(emp['name'], style: const TextStyle(fontWeight: FontWeight.w700, color: _slate, fontSize: 14)),
+                const SizedBox(height: 4),
                 tag,
               ],
             ),
@@ -500,8 +493,8 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(displayValue, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: _slate)),
-              Text(displayLabel, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.grey[500], letterSpacing: 0.5)),
+              Text(displayValue, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: _slate)),
+              Text(displayLabel, style: TextStyle(fontSize: 8, fontWeight: FontWeight.w600, color: Colors.grey[500], letterSpacing: 0.5)),
             ],
           ),
         ],
@@ -521,7 +514,7 @@ class _TopEmployeesScreenState extends State<TopEmployeesScreen> {
         children: [
           Icon(icon, size: 10, color: color),
           const SizedBox(width: 4),
-          Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
+          Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
         ],
       ),
     );

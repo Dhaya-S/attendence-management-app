@@ -6,6 +6,8 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 class AddEmployeeScreen extends StatefulWidget {
   final Map<String, dynamic>? existingData;
@@ -181,6 +183,14 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
               'approvedAt': FieldValue.serverTimestamp(),
             });
             await batch.commit();
+            
+            // Send email to employee with their credentials
+            _sendWelcomeEmail(
+              _nameController.text.trim(),
+              email,
+              _passwordController.text.trim(),
+            );
+
             await FirebaseAuth.instanceFor(app: secondaryApp).signOut();
           }
         } finally {
@@ -500,5 +510,39 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _sendWelcomeEmail(String empName, String empEmail, String password) async {
+    // EmailJS Credentials
+    const String serviceId = 'service_3ibbupp'; 
+    const String templateId = 'template_1dyfl2w'; 
+    const String publicKey = 'w4DPM7AUq-xqHzKgR';
+
+    try {
+      final companyName = AppSession().companyName ?? 'Workzi';
+      final response = await http.post(
+        Uri.parse('https://api.emailjs.com/api/v1.0/email/send'),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'service_id': serviceId,
+          'template_id': templateId,
+          'user_id': publicKey,
+          'template_params': {
+            'email': empEmail, // Matches {{email}} in your 'To Email' field
+            'employee_name': empName, // Matches {{employee_name}}
+            'employee_email': empEmail, // Matches {{employee_email}}
+            'employee_password': password, // Matches {{employee_password}}
+            'company_name': companyName,
+            'message': 'Welcome to $companyName! Your account has been created by your manager.\n\nLogin Credentials:\nEmail: $empEmail\nPassword: $password\n\nPlease login and change your password for security.',
+          },
+        }),
+      );
+      debugPrint('Welcome email sent status: ${response.statusCode}');
+      debugPrint('EmailJS Response Body: ${response.body}');
+    } catch (e) {
+      debugPrint('Error sending welcome email: $e');
+    }
   }
 }
