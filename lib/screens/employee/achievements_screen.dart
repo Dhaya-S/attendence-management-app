@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../theme/app_theme.dart';
 import 'all_milestones_screen.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class AchievementsScreen extends StatelessWidget {
   const AchievementsScreen({super.key});
@@ -106,8 +107,16 @@ class AchievementsScreen extends StatelessWidget {
       final checkIn = data['checkIn'] as Timestamp?;
       if (checkIn != null) {
         final time = checkIn.toDate();
-        if (time.hour < 9) earlyBirds++;
-        else if (time.hour > 9 || (time.hour == 9 && time.minute > 15)) lateArrivals++;
+        final parts = AppSession().shiftStartTime.split(':');
+        final shiftStart = DateTime(time.year, time.month, time.day,
+            int.parse(parts[0]), int.parse(parts[1]));
+        final lateThreshold = shiftStart.add(Duration(minutes: AppSession().gracePeriod));
+
+        if (time.isBefore(shiftStart)) {
+          earlyBirds++;
+        } else if (time.isAfter(lateThreshold)) {
+          lateArrivals++;
+        }
       }
     }
 

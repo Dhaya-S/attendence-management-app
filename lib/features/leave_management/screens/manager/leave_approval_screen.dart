@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/features/leave_management/screens/manager/leave_detail_screen.dart';
 
 class LeaveApprovalScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new,
               color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Leave Approvals',
@@ -381,15 +382,15 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
         }
 
         if (employeeEmail.isNotEmpty) {
-          await FirestoreService.userNotificationsCol(employeeEmail).add({
-            'companyId': FirestoreService.companyId,
-            'userId': data['userId'],
-            'title': newStatus == 'approved' ? 'Leave Approved' : 'Leave Rejected',
-            'body': 'Your ${data['leaveType']} request has been $newStatus.',
-            'type': newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
-            'isRead': false,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
+          await NotificationHelper.notifyEmployee(
+            employeeEmail: employeeEmail,
+            title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
+            body: 'Your ${data['leaveType']} request for ${DateFormat('MMM dd').format((data['fromDate'] as Timestamp).toDate())} has been $newStatus.',
+            type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
+            extraData: {
+              'userId': data['userId'],
+            },
+          );
         }
       } catch (notifError) {
         debugPrint('Notification could not be sent: $notifError');

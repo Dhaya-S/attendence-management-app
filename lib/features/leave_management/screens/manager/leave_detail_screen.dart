@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 
 class LeaveDetailScreen extends StatelessWidget {
   final DocumentReference leaveRef;
@@ -37,7 +38,7 @@ class LeaveDetailScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new,
               color: AppTheme.textPrimary, size: 20),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Leave Request Detail',
@@ -306,15 +307,15 @@ class LeaveDetailScreen extends StatelessWidget {
       }
 
       if (employeeEmail.isNotEmpty) {
-        await FirestoreService.userNotificationsCol(employeeEmail).add({
-          'companyId': FirestoreService.companyId,
-          'userId': leaveData['userId'],
-          'title': newStatus == 'approved' ? 'Leave Approved' : 'Leave Rejected',
-          'body': 'Your ${leaveData['leaveType']} request has been $newStatus.',
-          'type': newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
-          'isRead': false,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+        await NotificationHelper.notifyEmployee(
+          employeeEmail: employeeEmail,
+          title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
+          body: 'Your ${leaveData['leaveType']} request from ${DateFormat('MMM dd').format((leaveData['fromDate'] as Timestamp).toDate())} has been $newStatus.',
+          type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
+          extraData: {
+            'userId': leaveData['userId'],
+          },
+        );
       }
 
       if (context.mounted) {

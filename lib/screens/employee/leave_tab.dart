@@ -6,6 +6,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/date_range_selection_modal.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class EmployeeLeaveTab extends StatefulWidget {
   const EmployeeLeaveTab({super.key});
@@ -42,7 +43,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
         centerTitle: true,
         leading: Navigator.canPop(context) ? IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 18),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () => Navigator.pop(context),
         ) : null,
         title: Text('Leave Management', style: AppTheme.h1.copyWith(fontSize: 18)),
       ),
@@ -105,7 +106,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
       final data = doc.data() as Map<String, dynamic>;
       if (data['leaveType'] == 'Paid Leave' && data['status'] == 'approved') {
         final start = (data['fromDate'] as Timestamp?)?.toDate();
-        if (start != null && start.month == now.month && start.year == now.year) {
+        if (start != null && start.year == now.year) {
           total += (data['durationInDays'] as num?)?.toInt() ?? 0;
         }
       }
@@ -114,7 +115,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
   }
 
   Widget _buildBalanceHeader(int used) {
-    const int total = 2;
+    final int total = AppSession().paidLeavesPerYear;
     final int remaining = total - used;
 
     return Container(
@@ -391,26 +392,27 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
             .where('leaveType', isEqualTo: 'Paid Leave')
             .get();
 
-        int currentMonthUsed = 0;
+        int currentYearUsed = 0;
         for (var doc in leaves.docs) {
           final d = doc.data();
           if (d['status'] != 'rejected') {
             final fromDateValue = d['fromDate'];
             if (fromDateValue != null && fromDateValue is Timestamp) {
               final date = fromDateValue.toDate();
-              if (date.month == now.month && date.year == now.year) {
-                currentMonthUsed += (d['durationInDays'] as num?)?.toInt() ?? 0;
+              if (date.year == now.year) {
+                currentYearUsed += (d['durationInDays'] as num?)?.toInt() ?? 0;
               }
             }
           }
         }
         
         final requestedDays = toDate.difference(fromDate).inDays + 1;
+        final limit = AppSession().paidLeavesPerYear;
 
-        if (currentMonthUsed + requestedDays > 2) {
+        if (currentYearUsed + requestedDays > limit) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('You only have 2 Paid Leaves per month. This request exceeds your remaining balance.'),
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('You only have $limit Paid Leaves per year. This request exceeds your remaining balance ($currentYearUsed used).'),
               backgroundColor: AppTheme.danger,
             ));
           }
@@ -456,7 +458,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
   void _showSuccessDialog() {
     showDialog(
       context: context,
-      builder: (context) => ElasticIn(
+      builder: (dialogContext) => ElasticIn(
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           content: Column(
@@ -469,7 +471,12 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
               const Text('Your leave request has been sent for approval.', textAlign: TextAlign.center),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  Navigator.pop(dialogContext); // Pops the dialog
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context); // Pops the pushed screen
+                  }
+                },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 child: const Text('Great!', style: TextStyle(color: Colors.white)),
               ),

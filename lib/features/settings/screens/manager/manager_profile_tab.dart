@@ -6,6 +6,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/auth_wrapper.dart';
 import 'package:attendance_app/features/settings/screens/manager/privacy_policy_screen.dart';
 import 'package:attendance_app/features/settings/screens/manager/contact_support_screen.dart';
 import 'package:attendance_app/features/employee_management/screens/manager/employee_list_screen.dart';
@@ -885,7 +886,7 @@ class _ManagerProfileTabState extends State<ManagerProfileTab> {
                     AppSession().clear();
                     if (context.mounted) {
                       Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        MaterialPageRoute(builder: (_) => const AuthWrapper()),
                         (route) => false,
                       );
                     }

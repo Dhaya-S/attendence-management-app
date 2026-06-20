@@ -18,6 +18,8 @@ import 'package:attendance_app/widgets/streak_card.dart';
 import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/screens/employee/attendance_tab.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
+import 'package:attendance_app/utils/notification_service.dart';
 
 class EmployeeHomeTab extends StatefulWidget {
   const EmployeeHomeTab({super.key});
@@ -100,9 +102,18 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         final checkInTime = (doc.data()?['checkIn'] as Timestamp?)?.toDate();
         if (checkInTime != null) {
           final diff = now.difference(checkInTime);
-          final nineHours = const Duration(hours: 9);
-          if (diff.inSeconds > nineHours.inSeconds) {
-            final otMinutes = diff.inMinutes - nineHours.inMinutes;
+          // Calculate dynamic shift duration
+          final sParts = AppSession().shiftStartTime.split(':');
+          final eParts = AppSession().shiftEndTime.split(':');
+          final startH = int.parse(sParts[0]);
+          final startM = int.parse(sParts[1]);
+          final endH = int.parse(eParts[0]);
+          final endM = int.parse(eParts[1]);
+          
+          final standardDuration = Duration(hours: endH, minutes: endM) - Duration(hours: startH, minutes: startM);
+          
+          if (diff.inSeconds > standardDuration.inSeconds) {
+            final otMinutes = diff.inMinutes - standardDuration.inMinutes;
             // Get user's name from profile for better notifications
             final querySnapshot = await FirestoreService.usersCol
                 .where('email', isEqualTo: user?.email ?? '')
@@ -128,15 +139,26 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       }
       
       // Add to Notifications
-      await FirestoreService.userNotificationsCol(user?.email ?? '').add({
-        'companyId': FirestoreService.companyId,
-        'userId': user?.uid,
-        'title': isCheckIn ? 'Check-In Successful' : 'Check-Out Successful',
-        'body': 'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
-        'type': isCheckIn ? 'check_in' : 'check_out',
-        'isRead': false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await NotificationHelper.notifyEmployee(
+        employeeEmail: user?.email ?? '',
+        title: isCheckIn ? 'Check-In Successful ✅' : 'Check-Out Successful 👋',
+        body: 'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
+        type: isCheckIn ? 'check_in' : 'check_out',
+        extraData: {
+          'userId': user?.uid,
+        },
+      );
+
+      // Handle Checkout Reminder
+      if (isCheckIn) {
+        // Schedule reminder for shift end
+        final eParts = AppSession().shiftEndTime.split(':');
+        final shiftEnd = DateTime(now.year, now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1]));
+        await NotificationService().scheduleCheckoutReminder(shiftEnd);
+      } else {
+        // Cancel reminder on check-out
+        await NotificationService().cancelCheckoutReminder();
+      }
 
       if (mounted) _showSuccessModal(isCheckIn ? 'Check In' : 'Check Out', now);
     } catch (e) {
@@ -213,11 +235,19 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
 
         final hours = duration.inHours;
         final minutes = duration.inMinutes % 60;
-        final double progress = (duration.inMinutes / (9 * 60)).clamp(0.0, 1.0);
+        // Dynamic Calculations for Shift Progress
+        final sParts = AppSession().shiftStartTime.split(':');
+        final eParts = AppSession().shiftEndTime.split(':');
+        final startH = int.parse(sParts[0]);
+        final startM = int.parse(sParts[1]);
+        final endH = int.parse(eParts[0]);
+        final endM = int.parse(eParts[1]);
+        
+        final standardShiftMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+        final double progress = (duration.inMinutes / standardShiftMinutes).clamp(0.0, 1.0);
 
         // Calculations for Remaining Time
-        final totalMinutes = 9 * 60;
-        final remainingMinutes = (totalMinutes - duration.inMinutes).clamp(0, totalMinutes);
+        final remainingMinutes = (standardShiftMinutes - duration.inMinutes).clamp(0, standardShiftMinutes);
         final remHours = remainingMinutes ~/ 60;
         final remMins = remainingMinutes % 60;
         final remStr = '${remHours}h ${remMins}m';
@@ -929,51 +959,73 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
             onPressed: () async {
               if (controller.text.trim().isEmpty) return;
               
-              // Fetch the current user's name for manager visibility
-              final userQuery = await FirestoreService.usersCol
-                  .where('email', isEqualTo: user?.email ?? '')
-                  .limit(1)
-                  .get();
-              final userData = userQuery.docs.isNotEmpty ? userQuery.docs.first.data() : {};
-              final userName = (userData['name'] ?? user?.email?.split('@')[0] ?? 'Employee') as String;
-              
-              final docId = _getAttendanceDocId();
-              await _todayRef.doc(docId).set({
-                'companyId': FirestoreService.companyId,
-                'remark': controller.text.trim(),
-                'isAdjustmentRequest': true,
-                'remarkStatus': 'pending',
-                'requestTime': FieldValue.serverTimestamp(),
-                'userId': user?.uid,
-                'userEmail': user?.email,
-                'userName': userName,
-                'recordDate': docId,
-                'status': currentStatus, // Keep existing status
-              }, SetOptions(merge: true));
-              
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Row(
-                      children: [
-                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            'Adjustment request sent successfully!',
-                            style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Inter'),
-                          ),
-                        ),
-                      ],
-                    ),
-                    backgroundColor: const Color(0xFF2E7D32),
-                    behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    margin: const EdgeInsets.all(20),
-                    elevation: 0,
-                  ),
+              try {
+                // Fetch the current user's name safely from local session to avoid security rules query blocks
+                final userName = AppSession().userName ?? user?.email?.split('@')[0] ?? 'Employee';
+                
+                final docId = _getAttendanceDocId();
+                await _todayRef.doc(docId).set({
+                  'companyId': FirestoreService.companyId,
+                  'remark': controller.text.trim(),
+                  'isAdjustmentRequest': true,
+                  'remarkStatus': 'pending',
+                  'requestTime': FieldValue.serverTimestamp(),
+                  'userId': user?.uid,
+                  'userEmail': user?.email,
+                  'userName': userName,
+                  'recordDate': docId,
+                  'status': currentStatus, // Keep existing status
+                }, SetOptions(merge: true));
+
+                // Notify the manager
+                await NotificationHelper.notifyManager(
+                  title: 'Late Correction Request ⚠️',
+                  body: '$userName requested late correction for ${DateFormat('MMM dd, yyyy').format(DateTime.tryParse(docId) ?? DateTime.now())} (Status: $currentStatus). Reason: "${controller.text.trim()}"',
+                  type: 'late_adjustment_request',
+                  extraData: {
+                    'employeeEmail': user?.email,
+                    'recordDate': docId,
+                  },
                 );
+                
+                if (mounted) {
+                  Future.delayed(Duration.zero, () {
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Text(
+                                  'Adjustment request sent successfully!',
+                                  style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Inter'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFF2E7D32),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          margin: const EdgeInsets.all(20),
+                          elevation: 0,
+                        ),
+                      );
+                    }
+                  });
+                }
+              } catch (e) {
+                debugPrint('Error submitting late correction request: $e');
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to submit request: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             style: ElevatedButton.styleFrom(

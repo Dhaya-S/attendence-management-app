@@ -5,6 +5,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/features/leave_management/screens/manager/leave_approval_screen.dart';
 import 'package:attendance_app/features/attendance/screens/manager/late_adjustment_review_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class ManagerNotificationsScreen extends StatefulWidget {
   const ManagerNotificationsScreen({super.key});
@@ -199,6 +200,19 @@ class _ManagerNotificationsScreenState
           builder: (context, adjustSnap) {
             if (leaveSnap.hasError || adjustSnap.hasError) {
               debugPrint('Notification Stream Error: L:${leaveSnap.error} A:${adjustSnap.error}');
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                final email = user?.email ?? 'NONE';
+                final uid = user?.uid ?? 'NONE';
+                debugPrint('DEBUG Local Auth Session: email=$email uid=$uid');
+                if (email != 'NONE') {
+                  FirebaseFirestore.instance.collection('approved_users').doc(email.toLowerCase()).get().then((doc) {
+                    debugPrint('DEBUG approved_users doc: exists=${doc.exists} id=${doc.id} data=${doc.data()}');
+                  });
+                }
+              } catch (e) {
+                debugPrint('DEBUG failed to fetch approved_user doc: $e');
+              }
             }
 
             final leaveDocs = leaveSnap.data?.docs ?? [];

@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 
 class LateAdjustmentReviewScreen extends StatefulWidget {
@@ -406,9 +408,10 @@ class _LateAdjustmentReviewScreenState
       QueryDocumentSnapshot doc, Timestamp? originalCheckIn) {
     final data = doc.data() as Map<String, dynamic>;
     final recordDate = data['recordDate'] ?? '';
+    final sParts = AppSession().shiftStartTime.split(':');
     TimeOfDay selectedTime = originalCheckIn != null
         ? TimeOfDay.fromDateTime(originalCheckIn.toDate())
-        : const TimeOfDay(hour: 9, minute: 0);
+        : TimeOfDay(hour: int.parse(sParts[0]), minute: int.parse(sParts[1]));
     final noteController = TextEditingController();
 
     showModalBottomSheet(
@@ -718,16 +721,15 @@ class _LateAdjustmentReviewScreenState
       });
 
       // Notify the employee
-      await FirestoreService.userNotificationsCol(employeeEmail!).add({
-        'companyId': FirestoreService.companyId,
-        'userId': employeeIdForNotif,
-        'title': 'Adjustment Approved ✅',
-        'body':
-            'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
-        'type': 'adjustment_approved',
-        'isRead': false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      await NotificationHelper.notifyEmployee(
+        employeeEmail: employeeEmail!,
+        title: 'Adjustment Approved ✅',
+        body: 'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
+        type: 'adjustment_approved',
+        extraData: {
+          'userId': employeeIdForNotif,
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -795,17 +797,17 @@ class _LateAdjustmentReviewScreenState
       });
 
       // Notify the employee
-      await FirestoreService.userNotificationsCol(employeeEmail!).add({
-        'companyId': FirestoreService.companyId,
-        'userId': employeeIdForNotif,
-        'title': 'Adjustment Request Denied ❌',
-        'body': note.isNotEmpty
+      await NotificationHelper.notifyEmployee(
+        employeeEmail: employeeEmail!,
+        title: 'Adjustment Request Denied ❌',
+        body: note.isNotEmpty
             ? 'Your adjustment request for $recordDate was denied: "$note"'
             : 'Your adjustment request for $recordDate was denied by the manager.',
-        'type': 'adjustment_denied',
-        'isRead': false,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+        type: 'adjustment_denied',
+        extraData: {
+          'userId': employeeIdForNotif,
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

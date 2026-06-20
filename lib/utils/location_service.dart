@@ -48,8 +48,8 @@ class LocationService {
   }
 
   // Cache configuration
-  static const Duration _cacheExpiry = Duration(seconds: 30);
-  static const Duration _locationTimeout = Duration(seconds: 20);
+  static const Duration _cacheExpiry = Duration(seconds: 2);
+  static const Duration _locationTimeout = Duration(seconds: 10);
 
   /// Max acceptable accuracy in meters. Positions worse than this (higher number) are rejected.
   static const double _maxAcceptableAccuracy = 100.0;
@@ -415,10 +415,33 @@ class LocationService {
     _isTracking = true;
     print("📍 Starting realtime location tracking...");
 
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Update every 10 meters
-    );
+    // Setup fast, high-performance realtime tracking settings
+    late final LocationSettings locationSettings;
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      locationSettings = AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 0, // Instant updates (0 meters filter)
+        intervalDuration: const Duration(seconds: 2), // High-frequency polling (2 seconds)
+        foregroundNotificationConfig: const ForegroundNotificationConfig(
+          notificationText: "Running high-performance location tracking...",
+          notificationTitle: "Location Tracker Active",
+          enableWakeLock: true,
+        ),
+      );
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      locationSettings = AppleSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 0, // Instant updates
+        activityType: ActivityType.fitness,
+        pauseLocationUpdatesAutomatically: false,
+        showBackgroundLocationIndicator: true,
+      );
+    } else {
+      locationSettings = const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 0,
+      );
+    }
 
     try {
       _positionStreamSubscription =

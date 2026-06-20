@@ -144,7 +144,10 @@ class EmployeeDetailScreen extends StatelessWidget {
             
             if (checkInTs != null) {
               final checkIn = checkInTs.toDate();
-              final threshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30);
+              final sParts = AppSession().shiftStartTime.split(':');
+              final threshold = DateTime(checkIn.year, checkIn.month, checkIn.day, 
+                  int.parse(sParts[0]), int.parse(sParts[1]))
+                  .add(Duration(minutes: AppSession().gracePeriod));
               if (checkIn.isAfter(threshold)) lateCount++;
               
               if (checkOutTs != null) {
@@ -188,7 +191,11 @@ class EmployeeDetailScreen extends StatelessWidget {
             final checkInTs = todayRecord['checkIn'] as Timestamp?;
             if (checkInTs != null) {
               final checkIn = checkInTs.toDate();
-              if (checkIn.isAfter(DateTime(checkIn.year, checkIn.month, checkIn.day, 9, 30))) {
+              final sParts = AppSession().shiftStartTime.split(':');
+              final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
+                  int.parse(sParts[0]), int.parse(sParts[1]))
+                  .add(Duration(minutes: AppSession().gracePeriod));
+              if (checkIn.isAfter(lateThreshold)) {
                 statusText = 'Late';
                 statusColor = AppTheme.warning;
               }

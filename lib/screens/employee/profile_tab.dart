@@ -6,6 +6,7 @@ import 'package:animate_do/animate_do.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/notification_action.dart';
 import '../login_screen.dart';
+import '../auth_wrapper.dart';
 import '../common/notification_settings_screen.dart';
 import '../common/password_recovery_flow.dart';
 import 'notifications_screen.dart';
@@ -37,7 +38,6 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
     super.initState();
     _userStream = FirestoreService.userStreamByEmail(user?.email ?? '');
     _companyStream = FirestoreService.companyDoc().snapshots();
-    LocationService().startRealtimeTracking();
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) setState(() {});
     });
@@ -45,7 +45,6 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
 
   @override
   void dispose() {
-    LocationService().stopRealtimeTracking();
     _timer?.cancel();
     super.dispose();
   }
@@ -309,7 +308,8 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
 
             final checkInTs = data['checkIn'] as Timestamp?;
             if (checkInTs != null) {
-              if (checkInTs.toDate().hour < 9) earlyBirds++;
+              final sParts = AppSession().shiftStartTime.split(':');
+              if (checkInTs.toDate().hour < int.parse(sParts[0])) earlyBirds++;
             }
           }
           perfectWeek = streak >= 7;
@@ -436,12 +436,16 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                   monthTotalHours += (data['totalHours'] as num).toDouble();
                 }
                 
-                // Late arrivals for this month
+                // Dynamic Late arrivals for this month
                 final checkIn = data['checkIn'] as Timestamp?;
                 if (checkIn != null) {
                   final time = checkIn.toDate();
-                  // 9:15 AM threshold
-                  if (time.hour > 9 || (time.hour == 9 && time.minute > 15)) {
+                  final parts = AppSession().shiftStartTime.split(':');
+                  final threshold = DateTime(time.year, time.month, time.day, 
+                      int.parse(parts[0]), int.parse(parts[1]))
+                      .add(Duration(minutes: AppSession().gracePeriod));
+                      
+                  if (time.isAfter(threshold)) {
                     monthLateArrivals++;
                   }
                 }
@@ -723,7 +727,7 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                     await FirebaseAuth.instance.signOut();
                     AppSession().clear();
                     if (mounted) {
-                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginScreen()), (r) => false);
+                      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const AuthWrapper()), (r) => false);
                     }
                   },
                   style: ElevatedButton.styleFrom(

@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class AllMilestonesScreen extends StatelessWidget {
   final int streak;
@@ -70,9 +71,14 @@ class AllMilestonesScreen extends StatelessWidget {
       final checkOut = data['checkOut'] as Timestamp?;
       
       if (checkIn != null) {
-        if (checkIn.toDate().hour < 9) earlyBirds++;
+        final time = checkIn.toDate();
+        final parts = AppSession().shiftStartTime.split(':');
+        final shiftStart = DateTime(time.year, time.month, time.day,
+            int.parse(parts[0]), int.parse(parts[1]));
+        
+        if (time.isBefore(shiftStart)) earlyBirds++;
         if (checkOut != null) {
-          totalHours += checkOut.toDate().difference(checkIn.toDate()).inMinutes / 60;
+          totalHours += checkOut.toDate().difference(time).inMinutes / 60;
         }
       }
     }
@@ -95,6 +101,8 @@ class AllMilestonesScreen extends StatelessWidget {
     int earlyBirds = stats['earlyBirds'] ?? 0;
     double totalHours = stats['totalHours'] ?? 0;
     int otCount = stats['overtimeCount'] ?? 0;
+
+    final startTimeLabel = AppSession().shiftStartTime;
 
     return [
       {
@@ -120,7 +128,7 @@ class AllMilestonesScreen extends StatelessWidget {
       {
         'id': 'early_bird',
         'title': 'Early Bird',
-        'sub': 'Clock in before 9 AM, 5 times',
+        'sub': 'Clock in before $startTimeLabel, 5 times',
         'icon': Icons.bolt_rounded,
         'bg': const Color(0xFFF0FDF4),
         'color': const Color(0xFF16A34A),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/auth_wrapper.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -51,7 +52,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
         );
       }
       return;
@@ -66,7 +67,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
         );
       }
       return;
@@ -192,7 +193,7 @@ class _SplashScreenState extends State<SplashScreen>
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
         );
       }
     }

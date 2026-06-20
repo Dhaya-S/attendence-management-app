@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 
 class AttendanceCorrectionScreen extends StatefulWidget {
@@ -22,6 +24,17 @@ class _AttendanceCorrectionScreenState
   TimeOfDay _checkOutTime = const TimeOfDay(hour: 18, minute: 0);
   final _reasonController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      final sParts = AppSession().shiftStartTime.split(':');
+      final eParts = AppSession().shiftEndTime.split(':');
+      _checkInTime = TimeOfDay(hour: int.parse(sParts[0]), minute: int.parse(sParts[1]));
+      _checkOutTime = TimeOfDay(hour: int.parse(eParts[0]), minute: int.parse(eParts[1]));
+    } catch (_) {}
+  }
 
   @override
   void dispose() {
@@ -101,17 +114,16 @@ class _AttendanceCorrectionScreenState
       }, SetOptions(merge: true));
 
       // Notify the employee about manual adjustment
-      await FirestoreService.userNotificationsCol(_selectedEmployeeId!).add({
-        'companyId': FirestoreService.companyId,
-        'userId': _selectedEmployeeId,
-        'userName': _selectedEmployeeName,
-        'title': 'Attendance Corrected 📝',
-        'body':
-            'Hi $_selectedEmployeeName, a manager has manually corrected your attendance for ${DateFormat('dd MMM yyyy').format(date)}.',
-        'type': 'attendance_corrected',
-        'timestamp': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
+      await NotificationHelper.notifyEmployee(
+        employeeEmail: _selectedEmployeeId!,
+        title: 'Attendance Corrected 📝',
+        body: 'Hi $_selectedEmployeeName, a manager has manually corrected your attendance for ${DateFormat('dd MMM yyyy').format(date)}.',
+        type: 'attendance_corrected',
+        extraData: {
+          'userId': _selectedEmployeeId,
+          'userName': _selectedEmployeeName,
+        },
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

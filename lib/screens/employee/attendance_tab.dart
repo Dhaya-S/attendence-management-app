@@ -77,6 +77,9 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
             _isLoadingHolidays = false;
           });
         }
+      }, onError: (e) {
+        debugPrint('Error listening to company holidays: $e');
+        if (mounted) setState(() => _isLoadingHolidays = false);
       });
     } catch (e) {
       debugPrint('Error listening to company holidays: $e');

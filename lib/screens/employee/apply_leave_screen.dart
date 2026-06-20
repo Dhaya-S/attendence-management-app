@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import '../../theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 
 class ApplyLeaveScreen extends StatefulWidget {
   const ApplyLeaveScreen({super.key});
@@ -76,19 +77,25 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       });
 
       // 2. Notify the manager
-      await FirestoreService.globalNotificationsCol.add({
-        'companyId': FirestoreService.companyId,
-        'title': 'New Leave Request',
-        'body': '$userName has requested ${selectedType.toLowerCase()} from ${DateFormat('MMM dd').format(fromDate!)} to ${DateFormat('MMM dd').format(toDate!)}.',
-        'type': 'new_leave_request',
-        'isRead': false,
-        'timestamp': FieldValue.serverTimestamp(),
-        'employeeEmail': user.email,
-      });
+      final dateRangeStr = diff == 1
+          ? 'on ${DateFormat('MMM dd, yyyy').format(fromDate!)}'
+          : 'from ${DateFormat('MMM dd').format(fromDate!)} to ${DateFormat('MMM dd').format(toDate!)} ($diff days)';
+      await NotificationHelper.notifyManager(
+        title: 'New Leave Request 📝',
+        body: '$userName applied for $selectedType $dateRangeStr.',
+        type: 'new_leave_request',
+        extraData: {
+          'employeeEmail': user.email,
+        },
+      );
 
       if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Request submitted successfully!'), backgroundColor: AppTheme.success));
+        Future.delayed(Duration.zero, () {
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Request submitted successfully!'), backgroundColor: AppTheme.success));
+          }
+        });
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));

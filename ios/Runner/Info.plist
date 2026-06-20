@@ -45,5 +45,17 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- 📍 Location Tracking Permissions -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app requires access to your location to mark attendance and track status when in office boundaries.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app requires continuous background location access to ensure high-frequency realtime location updates during your work shift.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app requires continuous background location access for high-frequency tracking during your active work shift.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 </dict>
 </plist>

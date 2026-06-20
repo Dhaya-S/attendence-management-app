@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 import 'dart:async';
 
 class ManagerCalendarTab extends StatefulWidget {
@@ -112,6 +113,9 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
             _isLoading = false;
           });
         }
+      }, onError: (e) {
+        debugPrint('Error listening to holidays: $e');
+        if (mounted) setState(() => _isLoading = false);
       });
     } catch (e) {
       debugPrint('Error listening to holidays: $e');
@@ -218,6 +222,30 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       }
 
       await batch.commit();
+
+      // Notify all employees in real-time about the Holiday or WFH day
+      if (dates.isNotEmpty) {
+        final notifTitle = type == 'leave'
+            ? (dates.length == 1 ? 'Company Holiday 🏖️' : 'Company Holidays 🏖️')
+            : (dates.length == 1 ? 'Work From Home 🏡' : 'Work From Home Days 🏡');
+
+        final dateStr = dates.length == 1
+            ? DateFormat('MMM dd, yyyy').format(dates.first)
+            : 'from ${DateFormat('MMM dd').format(dates.first)} to ${DateFormat('MMM dd').format(dates.last)} (${dates.length} days)';
+
+        final notifBody = type == 'leave'
+            ? 'Manager declared $dateStr as a Company Holiday. Reason: "$reason"'
+            : 'Manager approved Work From Home for $dateStr. Reason: "$reason"';
+
+        await NotificationHelper.notifyAllEmployees(
+          title: notifTitle,
+          body: notifBody,
+          type: 'company_${type}',
+          extraData: {
+            'dates': dates.map((d) => DateFormat('yyyy-MM-dd').format(d)).toList(),
+          },
+        );
+      }
       
       if (mounted) {
         setState(() {

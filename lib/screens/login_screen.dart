@@ -6,9 +6,11 @@ import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/message_helper.dart';
+import 'package:attendance_app/screens/auth_wrapper.dart';
 import 'package:attendance_app/screens/common/password_recovery_flow.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen>
 
   bool isLoading = false;
   bool _isPasswordVisible = false;
+  bool _isProcessingLogin = false;
   int _selectedRole = 1; // 0 = Employee, 1 = Manager
 
   final FocusNode _emailFocus = FocusNode();
@@ -36,9 +39,10 @@ class _LoginScreenState extends State<LoginScreen>
   @override
   void initState() {
     super.initState();
+    _checkAutoLogin();
     _emailFocus.addListener(() => setState(() {}));
     _passwordFocus.addListener(() => setState(() {}));
-
+    
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -57,6 +61,19 @@ class _LoginScreenState extends State<LoginScreen>
     _animController.forward();
   }
 
+  Future<void> _checkAutoLogin() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // If already logged in, navigate to AuthWrapper to restore session
+      // We use pushReplacement to AuthWrapper which will handle the data loading
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const AuthWrapper()),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _animController.dispose();
@@ -68,7 +85,11 @@ class _LoginScreenState extends State<LoginScreen>
   }
 
   Future<void> login() async {
+    if (_isProcessingLogin) return;
+    _isProcessingLogin = true;
+    FocusScope.of(context).unfocus();
     setState(() => isLoading = true);
+    bool isNavigating = false;
 
     final email = emailController.text.trim().toLowerCase();
     final password = passwordController.text.trim();
@@ -105,6 +126,20 @@ class _LoginScreenState extends State<LoginScreen>
           final compDoc = companySearch.docs.first;
           role = 'manager';
           companyId = compDoc.id;
+
+          // Auto-provision manager into approved_users global mapping to restore full Firestore rule privileges
+          try {
+            await FirestoreService.approvedUserDoc(email).set({
+              'role': 'manager',
+              'companyId': companyId,
+              'email': email,
+              'status': 'approved',
+              'createdAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+            debugPrint('Manager successfully auto-provisioned into approved_users.');
+          } catch (e) {
+            debugPrint('Manager auto-provisioning warning: $e');
+          }
         }
       }
 
@@ -225,6 +260,9 @@ class _LoginScreenState extends State<LoginScreen>
         AppSession().userName = fetchedUserName;
       }
 
+      // Initialize notifications for user
+      NotificationService().onUserLogin();
+
       // ── Step 6: Update last_login in company employees sub-collection ────
       try {
         final loginData = <String, dynamic>{
@@ -258,15 +296,10 @@ class _LoginScreenState extends State<LoginScreen>
         debugPrint('last_login update warning: $e');
       }
 
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => role == 'manager'
-              ? const ManagerMainScreen()
-              : const EmployeeMainScreen(),
-        ),
-      );
+      isNavigating = true;
+      // Note: The root AuthWrapper stream listener automatically handles the auth state change,
+      // loads the global session data, and redirects to the correct dashboard tab,
+      // completely eliminating double-routing/navigator lock conflicts.
     } on FirebaseAuthException catch (e) {
       String message = 'Authentication failed';
       if (e.code == 'user-not-found') {
@@ -287,7 +320,8 @@ class _LoginScreenState extends State<LoginScreen>
         MessageHelper.showError(context, 'Login failed. Please try again.');
       }
     } finally {
-      if (mounted) setState(() => isLoading = false);
+      _isProcessingLogin = false;
+      if (mounted && !isNavigating) setState(() => isLoading = false);
     }
   }
 

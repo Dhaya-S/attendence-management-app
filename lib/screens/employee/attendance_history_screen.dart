@@ -6,6 +6,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import '../../theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String? userId;
@@ -145,7 +146,12 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
         final remarkStatus = data['remarkStatus'] as String?;
         if (checkIn != null && remarkStatus != 'approved') {
           final time = checkIn.toDate();
-          if (time.hour > 9 || (time.hour == 9 && time.minute > 15)) {
+          final parts = AppSession().shiftStartTime.split(':');
+          final threshold = DateTime(time.year, time.month, time.day, 
+              int.parse(parts[0]), int.parse(parts[1]))
+              .add(Duration(minutes: AppSession().gracePeriod));
+              
+          if (time.isAfter(threshold)) {
             lateArrivals++;
           }
         }
@@ -245,7 +251,14 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                     const SizedBox(height: 4),
                     Text(stats['late'].toString().padLeft(2, '0'), style: AppTheme.h1.copyWith(fontSize: 24)),
                     const SizedBox(height: 4),
-                    Text('Late > 09:15 AM', style: AppTheme.bodySmall.copyWith(fontSize: 10)),
+                    Builder(
+                      builder: (context) {
+                        final parts = AppSession().shiftStartTime.split(':');
+                        final grace = AppSession().gracePeriod;
+                        final dt = DateTime(2000, 1, 1, int.parse(parts[0]), int.parse(parts[1])).add(Duration(minutes: grace));
+                        return Text('Late > ${DateFormat('hh:mm a').format(dt)}', style: AppTheme.bodySmall.copyWith(fontSize: 10));
+                      }
+                    ),
                   ],
                 ),
               ),

@@ -3,6 +3,9 @@
     <!-- 📍 Location permissions (MUST be here) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- 🔔 Notification permissions -->
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -46,6 +49,13 @@
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyAfcCKnjDU-XEOFZ0kT52qVpYv4maNDkXU"/>
+
+        <!-- 📍 Geolocator background service for high-performance mobile tracking -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
     </application>
 

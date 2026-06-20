@@ -38,8 +38,8 @@ class AppSession {
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
-  bool get isManager => role == 'manager';
-  bool get isEmployee => role == 'employee';
+  bool get isManager => role?.toLowerCase() == 'manager';
+  bool get isEmployee => role?.toLowerCase() == 'employee';
 
   /// True only when the session has been fully populated after login.
   bool get isReady =>

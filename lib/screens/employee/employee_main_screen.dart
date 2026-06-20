@@ -27,24 +27,9 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.surface,
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 300),
-        transitionBuilder: (child, animation) {
-          return FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.03),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            ),
-          );
-        },
-        child: KeyedSubtree(
-          key: ValueKey<int>(_currentIndex),
-          child: _tabs[_currentIndex],
-        ),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _tabs,
       ),
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
