@@ -6,9 +6,9 @@ class AppTheme {
   AppTheme._();
 
   // ─── Colors (Purple/Indigo primary — matching mockups) ────────────────
-  static const Color primary = Color(0xFF5B67F5);
-  static const Color primaryLight = Color(0xFF8B93FF);
-  static const Color primaryDark = Color(0xFF3D4AE5);
+  static const Color primary = Color(0xFF5C5CFF);
+  static const Color primaryLight = Color(0xFF8B8BFF);
+  static const Color primaryDark = Color(0xFF3A3AE5);
   static const Color primarySurface = Color(0xFFF0F1FF);
 
   static const Color surface = Color(0xFFF7F8FC);
@@ -38,7 +38,7 @@ class AppTheme {
   static const Color accentGreen = Color(0xFFF0FDF4);
   static const Color accentRed = Color(0xFFFEF2F2);
 
-  static const Color presenceToday = Color(0xFF5B67F5);
+  static const Color presenceToday = Color(0xFF5C5CFF);
   static const Color lateArrival = Color(0xFFF59E0B);
   static const Color leaveStatus = Color(0xFFEF4444);
   static const Color absentStatus = Color(0xFF6B7280);

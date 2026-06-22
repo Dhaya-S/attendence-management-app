@@ -40,7 +40,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
   static const Color _green = Color(0xFF10B981);
   static const Color _blue  = Color(0xFF3B82F6);
   static const Color _red   = Color(0xFFEF4444);
-  static const Color _purple = Color(0xFF5B67F5);
+  static const Color _purple = Color(0xFF5C5CFF);
 
   static const Color _greenBg = Color(0xFFECFDF5);
   static const Color _blueBg  = Color(0xFFEFF6FF);
@@ -329,7 +329,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       floatingActionButton: _isMultiSelect && _selectedDays.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: _showMultiSelectActionSheet,
-              backgroundColor: const Color(0xFF5B67F5),
+              backgroundColor: const Color(0xFF5C5CFF),
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text('Apply for Selected', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             )
@@ -362,7 +362,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF5B67F5),
+                      color: const Color(0xFF5C5CFF),
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -381,7 +381,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                       _isMultiSelect = false;
                       _selectedDays.clear();
                     }),
-                    child: const Text('Clear', style: TextStyle(color: Color(0xFF5B67F5), fontWeight: FontWeight.bold)),
+                    child: const Text('Clear', style: TextStyle(color: Color(0xFF5C5CFF), fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -420,11 +420,11 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
         ),
         calendarStyle: CalendarStyle(
           todayDecoration: const BoxDecoration(
-              color: Color(0xFF5B67F5), shape: BoxShape.circle),
+              color: Color(0xFF5C5CFF), shape: BoxShape.circle),
           todayTextStyle:
               const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           selectedDecoration: BoxDecoration(
-            color: const Color(0xFF5B67F5),
+            color: const Color(0xFF5C5CFF),
             shape: BoxShape.circle,
           ),
           selectedTextStyle:
@@ -627,7 +627,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                   child: Text(
                     _showAllHolidays ? 'Show Less' : 'See All',
                     style: const TextStyle(
-                        color: Color(0xFF5B67F5),
+                        color: Color(0xFF5C5CFF),
                         fontSize: 12,
                         fontWeight: FontWeight.bold),
                   ),
@@ -833,7 +833,7 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
                 widget.onApply(_selectedType, true, _reasonController.text);
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF5B67F5),
+                backgroundColor: const Color(0xFF5C5CFF),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 elevation: 0,
               ),
@@ -870,7 +870,7 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
           color: isSelected ? const Color(0xFFEEF0FF) : Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? const Color(0xFF5B67F5) : Colors.grey[200]!,
+            color: isSelected ? const Color(0xFF5C5CFF) : Colors.grey[200]!,
             width: 1.5,
           ),
         ),
@@ -895,7 +895,7 @@ class _CalendarActionSheetState extends State<_CalendarActionSheet> {
               ),
             ),
             if (isSelected)
-              const Icon(Icons.check_circle, color: Color(0xFF5B67F5), size: 24)
+              const Icon(Icons.check_circle, color: Color(0xFF5C5CFF), size: 24)
             else
               Container(
                 width: 24,

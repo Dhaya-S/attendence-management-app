@@ -333,8 +333,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab> {
             ),
             calendarStyle: CalendarStyle(
               todayTextStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              todayDecoration: const BoxDecoration(color: Color(0xFF5B67F5), shape: BoxShape.circle),
-              selectedDecoration: const BoxDecoration(color: Color(0xFF5B67F5), shape: BoxShape.circle),
+              todayDecoration: const BoxDecoration(color: Color(0xFF5C5CFF), shape: BoxShape.circle),
+              selectedDecoration: const BoxDecoration(color: Color(0xFF5C5CFF), shape: BoxShape.circle),
               defaultTextStyle: AppTheme.bodyMedium.copyWith(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
               weekendTextStyle: AppTheme.bodyMedium.copyWith(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
               outsideDaysVisible: false,

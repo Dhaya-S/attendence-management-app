@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:slide_to_act/slide_to_act.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -11,15 +10,19 @@ import 'package:attendance_app/utils/location_service.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/widgets/location_map_card.dart';
-import 'package:attendance_app/screens/employee/attendance_history_screen.dart';
-import 'package:attendance_app/screens/employee/overtime_tracker_screen.dart';
-import 'package:attendance_app/screens/employee/achievements_screen.dart';
-import 'package:attendance_app/widgets/streak_card.dart';
-import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/screens/employee/attendance_tab.dart';
-import 'package:attendance_app/widgets/notification_action.dart';
+import 'package:attendance_app/screens/employee/leave_tab.dart';
 import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/utils/notification_service.dart';
+
+// ─── Primary Brand Color ───────────────────────────────────────────────
+const _kPrimary = Color(0xFF5C5CFF);
+const _kPrimaryLight = Color(0xFFEEEEFF);
+const _kBg = Color(0xFFF6F7FB);
+const _kCard = Colors.white;
+const _kText = Color(0xFF111827);
+const _kSubText = Color(0xFF6B7280);
+const _kBorder = Color(0xFFEEEFF3);
 
 class EmployeeHomeTab extends StatefulWidget {
   const EmployeeHomeTab({super.key});
@@ -34,7 +37,9 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   bool _isCheckingInOut = false;
   Timer? _timer;
 
-  // Always uses today's date — avoids Flutter Web field-init ordering issues
+  int _selectedMainSpace = 0; // 0=My Space, 1=Team, 2=Organization
+  int _selectedSubTab = 0;    // 0=Dashboard, 1=Announcement, 2=Attendance, 3=Leave
+
   String _getAttendanceDocId() =>
       DateFormat('yyyy-MM-dd').format(DateTime.now());
 
@@ -42,6 +47,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   late final Stream<DocumentSnapshot> _userStream;
   late final Stream<DocumentSnapshot> _todayAttendanceStream;
   late final Stream<QuerySnapshot> _allAttendanceStream;
+  late final Stream<QuerySnapshot> _leaveRequestsStream;
 
   @override
   void initState() {
@@ -51,8 +57,12 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     _userStream = FirestoreService.userStreamByEmail(userEmail);
     _todayAttendanceStream = _todayRef.doc(_getAttendanceDocId()).snapshots();
     _allAttendanceStream = _todayRef.snapshots();
+    _leaveRequestsStream =
+        FirestoreService.userLeaveRequestsCol(userEmail).snapshots();
+
     _startLocationUpdates();
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
   }
@@ -67,63 +77,140 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     LocationService().startRealtimeTracking();
     LocationService.getStream().listen((data) {
       if (mounted && data.position != null) {
-        setState(() {
-          _currentLocationData = data;
-        });
+        setState(() => _currentLocationData = data);
       }
     });
   }
 
+  // ─── Format 24h → 12h AM/PM ──────────────────────────────────────────
+  String _fmt12(String hhmm) {
+    try {
+      final parts = hhmm.split(':');
+      final h = int.parse(parts[0]);
+      final m = int.parse(parts[1]);
+      final dt = DateTime(2000, 1, 1, h, m);
+      return DateFormat('hh:mm a').format(dt);
+    } catch (_) {
+      return hhmm;
+    }
+  }
+
+  // ─── Stopwatch text ──────────────────────────────────────────────────
+  String _getStopwatchText(Timestamp? checkIn, Timestamp? checkOut) {
+    if (checkIn == null) return '0m 00s';
+    final start = checkIn.toDate();
+    final end = checkOut?.toDate() ?? DateTime.now();
+    final diff = end.difference(start);
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes % 60;
+    final seconds = diff.inSeconds % 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m ${seconds.toString().padLeft(2, '0')}s';
+    }
+    return '${minutes}m ${seconds.toString().padLeft(2, '0')}s';
+  }
+
+  // ─── Initials ────────────────────────────────────────────────────────
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return 'EM';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
+    }
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+  // ─── Next Holiday ────────────────────────────────────────────────────
+  Map<String, String> _getNextHoliday() {
+    final now = DateTime.now();
+    final holidays = [
+      {'name': 'New Year\'s Day', 'date': DateTime(now.year, 1, 1)},
+      {'name': 'Republic Day', 'date': DateTime(now.year, 1, 26)},
+      {'name': 'Independence', 'date': DateTime(now.year, 8, 15)},
+      {'name': 'Gandhi Jayanti', 'date': DateTime(now.year, 10, 2)},
+      {'name': 'Christmas', 'date': DateTime(now.year, 12, 25)},
+    ];
+    DateTime? nextDate;
+    String nextName = '';
+    for (var h in holidays) {
+      final date = h['date'] as DateTime;
+      if (date.isAfter(now) ||
+          (date.year == now.year &&
+              date.month == now.month &&
+              date.day == now.day)) {
+        if (nextDate == null || date.isBefore(nextDate)) {
+          nextDate = date;
+          nextName = h['name'] as String;
+        }
+      }
+    }
+    if (nextDate == null) {
+      nextDate = DateTime(now.year + 1, 1, 1);
+      nextName = 'New Year\'s Day';
+    }
+    final diffDays =
+        nextDate.difference(DateTime(now.year, now.month, now.day)).inDays;
+    final weeks = (diffDays / 7).ceil();
+    final dateFormatted = DateFormat('MMM dd').format(nextDate);
+    return {
+      'name': nextName,
+      'sub': '$dateFormatted · $weeks weeks away',
+    };
+  }
+
+  // ─── Check-In/Out Logic ──────────────────────────────────────────────
   Future<void> _handleCheckInOut(String status, bool isCheckIn) async {
     if (_isCheckingInOut) return;
     setState(() => _isCheckingInOut = true);
-
     try {
       final now = DateTime.now();
       final userEmail = user?.email ?? '';
+      final isInside = _currentLocationData?.isWithinRadius ?? false;
+      final mode = isInside ? 'office' : 'wfh';
+
       final data = {
         'companyId': FirestoreService.companyId,
         'userId': userEmail,
         'status': status,
-        if (isCheckIn) 'workMode': (_currentLocationData?.isWithinRadius == true) ? 'office' : 'wfh', 
+        if (isCheckIn) 'workMode': mode,
         if (isCheckIn) 'checkIn': Timestamp.fromDate(now),
-        if (isCheckIn) 'checkInLocation': _currentLocationData?.address,
+        if (isCheckIn)
+          'checkInLocation': _currentLocationData?.address ?? 'Unknown Location',
         if (!isCheckIn) 'checkOut': Timestamp.fromDate(now),
-        if (!isCheckIn) 'checkOutLocation': _currentLocationData?.address,
+        if (!isCheckIn)
+          'checkOutLocation':
+              _currentLocationData?.address ?? 'Unknown Location',
         'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
         'recordDate': DateFormat('yyyy-MM-dd').format(now),
       };
 
-      await _todayRef.doc(_getAttendanceDocId()).set(data, SetOptions(merge: true));
+      await _todayRef
+          .doc(_getAttendanceDocId())
+          .set(data, SetOptions(merge: true));
 
-      // Auto-submit overtime request if worked > 9 hours
       if (!isCheckIn) {
         final doc = await _todayRef.doc(_getAttendanceDocId()).get();
         final checkInTime = (doc.data()?['checkIn'] as Timestamp?)?.toDate();
         if (checkInTime != null) {
           final diff = now.difference(checkInTime);
-          // Calculate dynamic shift duration
           final sParts = AppSession().shiftStartTime.split(':');
           final eParts = AppSession().shiftEndTime.split(':');
           final startH = int.parse(sParts[0]);
           final startM = int.parse(sParts[1]);
           final endH = int.parse(eParts[0]);
           final endM = int.parse(eParts[1]);
-          
-          final standardDuration = Duration(hours: endH, minutes: endM) - Duration(hours: startH, minutes: startM);
-          
+          final standardDuration = Duration(hours: endH, minutes: endM) -
+              Duration(hours: startH, minutes: startM);
           if (diff.inSeconds > standardDuration.inSeconds) {
             final otMinutes = diff.inMinutes - standardDuration.inMinutes;
-            // Get user's name from profile for better notifications
             final querySnapshot = await FirestoreService.usersCol
-                .where('email', isEqualTo: user?.email ?? '')
+                .where('email', isEqualTo: userEmail)
                 .limit(1)
                 .get();
-            final userName = querySnapshot.docs.isNotEmpty 
-                ? querySnapshot.docs.first.data()['name'] 
+            final userName = querySnapshot.docs.isNotEmpty
+                ? querySnapshot.docs.first.data()['name']
                 : user?.displayName ?? 'Employee';
-            
-            await FirestoreService.userOvertimeRequestsCol(user?.email ?? '').add({
+            await FirestoreService.userOvertimeRequestsCol(userEmail).add({
               'companyId': FirestoreService.companyId,
               'userId': user?.uid,
               'userName': userName,
@@ -137,73 +224,92 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           }
         }
       }
-      
-      // Add to Notifications
+
       await NotificationHelper.notifyEmployee(
-        employeeEmail: user?.email ?? '',
+        employeeEmail: userEmail,
         title: isCheckIn ? 'Check-In Successful ✅' : 'Check-Out Successful 👋',
-        body: 'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
+        body:
+            'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',
-        extraData: {
-          'userId': user?.uid,
-        },
+        extraData: {'userId': user?.uid},
       );
 
-      // Handle Checkout Reminder
       if (isCheckIn) {
-        // Schedule reminder for shift end
         final eParts = AppSession().shiftEndTime.split(':');
-        final shiftEnd = DateTime(now.year, now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1]));
+        final shiftEnd = DateTime(now.year, now.month, now.day,
+            int.parse(eParts[0]), int.parse(eParts[1]));
         await NotificationService().scheduleCheckoutReminder(shiftEnd);
       } else {
-        // Cancel reminder on check-out
         await NotificationService().cancelCheckoutReminder();
       }
 
       if (mounted) _showSuccessModal(isCheckIn ? 'Check In' : 'Check Out', now);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+      }
     } finally {
       if (mounted) setState(() => _isCheckingInOut = false);
     }
   }
 
+  // ─── Success Modal ────────────────────────────────────────────────────
   void _showSuccessModal(String title, DateTime time) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.8),
+      barrierColor: Colors.black.withValues(alpha: 0.6),
       builder: (context) => ElasticIn(
         child: Dialog(
           backgroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Container(
-            padding: const EdgeInsets.all(20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: AppTheme.success.withOpacity(0.1), shape: BoxShape.circle),
-                  child: Icon(Icons.check_circle_outline_rounded, color: AppTheme.success, size: 64),
+                  padding: const EdgeInsets.all(20),
+                  decoration: const BoxDecoration(
+                      color: Color(0xFFECFDF5), shape: BoxShape.circle),
+                  child: const Icon(Icons.check_circle_outline_rounded,
+                      color: Color(0xFF10B981), size: 56),
+                ),
+                const SizedBox(height: 20),
+                const Text('Successfully Done',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF4B5563))),
+                const SizedBox(height: 6),
+                Text(title,
+                    style: const TextStyle(
+                        color: _kPrimary,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 10),
+                Text(
+                  'Time: ${DateFormat('hh:mm:ss a').format(time)}',
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF6B7280),
+                      fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 24),
-                Text('Successfully', style: AppTheme.h2),
-                Text(title, style: AppTheme.h1.copyWith(color: AppTheme.primary, fontSize: 32)),
-                const SizedBox(height: 12),
-                Text(
-                  'You have successfully ${title.toLowerCase()} in\nat ${DateFormat('hh:mm a').format(time)}',
-                  textAlign: TextAlign.center,
-                  style: AppTheme.bodyMedium,
-                ),
-                const SizedBox(height: 32),
                 ElevatedButton(
                   onPressed: () => Navigator.pop(context),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                    minimumSize: const Size(double.infinity, 56),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    backgroundColor: _kPrimary,
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
                   ),
-                  child: const Text('Done', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: const Text('Okay',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16)),
                 ),
               ],
             ),
@@ -213,166 +319,161 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (user == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  // ─── Check-In Confirmation Bottom Sheet (Image 2) ─────────────────────
+  void _showCheckInSheet() {
+    final isInside = _currentLocationData?.isWithinRadius ?? false;
+    final shiftStart = _fmt12(AppSession().shiftStartTime);
+    final shiftEnd = _fmt12(AppSession().shiftEndTime);
+    final grace = AppSession().gracePeriod;
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _todayAttendanceStream,
-      builder: (context, attendanceSnap) {
-        final record = attendanceSnap.data?.data() as Map<String, dynamic>?;
-        final status = record?['status'];
-        final checkInTime = record?['checkIn'] as Timestamp?;
-        final checkOutTime = record?['checkOut'] as Timestamp?;
-
-        // Dynamic Calculations
-        Duration duration = Duration.zero;
-        if (checkInTime != null) {
-          final start = checkInTime.toDate();
-          final end = checkOutTime?.toDate() ?? DateTime.now();
-          duration = end.difference(start);
-        }
-
-        final hours = duration.inHours;
-        final minutes = duration.inMinutes % 60;
-        // Dynamic Calculations for Shift Progress
-        final sParts = AppSession().shiftStartTime.split(':');
-        final eParts = AppSession().shiftEndTime.split(':');
-        final startH = int.parse(sParts[0]);
-        final startM = int.parse(sParts[1]);
-        final endH = int.parse(eParts[0]);
-        final endM = int.parse(eParts[1]);
-        
-        final standardShiftMinutes = (endH * 60 + endM) - (startH * 60 + startM);
-        final double progress = (duration.inMinutes / standardShiftMinutes).clamp(0.0, 1.0);
-
-        // Calculations for Remaining Time
-        final remainingMinutes = (standardShiftMinutes - duration.inMinutes).clamp(0, standardShiftMinutes);
-        final remHours = remainingMinutes ~/ 60;
-        final remMins = remainingMinutes % 60;
-        final remStr = '${remHours}h ${remMins}m';
-
-        return StreamBuilder<QuerySnapshot>(
-          stream: _allAttendanceStream,
-          builder: (context, recordsSnap) {
-            final records = recordsSnap.data?.docs ?? [];
-            final List<DateTime> checkInDates = records
-                .where((d) => RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(d.id))
-                .map((d) {
-              try {
-                return DateTime.parse(d.id);
-              } catch (_) {
-                return null;
-              }
-            })
-                .whereType<DateTime>()
-                .toList();
-
-            return Scaffold(
-              backgroundColor: const Color(0xFFFBFBFB),
-              appBar: AppBar(
-                backgroundColor: Colors.white,
-                elevation: 0,
-                scrolledUnderElevation: 0,
-                toolbarHeight: 90,
-                leadingWidth: 80,
-                leading: _buildAvatar(),
-                title: StreamBuilder<DocumentSnapshot>(
-                  stream: _userStream,
-                  builder: (context, userSnap) {
-                    Map<String, dynamic>? userData = userSnap.data?.data() as Map<String, dynamic>?;
-
-                    final rawName = userData?['name']?.toString() ?? AppSession().userName ?? user?.displayName ?? 'Employee';
-                    final fullName = rawName.trim().isEmpty ? 'Employee' : rawName.trim();
-                    final firstName = fullName.split(' ')[0];
-                    final approvedBy = userData?['approvedBy'];
-
-                    // Time-based greeting
-                    final hour = DateTime.now().hour;
-                    String greeting = 'Good Morning';
-                    if (hour >= 12 && hour < 17) {
-                      greeting = 'Good Afternoon';
-                    } else if (hour >= 17) {
-                      greeting = 'Good Evening';
-                    }
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('$greeting,', style: AppTheme.bodySmall.copyWith(color: Colors.black54, fontWeight: FontWeight.w700, fontSize: 12, letterSpacing: 0.2)),
-                        const SizedBox(height: 1),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(firstName, style: AppTheme.h1.copyWith(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: Colors.black)),
-                            ),
-                            if (approvedBy != null) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: Colors.green.withOpacity(0.5)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.verified, size: 10, color: Colors.green),
-                                    const SizedBox(width: 2),
-                                    Text('Approved by $approvedBy', style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.green)),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Icon(Icons.calendar_today_rounded, size: 10, color: Colors.black.withOpacity(0.6)),
-                            const SizedBox(width: 4),
-                            Text(
-                              DateFormat('EEEE, MMM d').format(DateTime.now()),
-                              style: AppTheme.label.copyWith(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w600, letterSpacing: 0.5),
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                actions: [
-                  NotificationAction(isManager: false),
-                ],
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
-              body: RefreshIndicator(
-                onRefresh: () async {
-                  setState(() {});
-                  await Future.delayed(const Duration(milliseconds: 800));
-                },
-                color: AppTheme.primary,
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      FadeInUp(delay: const Duration(milliseconds: 100), child: _buildOfficeLocationCard()),
-                      const SizedBox(height: 24),
-                      FadeInUp(delay: const Duration(milliseconds: 200), child: _buildUnifiedStatusCard(status, checkInTime, checkOutTime, progress)),
-                      const SizedBox(height: 24),
-                      FadeInUp(delay: const Duration(milliseconds: 300), child: _buildShiftOverviewAlt(hours, minutes, progress, remStr)),
-                      const SizedBox(height: 24),
-                      FadeInUp(delay: const Duration(milliseconds: 400), child: StreakCard(checkInDates: checkInDates)),
-                      const SizedBox(height: 24),
-                      FadeInUp(delay: const Duration(milliseconds: 500), child: _buildQuickActions()),
-                      const SizedBox(height: 120),
-                    ],
+              padding: EdgeInsets.only(
+                left: 24,
+                right: 24,
+                top: 16,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1D5DB),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 24),
+
+                  // Clock icon circle
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: const BoxDecoration(
+                      color: _kPrimaryLight,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.access_time_rounded,
+                        color: _kPrimary, size: 34),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Title
+                  const Text(
+                    'Confirm Check-In',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w800,
+                      color: _kText,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'You\'re about to start your work session for today.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _kSubText,
+                      fontWeight: FontWeight.w500,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Info row 1 – Shift
+                  _sheetInfoRow(
+                    bgColor: const Color(0xFFEEEEFF),
+                    icon: Icons.access_time_rounded,
+                    iconColor: _kPrimary,
+                    label: 'Shift',
+                    value: 'General Shift · $shiftStart – $shiftEnd',
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Info row 2 – Location
+                  _sheetInfoRow(
+                    bgColor: const Color(0xFFECFDF5),
+                    icon: Icons.location_on_rounded,
+                    iconColor: const Color(0xFF10B981),
+                    label: 'Location',
+                    value: isInside
+                        ? 'Headquarters · Verified ✓'
+                        : 'Outside Office Range',
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Info row 3 – Late Buffer
+                  _sheetInfoRow(
+                    bgColor: const Color(0xFFFFFBEB),
+                    icon: Icons.timer_outlined,
+                    iconColor: const Color(0xFFD97706),
+                    label: 'Late Buffer',
+                    value: '$grace minutes grace period',
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Check In Now button
+                  ElevatedButton(
+                    onPressed: _isCheckingInOut
+                        ? null
+                        : () async {
+                            Navigator.pop(ctx);
+                            await _handleCheckInOut('checked_in', true);
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kPrimary,
+                      minimumSize: const Size(double.infinity, 56),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18)),
+                      elevation: 0,
+                    ),
+                    child: _isCheckingInOut
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5))
+                        : const Text(
+                            'Check In Now',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Cancel
+                  GestureDetector(
+                    onTap: () => Navigator.pop(ctx),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: _kSubText,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             );
           },
@@ -381,104 +482,437 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     );
   }
 
-  Widget _buildAvatar() {
+  Widget _sheetInfoRow({
+    required Color bgColor,
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: iconColor, size: 20),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: iconColor.withValues(alpha: 0.85),
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: _kText,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════════════════════
+  //  BUILD
+  // ════════════════════════════════════════════════════════════════════
+  @override
+  Widget build(BuildContext context) {
+    if (user == null) {
+      return const Scaffold(
+          body: Center(child: CircularProgressIndicator(color: _kPrimary)));
+    }
+
     return StreamBuilder<DocumentSnapshot>(
       stream: _userStream,
-      builder: (context, snap) {
-        final data = snap.data?.data() as Map<String, dynamic>?;
-        final imgUrl = data?['profileImageUrl'] as String?;
-        return Container(
-          margin: const EdgeInsets.only(left: 24, top: 18, bottom: 18),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(14),
-            child: imgUrl != null && imgUrl.isNotEmpty
-                ? Image.network(
-                    imgUrl,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 44,
-                      height: 44,
-                      color: AppTheme.primaryLight,
-                      child: const Icon(Icons.person, color: Colors.white, size: 24),
-                    ),
-                  )
-                : Container(
-                    width: 44,
-                    height: 44,
-                    color: AppTheme.primaryLight,
-                    child: const Icon(Icons.person, color: Colors.white, size: 24),
-                  ),
-          ),
+      builder: (context, userSnap) {
+        final userData = userSnap.data?.data() as Map<String, dynamic>?;
+        final rawName = userData?['name']?.toString() ??
+            AppSession().userName ??
+            user?.displayName ??
+            'Employee';
+        final fullName = rawName.trim().isEmpty ? 'Employee' : rawName.trim();
+        final initials = _getInitials(fullName);
+
+        return StreamBuilder<DocumentSnapshot>(
+          stream: _todayAttendanceStream,
+          builder: (context, todaySnap) {
+            final record =
+                todaySnap.data?.data() as Map<String, dynamic>?;
+            final status = record?['status'];
+            final checkInTime = record?['checkIn'] as Timestamp?;
+            final checkOutTime = record?['checkOut'] as Timestamp?;
+
+            return StreamBuilder<QuerySnapshot>(
+              stream: _allAttendanceStream,
+              builder: (context, allSnap) {
+                final records = allSnap.data?.docs ?? [];
+
+                return StreamBuilder<QuerySnapshot>(
+                  stream: _leaveRequestsStream,
+                  builder: (context, leaveSnap) {
+                    final leaveDocs = leaveSnap.data?.docs ?? [];
+
+                    return Scaffold(
+                      backgroundColor: _kBg,
+                      body: SafeArea(
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            setState(() {});
+                            await Future.delayed(
+                                const Duration(milliseconds: 600));
+                          },
+                          color: _kPrimary,
+                          child: SingleChildScrollView(
+                            physics: const BouncingScrollPhysics(
+                                parent: AlwaysScrollableScrollPhysics()),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // ── 1. HEADER ───────────────────────
+                                _buildHeader(fullName, initials),
+                                const SizedBox(height: 18),
+
+                                // ── 2. SPACE TABS ────────────────────
+                                _buildSpaceTabs(),
+                                const SizedBox(height: 14),
+
+                                // ── 3. SUB TABS ───────────────────────
+                                _buildSubTabs(),
+                                const SizedBox(height: 16),
+
+                                // ── 4. CONTENT ────────────────────────
+                                if (_selectedSubTab == 0) ...[
+                                  _buildOfficeLocationCard(),
+                                  const SizedBox(height: 14),
+                                  _buildTodayAttendanceCard(
+                                      status, checkInTime, checkOutTime),
+                                  const SizedBox(height: 14),
+                                  _buildThisWeekCard(records),
+                                  const SizedBox(height: 14),
+                                  _buildTodayShiftCard(),
+                                  const SizedBox(height: 14),
+                                  _buildSplitStatsRow(leaveDocs),
+                                  const SizedBox(height: 14),
+                                  _buildThisMonthCard(records),
+                                ] else if (_selectedSubTab == 2) ...[
+                                  const SizedBox(
+                                    height: 500,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.all(
+                                          Radius.circular(16)),
+                                      child: EmployeeAttendanceTab(),
+                                    ),
+                                  ),
+                                ] else if (_selectedSubTab == 3) ...[
+                                  const SizedBox(
+                                    height: 600,
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.all(
+                                          Radius.circular(16)),
+                                      child: EmployeeLeaveTab(),
+                                    ),
+                                  ),
+                                ] else ...[
+                                  _buildPlaceholderView(),
+                                ],
+                                const SizedBox(height: 100),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
         );
       },
     );
   }
 
+  // ════════════════════════════════════════════════════════════════════
+  //  SECTION BUILDERS
+  // ════════════════════════════════════════════════════════════════════
+
+  // ── Header ─────────────────────────────────────────────────────────
+  Widget _buildHeader(String fullName, String initials) {
+    final hour = DateTime.now().hour;
+    String greeting = 'Good morning 🌅';
+    if (hour >= 12 && hour < 17) greeting = 'Good afternoon ☀️';
+    if (hour >= 17) greeting = 'Good evening 🌙';
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              greeting,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _kSubText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              fullName,
+              style: const TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.w800,
+                color: _kText,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            _iconBtn(Icons.search_rounded,
+                onTap: () {}),
+            const SizedBox(width: 8),
+            Stack(
+              children: [
+                _iconBtn(Icons.notifications_none_rounded, onTap: () {}),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFEF4444),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => setState(() => _selectedSubTab = 4),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: _kPrimary,
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _iconBtn(IconData icon, {required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: _kBorder, width: 1),
+        ),
+        child: Icon(icon, color: const Color(0xFF4B5563), size: 20),
+      ),
+    );
+  }
+
+  // ── Space Tabs ──────────────────────────────────────────────────────
+  Widget _buildSpaceTabs() {
+    final tabs = ['My Space', 'Team', 'Organization'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: List.generate(tabs.length, (i) {
+          final sel = _selectedMainSpace == i;
+          return GestureDetector(
+            onTap: () => setState(() => _selectedMainSpace = i),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+              decoration: BoxDecoration(
+                color: sel ? _kPrimaryLight : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: sel ? _kPrimary : Colors.transparent,
+                  width: 1.3,
+                ),
+              ),
+              child: Text(
+                tabs[i],
+                style: TextStyle(
+                  color: sel ? _kPrimary : _kSubText,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── Sub Tabs ────────────────────────────────────────────────────────
+  Widget _buildSubTabs() {
+    final tabs = ['Dashboard', 'Announcement', 'Attendance', 'Leave'];
+    return Container(
+      decoration: const BoxDecoration(
+        border:
+            Border(bottom: BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: List.generate(tabs.length, (i) {
+            final sel = _selectedSubTab == i;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedSubTab = i),
+              child: Container(
+                margin: const EdgeInsets.only(right: 24),
+                padding: const EdgeInsets.only(bottom: 11),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: sel ? _kPrimary : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  tabs[i],
+                  style: TextStyle(
+                    color: sel ? _kPrimary : const Color(0xFF9CA3AF),
+                    fontWeight:
+                        sel ? FontWeight.bold : FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  // ── Office Location Card ────────────────────────────────────────────
   Widget _buildOfficeLocationCard() {
+    final isInside = _currentLocationData?.isWithinRadius ?? false;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
       ),
       child: Column(
         children: [
           SizedBox(
-            height: 160,
+            height: 120,
             child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-              child: Stack(
-                children: [
-                  LocationMapCard(
-                    officeLat: LocationService.officeLat,
-                    officeLng: LocationService.officeLng,
-                    allowedRadius: LocationService.allowedRadius,
-                    userLocation: _currentLocationData?.latLng,
-                    userAddress: _currentLocationData?.address,
-                    height: 160,
-                  ),
-                  Positioned.fill(
-                    child: Container(color: Colors.black.withOpacity(0.02)),
-                  ),
-                ],
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(19)),
+              child: LocationMapCard(
+                officeLat: LocationService.officeLat,
+                officeLng: LocationService.officeLng,
+                allowedRadius: LocationService.allowedRadius,
+                userLocation: _currentLocationData?.latLng,
+                userAddress: _currentLocationData?.address,
+                height: 120,
               ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Office Location', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Container(width: 8, height: 8, decoration: BoxDecoration(color: _currentLocationData?.isWithinRadius == true ? AppTheme.success : AppTheme.danger, shape: BoxShape.circle)),
-                          const SizedBox(width: 8),
-                          Text(
-                            _currentLocationData?.isWithinRadius == true ? 'INSIDE OFFICE RANGE' : 'OUTSIDE OFFICE RANGE',
-                            style: AppTheme.label.copyWith(fontSize: 10, color: _currentLocationData?.isWithinRadius == true ? AppTheme.success : AppTheme.danger, letterSpacing: 0.8, fontWeight: FontWeight.w600),
-                          ),
-                        ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Office Location',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: _kText,
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 5),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            color: isInside
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFEF4444),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          isInside
+                              ? 'INSIDE OFFICE RANGE'
+                              : 'OUTSIDE OFFICE RANGE',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isInside
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFFEF4444),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                TextButton(
-                  onPressed: () {
+                GestureDetector(
+                  onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => _FullMapScreen(
+                        builder: (_) => _FullMapScreen(
                           officeLat: LocationService.officeLat,
                           officeLng: LocationService.officeLng,
                           allowedRadius: LocationService.allowedRadius,
@@ -488,12 +922,22 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                       ),
                     );
                   },
-                  style: TextButton.styleFrom(
-                    backgroundColor: const Color(0xFFEFF1FE),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _kPrimaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'View Map',
+                      style: TextStyle(
+                        color: _kPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
                   ),
-                  child: Text('View Map', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontWeight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -503,319 +947,391 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     );
   }
 
-  Widget _buildUnifiedStatusCard(String? status, Timestamp? checkIn, Timestamp? checkOut, double progress) {
-    bool isCheckedIn = status == 'checked_in';
+  // ── Today's Attendance Card ─────────────────────────────────────────
+  Widget _buildTodayAttendanceCard(
+      String? status, Timestamp? checkIn, Timestamp? checkOut) {
+    final isCheckedIn = status == 'checked_in';
+    final isCheckedOut = status == 'checked_out';
+
+    String statusLabel = 'Not Checked In';
+    if (isCheckedIn) statusLabel = 'Checked In';
+    if (isCheckedOut) statusLabel = 'Checked Out';
+
+    final stopwatchText = _getStopwatchText(checkIn, checkOut);
+    final shiftStart = _fmt12(AppSession().shiftStartTime);
+    final shiftEnd = _fmt12(AppSession().shiftEndTime);
+    final grace = AppSession().gracePeriod;
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Top row: label + stopwatch
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: (isCheckedIn ? AppTheme.success : AppTheme.danger).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(16)
-                    ),
-                    child: Icon(
-                      isCheckedIn ? Icons.check_circle_rounded : Icons.info_outline_rounded,
-                      color: isCheckedIn ? AppTheme.success : AppTheme.danger,
-                      size: 24
+                  const Text(
+                    'Today\'s Attendance',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF9CA3AF),
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Working Status', style: AppTheme.bodySmall.copyWith(color: AppTheme.textHint, fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text(isCheckedIn ? 'On Duty' : 'Off Duty', style: AppTheme.h2.copyWith(fontSize: 18, fontWeight: FontWeight.w600)),
-                    ],
+                  const SizedBox(height: 3),
+                  Text(
+                    statusLabel,
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: _kText,
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isCheckedIn ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
-                  borderRadius: BorderRadius.circular(12)
-                ),
-                child: Text(
-                  isCheckedIn ? 'ON DUTY' : 'OFF DUTY',
-                  style: AppTheme.label.copyWith(
-                    fontSize: 10,
-                    color: isCheckedIn ? const Color(0xFF166534) : const Color(0xFF991B1B),
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5
-                  )
+              Text(
+                stopwatchText,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: _kText,
+                  letterSpacing: -1,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
+
+          // Shift boxes row
           Row(
             children: [
-              Expanded(child: _statusTimeBox('CHECK-IN', checkIn != null ? DateFormat('hh:mm a').format(checkIn.toDate()) : '--:--')),
-              const SizedBox(width: 16),
-              Expanded(child: _statusTimeBox('CHECK-OUT', checkOut != null ? DateFormat('hh:mm a').format(checkOut.toDate()) : '--:--')),
+              Expanded(
+                child: _shiftBox(
+                  label: 'Shift Start',
+                  value: shiftStart,
+                  bg: const Color(0xFFF9FAFB),
+                  textColor: _kText,
+                  labelColor: const Color(0xFF9CA3AF),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _shiftBox(
+                  label: 'Shift End',
+                  value: shiftEnd,
+                  bg: const Color(0xFFF9FAFB),
+                  textColor: _kText,
+                  labelColor: const Color(0xFF9CA3AF),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _shiftBox(
+                  label: 'Late Buffer',
+                  value: '$grace min',
+                  bg: const Color(0xFFFFFBEB),
+                  textColor: const Color(0xFFD97706),
+                  labelColor: const Color(0xFFD97706),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 24),
-          _buildRemarksSectionSmall(),
-          const SizedBox(height: 20),
-          _buildElegantSlideButton(status),
+          const SizedBox(height: 16),
+
+          // Action button
+          if (isCheckedOut)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle_rounded,
+                      color: Color(0xFF10B981), size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'ATTENDANCE COMPLETED TODAY',
+                    style: TextStyle(
+                      color: Color(0xFF9CA3AF),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (isCheckedIn)
+            ElevatedButton(
+              onPressed: _isCheckingInOut
+                  ? null
+                  : () => _handleCheckInOut('checked_out', false),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF4444),
+                minimumSize: const Size(double.infinity, 54),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: _isCheckingInOut
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.5))
+                  : const Text(
+                      'Check Out Now',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15),
+                    ),
+            )
+          else
+            ElevatedButton(
+              onPressed: _showCheckInSheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kPrimary,
+                minimumSize: const Size(double.infinity, 54),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Check In Now',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _statusTimeBox(String label, String time) {
+  Widget _shiftBox({
+    required String label,
+    required String value,
+    required Color bg,
+    required Color textColor,
+    required Color labelColor,
+  }) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFB),
-        borderRadius: BorderRadius.circular(14),
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
-          Text(label, style: AppTheme.label.copyWith(fontSize: 10, color: AppTheme.textHint, fontWeight: FontWeight.w600, letterSpacing: 0.8)),
-          const SizedBox(height: 6),
-          Text(time, style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: AppTheme.textPrimary)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: labelColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildRemarksSectionSmall() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: _todayRef.doc(_getAttendanceDocId()).snapshots(),
-      builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final currentRemark = data?['remark'] ?? '';
-        final remarkStatus = data?['remarkStatus'] ?? 'pending';
+  // ── This Week Card ──────────────────────────────────────────────────
+  Widget _buildThisWeekCard(List<QueryDocumentSnapshot> records) {
+    final now = DateTime.now();
+    final weekday = now.weekday;
+    final monday = now.subtract(Duration(days: weekday - 1));
 
-        Color statusColor;
-        String statusText;
-        Color bgColor;
+    int presentDays = 0;
+    int elapsedWorkdays = 0;
+    final dayWidgets = <Widget>[];
+    final dayNames = ['M', 'T', 'W', 'T', 'F'];
 
-        switch (remarkStatus) {
-          case 'approved':
-            statusColor = AppTheme.success;
-            statusText = 'APPROVED';
-            bgColor = const Color(0xFFF0FDF4);
-            break;
-          case 'denied':
-            statusColor = AppTheme.danger;
-            statusText = 'DENIED';
-            bgColor = const Color(0xFFFEF2F2);
-            break;
-          default:
-            statusColor = const Color(0xFF166534);
-            statusText = 'PENDING';
-            bgColor = const Color(0xFFF0FDF4);
-        }
+    final sParts = AppSession().shiftStartTime.split(':');
+    final shiftStartH = int.parse(sParts[0]);
+    final shiftStartM = int.parse(sParts[1]);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.history_edu_rounded, size: 14, color: Color(0xFF64748B)),
-                const SizedBox(width: 6),
-                Text(
-                  currentRemark.isEmpty ? 'Late Adjustment Request' : 'Adjustment Request Status', 
-                  style: AppTheme.label.copyWith(fontSize: 12, color: const Color(0xFF64748B), fontWeight: FontWeight.w600, letterSpacing: 0.5)
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            if (currentRemark.isEmpty)
-              GestureDetector(
-                onTap: () => _showRemarkDialog(currentStatus: data?['status']),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.divider.withOpacity(0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Send a request for late entry...',
-                          style: TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.send_rounded, color: Color(0xFF94A3B8), size: 18),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: statusColor.withOpacity(0.1)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: statusColor.withOpacity(0.1), shape: BoxShape.circle),
-                      child: Icon(
-                        remarkStatus == 'approved' ? Icons.check_rounded : 
-                        remarkStatus == 'denied' ? Icons.close_rounded : Icons.access_time_rounded, 
-                        color: statusColor, 
-                        size: 16
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            remarkStatus == 'approved' ? 'Request Approved' : 
-                            remarkStatus == 'denied' ? 'Request Denied' : 'Request Submitted', 
-                            style: TextStyle(color: statusColor, fontWeight: FontWeight.w600, fontSize: 14)
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Your reason: "$currentRemark"',
-                            style: TextStyle(color: statusColor.withOpacity(0.7), fontWeight: FontWeight.w600, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                      child: Text(statusText, style: TextStyle(color: statusColor, fontWeight: FontWeight.w700, fontSize: 9, letterSpacing: 0.5)),
-                    ),
-                  ],
-                ),
-              ),
-          ],
+    for (int i = 0; i < 5; i++) {
+      final dayDate = monday.add(Duration(days: i));
+      final dateStr = DateFormat('yyyy-MM-dd').format(dayDate);
+      final isToday = (dayDate.year == now.year &&
+          dayDate.month == now.month &&
+          dayDate.day == now.day);
+      final isFuture = dayDate.isAfter(now) && !isToday;
+
+      if (!isFuture) elapsedWorkdays++;
+
+      final recordDoc =
+          records.where((doc) => doc.id == dateStr).firstOrNull;
+      final hasRecord = recordDoc != null;
+
+      Widget circleWidget;
+      String hoursStr = '-';
+
+      if (isFuture) {
+        circleWidget = _weekSquare(
+          child: const Text('–',
+              style: TextStyle(
+                  color: Color(0xFF9CA3AF),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16)),
+          bg: const Color(0xFFF3F4F6),
+          border: const Color(0xFFE5E7EB),
         );
-      },
-    );
-  }
+        hoursStr = '–';
+      } else if (hasRecord) {
+        final data = recordDoc.data() as Map<String, dynamic>;
+        final checkIn = (data['checkIn'] as Timestamp?)?.toDate();
+        final checkOut = (data['checkOut'] as Timestamp?)?.toDate();
 
-  Widget _buildElegantSlideButton(String? status) {
-    if (status == 'checked_out') {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5F9),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[200]!),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppTheme.success.withOpacity(0.5), size: 18),
-            const SizedBox(width: 12),
-            Text(
-              "ATTENDANCE COMPLETE FOR TODAY",
-              style: AppTheme.label.copyWith(
-                color: AppTheme.textHint,
-                fontWeight: FontWeight.w700,
-                fontSize: 11,
-                letterSpacing: 1.0
-              ),
+        if (checkIn != null) {
+          final shiftStartDT = DateTime(
+              checkIn.year, checkIn.month, checkIn.day, shiftStartH, shiftStartM);
+          final graceLimit =
+              shiftStartDT.add(Duration(minutes: AppSession().gracePeriod));
+          final isLate =
+              checkIn.isAfter(graceLimit) && data['remarkStatus'] != 'approved';
+
+          if (isLate) {
+            circleWidget = _weekSquare(
+              child: const Text('L',
+                  style: TextStyle(
+                      color: Color(0xFFD97706),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20)),
+              bg: const Color(0xFFFFFBEB),
+              border: const Color(0xFFD97706),
+            );
+          } else {
+            circleWidget = _weekSquare(
+              child: const Icon(Icons.check_rounded,
+                  color: Color(0xFF10B981), size: 26),
+              bg: const Color(0xFFECFDF5),
+            );
+          }
+          presentDays++;
+
+          if (checkOut != null) {
+            final diff = checkOut.difference(checkIn).inMinutes / 60.0;
+            hoursStr = '${diff.toStringAsFixed(1)}h';
+          } else if (isToday) {
+            final diff =
+                DateTime.now().difference(checkIn).inMinutes / 60.0;
+            hoursStr = '${diff.toStringAsFixed(1)}h';
+          }
+        } else {
+          circleWidget = _absentCircle();
+          hoursStr = '0.0h';
+        }
+      } else {
+        if (isToday) {
+          circleWidget = _weekSquare(
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: const BoxDecoration(
+                  color: Colors.white, shape: BoxShape.circle),
             ),
-          ],
+            bg: _kPrimary,
+          );
+          hoursStr = '–';
+        } else {
+          circleWidget = _absentCircle();
+          hoursStr = '–';
+        }
+      }
+
+dayWidgets.add(
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                dayNames[i],
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF9CA3AF),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2),
+              ),
+              const SizedBox(height: 10),
+              circleWidget,
+              const SizedBox(height: 8),
+              Text(
+                hoursStr,
+                style: const TextStyle(
+                    fontSize: 11,
+                    color: _kSubText,
+                    fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    bool isCheckedIn = status == 'checked_in';
-    return SlideAction(
-      onSubmit: () => _handleCheckInOut(isCheckedIn ? 'checked_out' : 'checked_in', !isCheckedIn),
-      innerColor: Colors.white,
-      outerColor: isCheckedIn ? const Color(0xFFEF4444) : const Color(0xFF6366F1),
-      elevation: 0,
-      height: 60,
-      borderRadius: 18,
-      sliderButtonIcon: Icon(
-        isCheckedIn ? Icons.logout_rounded : Icons.login_rounded,
-        color: isCheckedIn ? const Color(0xFFEF4444) : const Color(0xFF6366F1),
-        size: 20
-      ),
-      text: isCheckedIn ? "     SLIDE TO CHECK OUT" : "     SLIDE TO CHECK IN",
-      textStyle: AppTheme.bodyMedium.copyWith(
-        fontWeight: FontWeight.w700,
-        color: Colors.white,
-        fontSize: 14,
-        letterSpacing: 1.0
-      ),
-    );
-  }
+    final rate =
+        elapsedWorkdays > 0 ? (presentDays / elapsedWorkdays) * 100 : 100.0;
 
-  Widget _buildShiftOverviewAlt(int hours, int minutes, double progress, String remStr) {
     return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
       ),
-      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('SHIFT OVERVIEW', style: AppTheme.label.copyWith(fontSize: 12, letterSpacing: 1.2, fontWeight: FontWeight.w700)),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: const Color(0xFF6366F1).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: Text('Full-time', style: AppTheme.label.copyWith(color: const Color(0xFF6366F1), fontSize: 10, fontWeight: FontWeight.w700)),
+              const Text('This Week',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: _kText)),
+              Text(
+                '↗ ${rate.toStringAsFixed(0)}% attendance',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              _overviewItemBox('Worked', '${hours}h ${minutes}m', const Color(0xFFE8F5E9), const Color(0xFF2E7D32)),
-              const SizedBox(width: 12),
-              _overviewItemBox(
-                hours >= 9 ? 'Overtime' : 'Remaining',
-                hours >= 9 ? '${hours - 9}h ${minutes}m' : remStr,
-                hours >= 9 ? const Color(0xFFE0F2F1) : const Color(0xFFFBE4D6),
-                hours >= 9 ? const Color(0xFF00695C) : const Color(0xFFED7D31),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: const Color(0xFFF1F5F9),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
+          const SizedBox(height: 20),
+          IntrinsicHeight(
+            child: Row(
+              children: dayWidgets,
             ),
           ),
         ],
@@ -823,225 +1339,416 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     );
   }
 
-  Widget _overviewItemBox(String label, String val, Color bg, Color text) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          children: [
-            Text(label, style: TextStyle(fontSize: 10, color: text.withOpacity(0.7), fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-            const SizedBox(height: 4),
-            Text(val, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: text, letterSpacing: -0.5)),
-          ],
-        ),
+  // Rounded square (squircle) for week day indicators
+  Widget _weekSquare({
+    required Widget child,
+    required Color bg,
+    Color? border,
+  }) {
+    return Container(
+      width: 56,
+      height: 56,
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(16),
+        border: border != null
+            ? Border.all(color: border, width: 1.5)
+            : null,
+      ),
+      alignment: Alignment.center,
+      child: child,
+    );
+  }
+
+  // Keep _weekCircle for backward compat (unused now)
+  Widget _weekCircle({
+    required Widget child,
+    required Color bg,
+    Color? border,
+  }) {
+    return _weekSquare(child: child, bg: bg, border: border);
+  }
+
+  Widget _absentCircle() {
+    return _weekSquare(
+      child: const Icon(Icons.close_rounded,
+          color: Color(0xFFEF4444), size: 20),
+      bg: const Color(0xFFFDE8E8),
+    );
+  }
+
+  // ── Today's Shift Card ──────────────────────────────────────────────
+  Widget _buildTodayShiftCard() {
+    final managerName = AppSession().companyName ?? 'Manager';
+    final displayManager =
+        managerName.length > 12 ? '${managerName.substring(0, 10)}...' : managerName;
+    final shiftStart = _fmt12(AppSession().shiftStartTime);
+    final shiftEnd = _fmt12(AppSession().shiftEndTime);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Today\'s Shift',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: _kText),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _selectedSubTab = 2),
+                child: const Text(
+                  'Details',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: _kPrimary,
+                      fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(
+                  color: _kPrimaryLight,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.access_time_rounded,
+                    color: _kPrimary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'General Shift',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: _kText),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$shiftStart – $shiftEnd · Office',
+                      style: const TextStyle(
+                          fontSize: 11,
+                          color: _kSubText,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Manager',
+                    style: TextStyle(
+                        fontSize: 9,
+                        color: Color(0xFF9CA3AF),
+                        fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    displayManager,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _kText),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  // ── Split Stats Row (Leave Balance + Next Holiday) ──────────────────
+  Widget _buildSplitStatsRow(List<QueryDocumentSnapshot> leaveRequests) {
+    final int totalPaidLeaves =
+        AppSession().paidLeavesPerYear > 0 ? AppSession().paidLeavesPerYear : 12;
+    int usedPaidLeaves = 0;
+    final now = DateTime.now();
+
+    for (var doc in leaveRequests) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['leaveType'] == 'Paid Leave' && data['status'] == 'approved') {
+        final start = (data['fromDate'] as Timestamp?)?.toDate();
+        if (start != null && start.year == now.year) {
+          usedPaidLeaves += (data['durationInDays'] as num?)?.toInt() ?? 0;
+        }
+      }
+    }
+
+    final int leaveBalance =
+        (totalPaidLeaves - usedPaidLeaves).clamp(0, totalPaidLeaves);
+    final double leaveProgress =
+        totalPaidLeaves > 0 ? (leaveBalance / totalPaidLeaves).clamp(0.0, 1.0) : 0.0;
+
+    final holiday = _getNextHoliday();
+
+    return Row(
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Text('QUICK ACTIONS', style: AppTheme.label.copyWith(fontSize: 13, letterSpacing: 1.8, color: AppTheme.textHint, fontWeight: FontWeight.w700)),
+        // Leave Balance card
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            height: 120,
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _kBorder, width: 1.1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Leave Balance',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 4),
+                    Text('$leaveBalance days',
+                        style: const TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: _kText)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Annual leave',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: _kSubText,
+                            fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: leaveProgress,
+                        backgroundColor: const Color(0xFFEEEEFF),
+                        color: const Color(0xFF10B981),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(height: 24),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 16,
-          childAspectRatio: 1.4,
-          children: [
-            _actionItemAlt(Icons.history_rounded, 'History', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceHistoryScreen()));
-            }),
-            _actionItemAlt(Icons.calendar_today_rounded, 'Calendar', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeAttendanceTab()));
-            }),
-            _actionItemAlt(Icons.timer_outlined, 'Overtime', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const OvertimeTrackerScreen()));
-            }),
-            _actionItemAlt(Icons.emoji_events_rounded, 'Awards', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const AchievementsScreen()));
-            }),
-          ],
+        const SizedBox(width: 12),
+        // Next Holiday card
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            height: 120,
+            decoration: BoxDecoration(
+              color: _kCard,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: _kBorder, width: 1.1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Next Holiday',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF9CA3AF),
+                            fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 5),
+                    Text(
+                      holiday['name']!,
+                      style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: _kText),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+                Text(
+                  holiday['sub']!,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF10B981),
+                      fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _actionItemAlt(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.divider.withOpacity(0.4)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6366F1).withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: const Color(0xFF6366F1), size: 24),
-            ),
-            const SizedBox(height: 12),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.textPrimary, letterSpacing: -0.2)),
-          ],
-        ),
-      ),
-    );
-  }
+  // ── This Month Card ─────────────────────────────────────────────────
+  Widget _buildThisMonthCard(List<QueryDocumentSnapshot> records) {
+    final now = DateTime.now();
 
-  void _showRemarkDialog({String? currentStatus}) {
-    final controller = TextEditingController();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-          left: 24,
-          right: 24,
-          top: 24,
-        ),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+    int totalWorkdays = 0;
+    for (int d = 1; d <= now.day; d++) {
+      final date = DateTime(now.year, now.month, d);
+      if (date.weekday >= 1 && date.weekday <= 5) totalWorkdays++;
+    }
+    if (totalWorkdays == 0) totalWorkdays = 1;
+
+    int presentCount = 0;
+    int lateCount = 0;
+
+    final sParts = AppSession().shiftStartTime.split(':');
+    final shiftStartH = int.parse(sParts[0]);
+    final shiftStartM = int.parse(sParts[1]);
+
+    for (var doc in records) {
+      final data = doc.data() as Map<String, dynamic>;
+      final checkIn = (data['checkIn'] as Timestamp?)?.toDate();
+      if (checkIn != null &&
+          checkIn.month == now.month &&
+          checkIn.year == now.year) {
+        if (checkIn.weekday >= 1 && checkIn.weekday <= 5) {
+          presentCount++;
+          final shiftStartDT = DateTime(
+              checkIn.year, checkIn.month, checkIn.day, shiftStartH, shiftStartM);
+          final graceLimit =
+              shiftStartDT.add(Duration(minutes: AppSession().gracePeriod));
+          if (checkIn.isAfter(graceLimit) &&
+              data['remarkStatus'] != 'approved') {
+            lateCount++;
+          }
+        }
+      }
+    }
+
+    final absentCount = (totalWorkdays - presentCount).clamp(0, totalWorkdays);
+    final double rate = (presentCount / totalWorkdays) * 100.0;
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
+      ),
+      child: Column(
+        children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Adjustment Request', style: AppTheme.h2.copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
-              IconButton(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close_rounded),
+              const Text('This Month',
+                  style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: _kText)),
+              Text(
+                '↗ ${rate.toStringAsFixed(1)}%',
+                style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF10B981),
+                    fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          TextField(
-            controller: controller,
-            maxLines: 3,
-            style: AppTheme.bodyMedium.copyWith(fontWeight: FontWeight.w600),
-            decoration: InputDecoration(
-              hintText: 'Enter valid reason for late check-in (e.g. Traffic, Medical)...',
-              hintStyle: TextStyle(color: AppTheme.textHint.withOpacity(0.5)),
-              filled: true,
-              fillColor: const Color(0xFFF9FAFB),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.all(20),
-            ),
+          Row(
+            children: [
+              Expanded(
+                  child: _monthBox(
+                      '$presentCount', 'Present',
+                      const Color(0xFFECFDF5), const Color(0xFF10B981))),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _monthBox('$lateCount', 'Late',
+                      const Color(0xFFFFFBEB), const Color(0xFFF59E0B))),
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _monthBox('$absentCount', 'Absent',
+                      const Color(0xFFFEF2F2), const Color(0xFFEF4444))),
+            ],
           ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.trim().isEmpty) return;
-              
-              try {
-                // Fetch the current user's name safely from local session to avoid security rules query blocks
-                final userName = AppSession().userName ?? user?.email?.split('@')[0] ?? 'Employee';
-                
-                final docId = _getAttendanceDocId();
-                await _todayRef.doc(docId).set({
-                  'companyId': FirestoreService.companyId,
-                  'remark': controller.text.trim(),
-                  'isAdjustmentRequest': true,
-                  'remarkStatus': 'pending',
-                  'requestTime': FieldValue.serverTimestamp(),
-                  'userId': user?.uid,
-                  'userEmail': user?.email,
-                  'userName': userName,
-                  'recordDate': docId,
-                  'status': currentStatus, // Keep existing status
-                }, SetOptions(merge: true));
+        ],
+      ),
+    );
+  }
 
-                // Notify the manager
-                await NotificationHelper.notifyManager(
-                  title: 'Late Correction Request ⚠️',
-                  body: '$userName requested late correction for ${DateFormat('MMM dd, yyyy').format(DateTime.tryParse(docId) ?? DateTime.now())} (Status: $currentStatus). Reason: "${controller.text.trim()}"',
-                  type: 'late_adjustment_request',
-                  extraData: {
-                    'employeeEmail': user?.email,
-                    'recordDate': docId,
-                  },
-                );
-                
-                if (mounted) {
-                  Future.delayed(Duration.zero, () {
-                    if (mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-                              const SizedBox(width: 12),
-                              const Expanded(
-                                child: Text(
-                                  'Adjustment request sent successfully!',
-                                  style: TextStyle(fontWeight: FontWeight.w700, fontFamily: 'Inter'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          backgroundColor: const Color(0xFF2E7D32),
-                          behavior: SnackBarBehavior.floating,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          margin: const EdgeInsets.all(20),
-                          elevation: 0,
-                        ),
-                      );
-                    }
-                  });
-                }
-              } catch (e) {
-                debugPrint('Error submitting late correction request: $e');
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to submit request: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-              minimumSize: const Size(double.infinity, 56),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 0,
-            ),
-            child: const Text('Send to Manager', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+  Widget _monthBox(String count, String label, Color bg, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          Text(count,
+              style: TextStyle(
+                  fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          const SizedBox(height: 4),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 11,
+                  color: color.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderView() {
+    return Container(
+      height: 220,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kBorder, width: 1.1),
+      ),
+      alignment: Alignment.center,
+      child: const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.layers_clear_rounded, size: 48, color: Color(0xFFD1D5DB)),
+          SizedBox(height: 12),
+          Text(
+            'Coming soon',
+            style: TextStyle(
+                fontSize: 14,
+                color: _kSubText,
+                fontWeight: FontWeight.w600),
           ),
-          ],
-        ),
+        ],
       ),
     );
   }
 }
+
+// ─── Full Map Sub-Screen ───────────────────────────────────────────────
 
 class _FullMapScreen extends StatelessWidget {
   final double officeLat;
@@ -1067,12 +1774,13 @@ class _FullMapScreen extends StatelessWidget {
         elevation: 0,
         leading: Container(
           margin: const EdgeInsets.only(left: 16, top: 12),
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             color: Colors.white,
             shape: BoxShape.circle,
           ),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppTheme.textPrimary, size: 20),
+            icon: const Icon(Icons.arrow_back,
+                color: Color(0xFF111827), size: 20),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -1092,37 +1800,46 @@ class _FullMapScreen extends StatelessWidget {
             right: 24,
             child: FadeInUp(
               child: Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4)),
+                  ],
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                child: Row(
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: AppTheme.primary.withOpacity(0.1), shape: BoxShape.circle),
-                          child: const Icon(Icons.location_on, color: AppTheme.primary, size: 24),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Office Range Area', style: AppTheme.h3.copyWith(fontSize: 16, fontWeight: FontWeight.w600)),
-                              const SizedBox(height: 4),
-                              Text(
-                                'You must be within ${allowedRadius.toInt()}m to check-in.',
-                                style: AppTheme.bodySmall.copyWith(color: AppTheme.textHint, fontWeight: FontWeight.w600),
-                              ),
-                            ],
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: const BoxDecoration(
+                          color: _kPrimaryLight, shape: BoxShape.circle),
+                      child: const Icon(Icons.location_on,
+                          color: _kPrimary, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Office Range Area',
+                              style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF111827))),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Allowed geofence radius: ${allowedRadius.toInt()} meters.',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6B7280),
+                                fontWeight: FontWeight.w500),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1134,3 +1851,5 @@ class _FullMapScreen extends StatelessWidget {
     );
   }
 }
+
+
