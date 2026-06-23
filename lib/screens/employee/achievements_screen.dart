@@ -284,7 +284,7 @@ class AchievementsScreen extends StatelessWidget {
   Widget _statItem(String val, String label) {
     return Column(
       children: [
-        Text(val, style: const TextStyle(color: Color(0xFF6366F1), fontSize: 28, fontWeight: FontWeight.w700)),
+        Text(val, style: const TextStyle(color: Color(0xFF5C5CFF), fontSize: 28, fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Text(label, style: const TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w700, letterSpacing: 1)),
       ],

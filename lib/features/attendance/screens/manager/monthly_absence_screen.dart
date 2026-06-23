@@ -12,7 +12,7 @@ class MonthlyAbsenceScreen extends StatefulWidget {
 }
 
 class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
-  static const Color _indigo = Color(0xFF6366F1);
+  static const Color _indigo = Color(0xFF5C5CFF);
   static const Color _rose = Color(0xFFF43F5E);
   static const Color _teal = Color(0xFF10B981);
   static const Color _amber = Color(0xFFF59E0B);

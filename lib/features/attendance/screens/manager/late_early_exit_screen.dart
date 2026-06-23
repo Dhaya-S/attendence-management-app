@@ -12,7 +12,7 @@ class LateEarlyExitScreen extends StatefulWidget {
 }
 
 class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
-  static const Color _indigo = Color(0xFF6366F1);
+  static const Color _indigo = Color(0xFF5C5CFF);
   static const Color _amber = Color(0xFFFFB020);
   static const Color _rose = Color(0xFFF43F5E);
   static const Color _slate = Color(0xFF1E293B);

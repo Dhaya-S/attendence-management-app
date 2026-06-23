@@ -33,8 +33,8 @@ class _LateAdjustmentReviewScreenState
               color: AppTheme.textPrimary, size: 20),
           onPressed: () => Navigator.maybePop(context),
         ),
-        title: Text('Late Adjustments',
-            style: AppTheme.h1.copyWith(fontSize: 18)),
+        title:
+            Text('Late Adjustments', style: AppTheme.h1.copyWith(fontSize: 18)),
         actions: [
           NotificationAction(isManager: true),
         ],
@@ -73,9 +73,8 @@ class _LateAdjustmentReviewScreenState
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: isActive
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                          fontWeight:
+                              isActive ? FontWeight.w700 : FontWeight.w500,
                           color: isActive ? activeColor : AppTheme.textHint,
                         ),
                       ),
@@ -112,13 +111,15 @@ class _LateAdjustmentReviewScreenState
           final data = doc.data() as Map<String, dynamic>;
           return data['remarkStatus'] == statusValue;
         }).toList()
-        ..sort((a, b) {
-          final aDate = (a.data() as Map<String, dynamic>)['date'] as Timestamp?;
-          final bDate = (b.data() as Map<String, dynamic>)['date'] as Timestamp?;
-          if (aDate == null) return 1;
-          if (bDate == null) return -1;
-          return bDate.compareTo(aDate);
-        });
+          ..sort((a, b) {
+            final aDate =
+                (a.data() as Map<String, dynamic>)['date'] as Timestamp?;
+            final bDate =
+                (b.data() as Map<String, dynamic>)['date'] as Timestamp?;
+            if (aDate == null) return 1;
+            if (bDate == null) return -1;
+            return bDate.compareTo(aDate);
+          });
         if (allRequests.isEmpty) {
           return Center(
             child: Column(
@@ -137,8 +138,7 @@ class _LateAdjustmentReviewScreenState
                 const SizedBox(height: 8),
                 Text(
                   'Adjustment requests from employees will appear here.',
-                  style:
-                      TextStyle(fontSize: 13, color: AppTheme.textHint),
+                  style: TextStyle(fontSize: 13, color: AppTheme.textHint),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -164,15 +164,13 @@ class _LateAdjustmentReviewScreenState
 
             String timeAgo = '';
             if (requestTime != null) {
-              final diff =
-                  DateTime.now().difference(requestTime.toDate());
+              final diff = DateTime.now().difference(requestTime.toDate());
               if (diff.inMinutes < 60) {
                 timeAgo = '${diff.inMinutes}m ago';
               } else if (diff.inHours < 24) {
                 timeAgo = '${diff.inHours}h ago';
               } else {
-                timeAgo =
-                    DateFormat('MMM d').format(requestTime.toDate());
+                timeAgo = DateFormat('MMM d').format(requestTime.toDate());
               }
             }
 
@@ -259,8 +257,8 @@ class _LateAdjustmentReviewScreenState
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary)),
                     Text('Date: $recordDate  •  $timeAgo',
-                        style: TextStyle(
-                            fontSize: 12, color: AppTheme.textHint)),
+                        style:
+                            TextStyle(fontSize: 12, color: AppTheme.textHint)),
                   ],
                 ),
               ),
@@ -268,8 +266,7 @@ class _LateAdjustmentReviewScreenState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: statusBg,
-                    borderRadius: BorderRadius.circular(10)),
+                    color: statusBg, borderRadius: BorderRadius.circular(10)),
                 child: Text(statusLabel,
                     style: TextStyle(
                         fontSize: 10,
@@ -309,8 +306,7 @@ class _LateAdjustmentReviewScreenState
                 const SizedBox(width: 8),
                 Text(
                   'Original Check-In: ${DateFormat('hh:mm a').format(checkIn.toDate())}',
-                  style:
-                      TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary),
                 ),
               ],
             ),
@@ -369,7 +365,8 @@ class _LateAdjustmentReviewScreenState
                         size: 16, color: AppTheme.danger),
                     label: const Text('Deny',
                         style: TextStyle(
-                            color: AppTheme.danger, fontWeight: FontWeight.w700)),
+                            color: AppTheme.danger,
+                            fontWeight: FontWeight.w700)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppTheme.danger),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -429,7 +426,8 @@ class _LateAdjustmentReviewScreenState
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-            border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
+            border: const Border.fromBorderSide(
+                const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -439,8 +437,8 @@ class _LateAdjustmentReviewScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Approve Request',
-                      style: AppTheme.h2.copyWith(
-                          fontSize: 20, fontWeight: FontWeight.w600)),
+                      style: AppTheme.h2
+                          .copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.close_rounded),
@@ -459,8 +457,7 @@ class _LateAdjustmentReviewScreenState
                 decoration: BoxDecoration(
                   color: AppTheme.successLight,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                      color: AppTheme.success.withOpacity(0.3)),
+                  border: Border.all(color: AppTheme.success.withOpacity(0.3)),
                 ),
                 child: Row(
                   children: [
@@ -533,8 +530,8 @@ class _LateAdjustmentReviewScreenState
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(context);
-                  await _approveRequest(
-                      doc, recordDate, selectedTime, noteController.text.trim());
+                  await _approveRequest(doc, recordDate, selectedTime,
+                      noteController.text.trim());
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.success,
@@ -573,7 +570,8 @@ class _LateAdjustmentReviewScreenState
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-          border: const Border.fromBorderSide(const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
+          border: const Border.fromBorderSide(
+              const BorderSide(color: Color(0xFFF0F1F3), width: 1)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -583,8 +581,8 @@ class _LateAdjustmentReviewScreenState
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Deny Request',
-                    style: AppTheme.h2.copyWith(
-                        fontSize: 20, fontWeight: FontWeight.w600)),
+                    style: AppTheme.h2
+                        .copyWith(fontSize: 20, fontWeight: FontWeight.w600)),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
                   icon: const Icon(Icons.close_rounded),
@@ -603,8 +601,7 @@ class _LateAdjustmentReviewScreenState
               style: AppTheme.bodyMedium,
               decoration: InputDecoration(
                 hintText: 'Reason for denial (e.g. Insufficient reason)...',
-                hintStyle:
-                    TextStyle(color: AppTheme.textHint.withOpacity(0.6)),
+                hintStyle: TextStyle(color: AppTheme.textHint.withOpacity(0.6)),
                 filled: true,
                 fillColor: const Color(0xFFF9FAFB),
                 border: OutlineInputBorder(
@@ -647,15 +644,18 @@ class _LateAdjustmentReviewScreenState
   ) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
-      
+
       // Fallback for userId if missing in fields
       String? employeeEmail = data['userEmail'] as String?;
       final pathParts = doc.reference.path.split('/');
-      if (employeeEmail == null && pathParts.length >= 4 && pathParts[2] == 'users') {
+      if (employeeEmail == null &&
+          pathParts.length >= 4 &&
+          pathParts[2] == 'users') {
         employeeEmail = pathParts[3];
       }
-      final String employeeIdForNotif = (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
-      
+      final String employeeIdForNotif =
+          (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
+
       // Fallback for recordDate if missing in fields
       if (recordDate == null || recordDate.isEmpty) {
         if (pathParts.length >= 6) {
@@ -673,9 +673,11 @@ class _LateAdjustmentReviewScreenState
       String userName = data['userName'] as String? ?? 'Employee';
       if (userName == 'Employee') {
         final employeeDoc = await FirestoreService.usersCol
-            .where('uid', isEqualTo: employeeIdForNotif).limit(1).get();
+            .where('uid', isEqualTo: employeeIdForNotif)
+            .limit(1)
+            .get();
         if (employeeDoc.docs.isNotEmpty) {
-          userName = employeeDoc.docs.first.data()?['name'] ?? userName;
+          userName = employeeDoc.docs.first.data()['name'] ?? userName;
         }
       }
 
@@ -692,9 +694,9 @@ class _LateAdjustmentReviewScreenState
           );
         } else {
           // If split fails, try standard parsing or fallback to document ID
-          recordDt = DateTime.tryParse(recordDate) ?? 
-                    DateTime.tryParse(doc.id) ?? 
-                    DateTime.now();
+          recordDt = DateTime.tryParse(recordDate) ??
+              DateTime.tryParse(doc.id) ??
+              DateTime.now();
         }
       } catch (_) {
         // Ultimate fallback to today if anything goes wrong
@@ -722,9 +724,10 @@ class _LateAdjustmentReviewScreenState
 
       // Notify the employee
       await NotificationHelper.notifyEmployee(
-        employeeEmail: employeeEmail!,
+        employeeEmail: employeeEmail,
         title: 'Adjustment Approved ✅',
-        body: 'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
+        body:
+            'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
         type: 'adjustment_approved',
         extraData: {
           'userId': employeeIdForNotif,
@@ -747,7 +750,8 @@ class _LateAdjustmentReviewScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: AppTheme.danger),
         );
       }
     }
@@ -756,15 +760,18 @@ class _LateAdjustmentReviewScreenState
   Future<void> _denyRequest(QueryDocumentSnapshot doc, String note) async {
     try {
       final data = doc.data() as Map<String, dynamic>;
-      
+
       // Fallback for userId if missing in fields
       // Identify the employee (email is used as document ID in /users/{email})
       String? employeeEmail = data['userEmail'] as String?;
       final pathParts = doc.reference.path.split('/');
-      if (employeeEmail == null && pathParts.length >= 4 && pathParts[2] == 'users') {
+      if (employeeEmail == null &&
+          pathParts.length >= 4 &&
+          pathParts[2] == 'users') {
         employeeEmail = pathParts[3];
       }
-      final String employeeIdForNotif = (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
+      final String employeeIdForNotif =
+          (data['userId'] as String?) ?? employeeEmail ?? 'unknown';
 
       // Fallback for recordDate if missing in fields
       String? recordDate = data['recordDate'] as String?;
@@ -782,9 +789,11 @@ class _LateAdjustmentReviewScreenState
       String userName = data['userName'] as String? ?? 'Employee';
       if (userName == 'Employee') {
         final employeeDoc = await FirestoreService.usersCol
-            .where('uid', isEqualTo: employeeIdForNotif).limit(1).get();
+            .where('uid', isEqualTo: employeeIdForNotif)
+            .limit(1)
+            .get();
         if (employeeDoc.docs.isNotEmpty) {
-          userName = employeeDoc.docs.first.data()?['name'] ?? userName;
+          userName = employeeDoc.docs.first.data()['name'] ?? userName;
         }
       }
 
@@ -798,7 +807,7 @@ class _LateAdjustmentReviewScreenState
 
       // Notify the employee
       await NotificationHelper.notifyEmployee(
-        employeeEmail: employeeEmail!,
+        employeeEmail: employeeEmail,
         title: 'Adjustment Request Denied ❌',
         body: note.isNotEmpty
             ? 'Your adjustment request for $recordDate was denied: "$note"'
@@ -825,7 +834,8 @@ class _LateAdjustmentReviewScreenState
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger),
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: AppTheme.danger),
         );
       }
     }

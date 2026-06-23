@@ -236,7 +236,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text('Team Presence', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
-                                Text('$percent%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF6366F1))),
+                                Text('$percent%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF5C5CFF))),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -245,7 +245,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                               child: LinearProgressIndicator(
                                 value: percent / 100,
                                 backgroundColor: const Color(0xFFEEF2FF),
-                                valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                                valueColor: const AlwaysStoppedAnimation(Color(0xFF5C5CFF)),
                                 minHeight: 10,
                               ),
                             ),
@@ -638,7 +638,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF6366F1),
+                          color: Color(0xFF5C5CFF),
                         ),
                       ),
                     ],
@@ -649,7 +649,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                     child: LinearProgressIndicator(
                       value: percent / 100,
                       backgroundColor: const Color(0xFFEEF2FF), // faint blue
-                      valueColor: const AlwaysStoppedAnimation(Color(0xFF6366F1)),
+                      valueColor: const AlwaysStoppedAnimation(Color(0xFF5C5CFF)),
                       minHeight: 10,
                     ),
                   ),
@@ -782,7 +782,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF6366F1), // Royal blue / purple
+                    color: const Color(0xFF5C5CFF), // Royal blue / purple
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(

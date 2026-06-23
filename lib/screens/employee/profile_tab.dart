@@ -209,9 +209,9 @@ class _EmployeeProfileTabState extends State<EmployeeProfileTab> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.business_rounded, size: 12, color: Color(0xFF6366F1)),
+                          const Icon(Icons.business_rounded, size: 12, color: Color(0xFF5C5CFF)),
                           const SizedBox(width: 4),
-                          Text(companyName.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF6366F1))),
+                          Text(companyName.toString(), style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
                         ],
                       ),
                     ),

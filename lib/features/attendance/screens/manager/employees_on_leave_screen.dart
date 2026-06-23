@@ -11,7 +11,7 @@ class EmployeesOnLeaveScreen extends StatefulWidget {
 }
 
 class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
-  static const Color _indigo = Color(0xFF6366F1);
+  static const Color _indigo = Color(0xFF5C5CFF);
   static const Color _slate = Color(0xFF1E293B);
   
   String _selectedStatus = 'All'; // All, Approved, Pending
@@ -164,7 +164,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
                 children: [
                   if (counts['Casual']! > 0) Expanded(flex: counts['Casual']!, child: Container(height: 8, color: const Color(0xFFFBBF24))),
                   if (counts['Sick']! > 0) Expanded(flex: counts['Sick']!, child: Container(height: 8, color: const Color(0xFFF43F5E))),
-                  if (counts['WFH']! > 0) Expanded(flex: counts['WFH']!, child: Container(height: 8, color: const Color(0xFF6366F1))),
+                  if (counts['WFH']! > 0) Expanded(flex: counts['WFH']!, child: Container(height: 8, color: const Color(0xFF5C5CFF))),
                   if (counts['Paid']! > 0) Expanded(flex: counts['Paid']!, child: Container(height: 8, color: const Color(0xFF10B981))),
                 ],
               ),
@@ -180,7 +180,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildLegendItem('WFH (${counts['WFH']})', const Color(0xFF6366F1))),
+              Expanded(child: _buildLegendItem('WFH (${counts['WFH']})', const Color(0xFF5C5CFF))),
               Expanded(child: _buildLegendItem('Paid (${counts['Paid']})', const Color(0xFF10B981))),
             ],
           ),
@@ -243,7 +243,7 @@ class _EmployeesOnLeaveScreenState extends State<EmployeesOnLeaveScreen> {
     String typeText = leave['type'].toString().toLowerCase();
     if (typeText.contains('casual')) typeColor = const Color(0xFFFBBF24);
     else if (typeText.contains('sick')) typeColor = const Color(0xFFF43F5E);
-    else if (typeText.contains('wfh') || typeText.contains('work from home')) typeColor = const Color(0xFF6366F1);
+    else if (typeText.contains('wfh') || typeText.contains('work from home')) typeColor = const Color(0xFF5C5CFF);
     else typeColor = const Color(0xFF10B981);
 
     Color statusColor = leave['status'].toString().toLowerCase() == 'approved' ? const Color(0xFF10B981) : const Color(0xFFF59E0B);

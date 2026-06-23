@@ -26,7 +26,7 @@ class _OvertimeReportScreenState extends State<OvertimeReportScreen> {
     super.initState();
   }
 
-  static const Color _indigo = Color(0xFF6366F1);
+  static const Color _indigo = Color(0xFF5C5CFF);
   static const Color _slate = Color(0xFF1E293B);
 
   void _previousMonth() {

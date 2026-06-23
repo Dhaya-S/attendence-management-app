@@ -271,20 +271,20 @@ class EmployeeDetailScreen extends StatelessWidget {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                                    color: const Color(0xFF5C5CFF).withOpacity(0.1),
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.home_work_rounded, size: 10, color: Color(0xFF6366F1)),
+                                      Icon(Icons.home_work_rounded, size: 10, color: Color(0xFF5C5CFF)),
                                       SizedBox(width: 4),
                                       Text(
                                         'WFH',
                                         style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.w600,
-                                          color: Color(0xFF6366F1),
+                                          color: Color(0xFF5C5CFF),
                                         ),
                                       ),
                                     ],

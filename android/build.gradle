@@ -37,6 +37,9 @@ subprojects {
             force 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.1.0'
             force 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.1.0'
+            // url_launcher pulls in androidx.browser:1.9.0 which needs compileSdk 36 + AGP 8.9.1.
+            // Pin to 1.8.0 to stay compatible with compileSdk 35 + AGP 8.6.0.
+            force 'androidx.browser:browser:1.8.0'
         }
     }
 }
