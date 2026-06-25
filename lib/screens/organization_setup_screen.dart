@@ -2,9 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/admin_setup_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
-import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/message_helper.dart';
 
 class OrganizationSetupScreen extends StatefulWidget {
@@ -27,11 +26,11 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
 
   int _step = 0;
   bool _isSubmitting = false;
-  String _organizationType = 'Information Technology';
-  String _state = 'Karnataka';
+  String? _organizationType;
+  String? _state;
   String _country = 'India';
   String _timeZone = 'Asia/Kolkata (IST +5:30)';
-  String _organizationSize = '51-200 Employees';
+  String? _organizationSize;
   String? _createdRequestId;
   DateTime? _createdAt;
 
@@ -85,48 +84,18 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
 
-    try {
-      final createdAt = DateTime.now();
-      final docRef = await FirestoreService.organizationSetupRequestsCol.add({
-        'flow': 'pre_login_organization_setup',
-        'status': 'pending_admin_setup',
-        'organizationName': _organizationNameController.text.trim(),
-        'website': _websiteController.text.trim(),
-        'organizationType': _organizationType,
-        'contactPerson': _contactPersonController.text.trim(),
-        'contactNumber': _contactNumberController.text.trim(),
-        'contactEmail': _contactEmailController.text.trim().toLowerCase(),
-        'addressLine1': _addressLine1Controller.text.trim(),
-        'addressLine2': _addressLine2Controller.text.trim(),
-        'city': _cityController.text.trim(),
-        'state': _state,
-        'country': _country,
-        'postalCode': _postalCodeController.text.trim(),
-        'timeZone': _timeZone,
-        'organizationSize': _organizationSize,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'workspaceStatus': 'active',
-      });
+    await Future.delayed(const Duration(milliseconds: 600));
 
-      if (!mounted) return;
-      setState(() {
-        _createdRequestId = docRef.id;
-        _createdAt = createdAt;
-        _step = 4;
-      });
-    } catch (e) {
-      if (mounted) {
-        MessageHelper.showError(
-          context,
-          'Could not create organization. Please try again.',
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
-    }
+    final createdAt = DateTime.now();
+    final newCompanyId = FirebaseFirestore.instance.collection('approved_companies').doc().id;
+
+    if (!mounted) return;
+    setState(() {
+      _createdRequestId = newCompanyId;
+      _createdAt = createdAt;
+      _step = 4;
+      _isSubmitting = false;
+    });
   }
 
   bool _validateStep() {
@@ -134,7 +103,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
       if (_organizationNameController.text.trim().isEmpty ||
           _contactPersonController.text.trim().isEmpty ||
           _contactNumberController.text.trim().isEmpty ||
-          _contactEmailController.text.trim().isEmpty) {
+          _contactEmailController.text.trim().isEmpty ||
+          _organizationType == null) {
         MessageHelper.showWarning(context, 'Fill all required organization details.');
         return false;
       }
@@ -144,7 +114,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     if (_step == 2) {
       if (_addressLine1Controller.text.trim().isEmpty ||
           _cityController.text.trim().isEmpty ||
-          _postalCodeController.text.trim().isEmpty) {
+          _postalCodeController.text.trim().isEmpty ||
+          _state == null) {
         MessageHelper.showWarning(context, 'Fill all required address details.');
         return false;
       }
@@ -184,36 +155,11 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         ),
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_step < 4) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF0F1FF),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    _step == 0 ? 'First-Time Setup' : 'STEP ${_step + 1} OF 3',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 18),
-              ],
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  child: _buildStepBody(),
-                ),
-              ),
-            ],
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: KeyedSubtree(
+            key: ValueKey(_step),
+            child: _buildStepBody(),
           ),
         ),
       ),
@@ -241,6 +187,22 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     return _buildScrollableStep(
       children: [
         Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F1FF),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: const Text(
+            'First-Time Setup',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppTheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Container(
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -252,23 +214,28 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             children: [
               Container(
                 height: 34,
-                width: 126,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: AppTheme.primary,
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Center(
-                  child: Text(
-                    'TechCorp Solutions',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.business_rounded, color: Colors.white, size: 14),
+                    SizedBox(width: 6),
+                    Text(
+                      'TechCorp Solutions',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Row(
                 children: const [
                   Expanded(child: _PreviewPill(label: 'Engineering', color: Color(0xFFE8E9FB), dotColor: AppTheme.primary)),
@@ -291,18 +258,18 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         const Text(
           "Let's set up your organization",
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 26,
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
             height: 1.2,
           ),
         ),
         const SizedBox(height: 10),
-        Text(
+        const Text(
           'Create your company workspace to manage attendance, leave, employees, and teams.',
           style: TextStyle(
             fontSize: 14,
@@ -310,26 +277,49 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 10,
+          runSpacing: 10,
           children: List.generate(
             _steps.length,
             (index) => Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
+                color: Colors.white,
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(color: const Color(0xFFE5E7EB)),
               ),
-              child: Text(
-                '${index + 1}. ${_steps[index]}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: AppTheme.textSecondary,
-                  fontWeight: FontWeight.w500,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: const BoxDecoration(
+                      color: const Color(0xFFF0F1FF),
+                      shape: BoxShape.circle,
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _steps[index],
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -357,15 +347,15 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     return _buildScrollableStep(
       children: [
         _buildStepHeader('Organization Details', 1),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _buildProgressIndicator(1),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         _uploadCard(),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _inputField(_organizationNameController, 'Organization Name *', Icons.business_outlined),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _inputField(_websiteController, 'Website', Icons.language_rounded),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _dropdownField(
           label: 'Organization Type *',
           icon: Icons.apartment_rounded,
@@ -373,8 +363,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           items: _organizationTypes,
           onChanged: (value) => setState(() => _organizationType = value!),
         ),
-        const SizedBox(height: 18),
-        Text(
+        const SizedBox(height: 24),
+        const Text(
           'CONTACT INFORMATION',
           style: TextStyle(
             fontSize: 11,
@@ -385,11 +375,12 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         ),
         const SizedBox(height: 12),
         _inputField(_contactPersonController, 'Contact Person *', Icons.person_outline_rounded),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _inputField(_contactNumberController, 'Contact Number *', Icons.call_outlined, keyboardType: TextInputType.phone),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _inputField(_contactEmailController, 'Contact Email *', Icons.email_outlined, keyboardType: TextInputType.emailAddress),
         const Spacer(),
+        const SizedBox(height: 20),
         _primaryButton(label: 'Continue', onPressed: _goNext),
       ],
     );
@@ -399,21 +390,21 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     return _buildScrollableStep(
       children: [
         _buildStepHeader('Organization Address', 2),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _buildProgressIndicator(2),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         _inputField(_addressLine1Controller, 'Address Line 1 *', Icons.location_on_outlined),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _inputField(_addressLine2Controller, 'Address Line 2', Icons.location_on_outlined),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Row(
           children: [
-            Expanded(child: _inputField(_cityController, 'City *', Icons.location_city_outlined)),
-            const SizedBox(width: 10),
+            Expanded(child: _inputField(_cityController, 'City *', null)),
+            const SizedBox(width: 12),
             Expanded(
               child: _dropdownField(
                 label: 'State *',
-                icon: Icons.map_outlined,
+                icon: null,
                 value: _state,
                 items: _states,
                 onChanged: (value) => setState(() => _state = value!),
@@ -421,30 +412,30 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: _dropdownField(
                 label: 'Country *',
-                icon: Icons.public_rounded,
+                icon: null,
                 value: _country,
                 items: const ['India'],
                 onChanged: (value) => setState(() => _country = value!),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             Expanded(
               child: _inputField(
                 _postalCodeController,
                 'Postal Code *',
-                Icons.markunread_mailbox_outlined,
+                null,
                 keyboardType: TextInputType.number,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         _dropdownField(
           label: 'Time Zone *',
           icon: Icons.schedule_rounded,
@@ -452,8 +443,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           items: const ['Asia/Kolkata (IST +5:30)'],
           onChanged: (value) => setState(() => _timeZone = value!),
         ),
-        const SizedBox(height: 18),
-        Text(
+        const SizedBox(height: 24),
+        const Text(
           'OPTIONAL',
           style: TextStyle(
             fontSize: 11,
@@ -471,6 +462,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           onChanged: (value) => setState(() => _organizationSize = value!),
         ),
         const Spacer(),
+        const SizedBox(height: 20),
         _primaryButton(label: 'Continue', onPressed: _goNext),
         const SizedBox(height: 10),
         _secondaryButton(label: 'Back', onPressed: _goBack),
@@ -482,9 +474,9 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     return _buildScrollableStep(
       children: [
         _buildStepHeader('Review & Create', 3),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _buildProgressIndicator(3),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -511,61 +503,64 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
                           : _organizationNameController.text.trim().substring(0, 1).toUpperCase(),
                       style: const TextStyle(
                         color: Colors.white,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          _organizationNameController.text.trim(),
+                          _organizationNameController.text.trim().isEmpty ? 'TechCorp Solutions' : _organizationNameController.text.trim(),
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.textPrimary,
                           ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
-                          _organizationType,
-                          style: TextStyle(
-                            fontSize: 13,
+                          _organizationType ?? 'Organization Type',
+                          style: const TextStyle(
+                            fontSize: 12,
                             color: AppTheme.textMuted,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: AppTheme.primary, size: 18),
+                    onPressed: () => setState(() => _step = 1),
+                  ),
                 ],
               ),
-              const SizedBox(height: 18),
-              _reviewSection('Organization Information', [
-                _reviewRow('Organization Name', _organizationNameController.text.trim()),
-                _reviewRow('Type', _organizationType),
-                _reviewRow('Website', _websiteController.text.trim().isEmpty ? '-' : _websiteController.text.trim()),
+              const SizedBox(height: 20),
+              _reviewSection('Organization Information', () => setState(() => _step = 1), [
+                _reviewRow('Organization Name', _organizationNameController.text.trim(), Icons.business_outlined),
+                _reviewRow('Type', _organizationType ?? '-', Icons.apartment_rounded),
+                _reviewRow('Website', _websiteController.text.trim().isEmpty ? '-' : _websiteController.text.trim(), Icons.language_rounded),
               ]),
               const SizedBox(height: 16),
-              _reviewSection('Contact Information', [
-                _reviewRow('Contact Person', _contactPersonController.text.trim()),
-                _reviewRow('Phone', _contactNumberController.text.trim()),
-                _reviewRow('Email', _contactEmailController.text.trim()),
+              _reviewSection('Contact Information', () => setState(() => _step = 1), [
+                _reviewRow('Contact Person', _contactPersonController.text.trim(), Icons.person_outline_rounded),
+                _reviewRow('Phone', _contactNumberController.text.trim(), Icons.call_outlined),
+                _reviewRow('Email', _contactEmailController.text.trim(), Icons.email_outlined),
               ]),
               const SizedBox(height: 16),
-              _reviewSection('Address & Location', [
-                _reviewRow('Address', _addressLine1Controller.text.trim()),
-                _reviewRow('Address 2', _addressLine2Controller.text.trim().isEmpty ? '-' : _addressLine2Controller.text.trim()),
-                _reviewRow('City, State', '${_cityController.text.trim()}, $_state'),
-                _reviewRow('Country / Postal Code', '$_country - ${_postalCodeController.text.trim()}'),
-                _reviewRow('Time Zone', _timeZone),
-                _reviewRow('Organization Size', _organizationSize),
+              _reviewSection('Address & Location', () => setState(() => _step = 2), [
+                _reviewRow('Address', _addressLine1Controller.text.trim().isEmpty && _addressLine2Controller.text.trim().isEmpty ? '-' : '${_addressLine1Controller.text.trim()}${_addressLine2Controller.text.trim().isNotEmpty ? ', ' + _addressLine2Controller.text.trim() : ''}', Icons.location_on_outlined),
+                _reviewRow('City, State', '${_cityController.text.trim()}, ${_state ?? '-'} - ${_postalCodeController.text.trim()}', Icons.public_rounded),
+                _reviewRow('Time Zone', _timeZone, Icons.schedule_rounded),
               ]),
             ],
           ),
         ),
         const Spacer(),
+        const SizedBox(height: 20),
         _primaryButton(
           label: _isSubmitting ? 'Creating...' : 'Create Organization',
           onPressed: _isSubmitting ? null : _submitOrganization,
@@ -581,29 +576,44 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         const Spacer(),
-        Container(
-          width: 84,
-          height: 84,
-          decoration: BoxDecoration(
-            color: const Color(0xFFE9F9EF),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.apartment_rounded, color: Color(0xFF16A34A), size: 38),
+        Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              width: 84,
+              height: 84,
+              decoration: const BoxDecoration(
+                color: Color(0xFFE9F9EF),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.apartment_rounded, color: Color(0xFF16A34A), size: 38),
+            ),
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: const Color(0xFF16A34A),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.check_rounded, color: Colors.white, size: 14),
+            ),
+          ],
         ),
         const SizedBox(height: 24),
         const Text(
           'Organization Created Successfully',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 26,
             fontWeight: FontWeight.w700,
             color: AppTheme.textPrimary,
             height: 1.2,
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          'Your workspace is ready. Next, create your first administrator account.',
+        const SizedBox(height: 12),
+        const Text(
+          'Your workspace is ready. Next, create the first\nadministrator account.',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 14,
@@ -611,10 +621,10 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             height: 1.5,
           ),
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 32),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
@@ -623,36 +633,52 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           child: Column(
             children: [
               _successRow('Organization', _organizationNameController.text.trim()),
-              const Divider(height: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Divider(height: 1, color: Color(0xFFE5E7EB)),
+              ),
               _successRow('Created On', _formatDate(_createdAt)),
-              const Divider(height: 24),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 14),
+                child: Divider(height: 1, color: Color(0xFFE5E7EB)),
+              ),
               _successRow('Workspace', 'Active'),
-              const Divider(height: 24),
-              _successRow('Request ID', _createdRequestId ?? '-'),
             ],
           ),
         ),
         const SizedBox(height: 24),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
             color: const Color(0xFFF0F1FF),
             borderRadius: BorderRadius.circular(16),
           ),
           child: const Row(
             children: [
-              Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary),
-              SizedBox(width: 12),
+              Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primary, size: 24),
+              SizedBox(width: 14),
               Expanded(
-                child: Text(
-                  'Next: Admin Setup\nCreate the first administrator account',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppTheme.primary,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Next: Admin Setup',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Create the first administrator account',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.primary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               Icon(Icons.chevron_right_rounded, color: AppTheme.primary),
@@ -663,9 +689,31 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         _primaryButton(
           label: 'Continue to Admin Setup',
           onPressed: () {
-            Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-              (route) => false,
+            final orgData = {
+              'companyId': _createdRequestId,
+              'companyName': _organizationNameController.text.trim(),
+              'website': _websiteController.text.trim(),
+              'organizationType': _organizationType ?? '',
+              'contactPerson': _contactPersonController.text.trim(),
+              'contactNumber': _contactNumberController.text.trim(),
+              'contactEmail': _contactEmailController.text.trim().toLowerCase(),
+              'addressLine1': _addressLine1Controller.text.trim(),
+              'addressLine2': _addressLine2Controller.text.trim(),
+              'city': _cityController.text.trim(),
+              'state': _state ?? '',
+              'country': _country,
+              'postalCode': _postalCodeController.text.trim(),
+              'timeZone': _timeZone,
+              'organizationSize': _organizationSize ?? '',
+              'status': 'active',
+              'createdAt': FieldValue.serverTimestamp(),
+              'updatedAt': FieldValue.serverTimestamp(),
+            };
+
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => AdminSetupScreen(organizationData: orgData),
+              ),
             );
           },
         ),
@@ -677,22 +725,25 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     required List<Widget> children,
     CrossAxisAlignment crossAxisAlignment = CrossAxisAlignment.start,
   }) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: IntrinsicHeight(
-              child: Column(
-                crossAxisAlignment: crossAxisAlignment,
-                children: children,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: crossAxisAlignment,
+                  children: children,
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
@@ -700,15 +751,22 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'STEP $step OF 3',
-          style: const TextStyle(
-            fontSize: 11,
-            color: AppTheme.textHint,
-            fontWeight: FontWeight.w700,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF0F1FF),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            'STEP $step OF 3',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppTheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
         Text(
           title,
           style: const TextStyle(
@@ -733,22 +791,23 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 24,
-                  height: 24,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isComplete || isActive ? AppTheme.primary : Colors.white,
                     border: Border.all(
                       color: isComplete || isActive ? AppTheme.primary : const Color(0xFFD1D5DB),
+                      width: 1.5,
                     ),
                   ),
                   alignment: Alignment.center,
                   child: isComplete
-                      ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                      ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
                       : Text(
                           '$stepNumber',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w700,
                             color: isActive ? Colors.white : AppTheme.textHint,
                           ),
@@ -770,61 +829,66 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   }
 
   Widget _uploadCard() {
-    return InkWell(
-      onTap: () {
-        MessageHelper.showWarning(
-          context,
-          'Logo upload can be added next. Organization creation already works.',
-        );
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF8FAFC),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
-              ),
-              child: const Icon(Icons.file_upload_outlined, color: AppTheme.textSecondary),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Upload Organization Logo',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppTheme.textPrimary,
-                    ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.file_upload_outlined, color: AppTheme.textHint, size: 22),
+                SizedBox(height: 2),
+                Text(
+                  'Logo',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppTheme.textHint,
+                    fontWeight: FontWeight.w500,
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    'PNG, JPG up to 2MB',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textHint,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Upload Organization Logo',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'PNG, JPG up to 2MB',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppTheme.textHint,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -832,50 +896,76 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   Widget _inputField(
     TextEditingController controller,
     String label,
-    IconData icon, {
+    IconData? icon, {
     TextInputType keyboardType = TextInputType.text,
   }) {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
+      style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, size: 20, color: AppTheme.textHint),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        labelStyle: const TextStyle(fontSize: 13, color: AppTheme.textHint),
+        prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        ),
       ),
     );
   }
 
   Widget _dropdownField({
     required String label,
-    required IconData icon,
-    required String value,
+    required IconData? icon,
+    required String? value,
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
     return DropdownButtonFormField<String>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
+      icon: const Icon(Icons.expand_more_rounded, color: AppTheme.textHint, size: 22),
+      style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, size: 20, color: AppTheme.textHint),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        labelStyle: const TextStyle(fontSize: 13, color: AppTheme.textHint),
+        prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+        ),
       ),
       items: items
           .map(
             (item) => DropdownMenuItem<String>(
               value: item,
-              child: Text(
-                item,
-                style: const TextStyle(fontSize: 14),
-              ),
+              child: Text(item, style: const TextStyle(fontSize: 14)),
             ),
           )
           .toList(),
     );
   }
 
-  Widget _reviewSection(String title, List<Widget> rows) {
+  Widget _reviewSection(String title, VoidCallback onEdit, List<Widget> rows) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -887,48 +977,71 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppTheme.textPrimary,
-              ),
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 14),
+                  label: const Text('Edit', style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppTheme.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Divider(height: 1),
-          ...rows,
+          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(children: rows),
+          ),
         ],
       ),
     );
   }
 
-  Widget _reviewRow(String label, String value) {
+  Widget _reviewRow(String label, String value, IconData icon) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Icon(icon, size: 16, color: AppTheme.textHint),
+          const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: AppTheme.textHint,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textHint,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textPrimary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -941,7 +1054,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 13, color: AppTheme.textHint),
+          style: const TextStyle(fontSize: 13, color: AppTheme.textHint),
         ),
         const Spacer(),
         Text(
@@ -962,15 +1075,16 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 54,
+      height: 56,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: const Color(0xFFB0B2FF),
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: Text(
@@ -990,14 +1104,14 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   }) {
     return SizedBox(
       width: double.infinity,
-      height: 54,
+      height: 56,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF111827),
+          foregroundColor: AppTheme.textPrimary,
           side: const BorderSide(color: Color(0xFFE5E7EB)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
         child: Text(
@@ -1026,23 +1140,23 @@ class _PreviewPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         children: [
           Container(
-            width: 6,
-            height: 6,
+            width: 8,
+            height: 8,
             decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             label,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
               color: AppTheme.textPrimary,
             ),
@@ -1061,10 +1175,10 @@ class _MiniStatBox extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Column(
@@ -1074,7 +1188,7 @@ class _MiniStatBox extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: AppTheme.textPrimary,
+              color: AppTheme.textHint,
             ),
           ),
           const SizedBox(height: 4),

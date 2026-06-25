@@ -52,8 +52,17 @@ service cloud.firestore {
       allow create: if isAdmin() || (isSignedIn() && (
         (isManager() && request.resource.data.companyId == userCompanyId()) ||
         (isOwner(email) && 
-         get(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)).data.managerEmail.lower() == email.lower() &&
-         (request.resource.data.role == "manager" || request.resource.data.role == "Manager" || request.resource.data.role == "MANAGER"))
+         (
+           (request.resource.data.keys().hasAll(["companyId"]) &&
+            exists(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)) &&
+            get(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)).data.managerEmail.lower() == email.lower()) 
+           ||
+           (request.resource.data.keys().hasAll(["orgId"]) &&
+            exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(request.auth.uid)) &&
+            get(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(request.auth.uid)).data.role == "admin")
+         ) &&
+         (request.resource.data.role == "manager" || request.resource.data.role == "Manager" || request.resource.data.role == "MANAGER" || request.resource.data.role == "admin")
+        )
       ));
 
       // Users can only update their own entry without changing role/companyId
@@ -106,6 +115,29 @@ service cloud.firestore {
         request.resource.data.organizationType is string &&
         request.resource.data.organizationSize is string;
       allow read, update, delete: if isAdmin();
+    }
+
+    // 1.6 Organizations (New Architecture)
+    match /organizations/{orgId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+      
+      match /members/{uid} {
+        allow read, write: if isSignedIn();
+      }
+      match /departments/{deptId} {
+        allow read, write: if isSignedIn();
+      }
+      match /shifts/{shiftId} {
+        allow read, write: if isSignedIn();
+      }
+      match /policies/{policyId} {
+        allow read, write: if isSignedIn();
+      }
+      match /{document=**} {
+        allow read, write: if isSignedIn();
+      }
     }
 
 

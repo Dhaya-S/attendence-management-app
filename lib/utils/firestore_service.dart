@@ -45,6 +45,58 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get organizationSetupRequestsCol =>
       _db.collection('organization_setup_requests');
 
+  // ── New: Organizations (self-registration flow) ──────────────────────────
+  // Used when a company admin registers directly via the app.
+  // Structure: organizations/{orgId}/members/{uid}
+  //                                /departments/{deptId}
+
+  /// `organizations` — top-level collection for self-registered companies.
+  static CollectionReference<Map<String, dynamic>> get orgCol =>
+      _db.collection('organizations');
+
+  /// `organizations/{orgId}` — company master document.
+  static DocumentReference<Map<String, dynamic>> orgDoc(String orgId) =>
+      orgCol.doc(orgId);
+
+  /// `organizations/{orgId}/members` — all admin/employee profiles for this org.
+  static CollectionReference<Map<String, dynamic>> orgMembersCol(String orgId) =>
+      orgDoc(orgId).collection('members');
+
+  /// `organizations/{orgId}/members/{uid}` — a single member's profile.
+  static DocumentReference<Map<String, dynamic>> orgMemberDoc(
+          String orgId, String uid) =>
+      orgMembersCol(orgId).doc(uid);
+
+  /// `organizations/{orgId}/departments` — department list for this org.
+  static CollectionReference<Map<String, dynamic>> orgDepartmentsCol(
+          String orgId) =>
+      orgDoc(orgId).collection('departments');
+
+  /// `organizations/{orgId}/departments/{deptId}`
+  static DocumentReference<Map<String, dynamic>> orgDepartmentDoc(
+          String orgId, String deptId) =>
+      orgDepartmentsCol(orgId).doc(deptId);
+
+  /// `organizations/{orgId}/holidays`
+  static CollectionReference<Map<String, dynamic>> orgHolidaysCol(
+          String orgId) =>
+      orgDoc(orgId).collection('holidays');
+
+  /// `organizations/{orgId}/shifts`
+  static CollectionReference<Map<String, dynamic>> orgShiftsCol(
+          String orgId) =>
+      orgDoc(orgId).collection('shifts');
+
+  /// `organizations/{orgId}/policies`
+  static CollectionReference<Map<String, dynamic>> orgPoliciesCol(
+          String orgId) =>
+      orgDoc(orgId).collection('policies');
+
+  /// `organizations/{orgId}/policies/{policyId}`
+  static DocumentReference<Map<String, dynamic>> orgPolicyDoc(
+          String orgId, String policyId) =>
+      orgPoliciesCol(orgId).doc(policyId);
+
   // ── Company-Scoped Subcollections ────────────────────────────────────────
   // All operational data lives UNDER the company document so that
   // Firestore console shows everything nested per company.

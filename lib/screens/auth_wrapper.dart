@@ -56,6 +56,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
               return const PreLoginScreen();
             }
 
+            if (_error != null) {
+              return _errorScreen(_error!);
+            }
+
             // 3. User exists -> Load Session if not already loaded
             if (!_sessionLoaded) {
               return FutureBuilder(
@@ -187,8 +191,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
   Future<void> _loadSession(User user) async {
     try {
       final email = user.email?.toLowerCase() ?? '';
-      
-      // Restore role & companyId
+
+      // ── Fast path: session already populated during registration ────────────
+      // This happens when a new admin just created their account via the setup
+      // flow. AppSession is already populated; no Firestore read needed.
+      if (AppSession().isReady) {
+        if (mounted) setState(() { _sessionLoaded = true; _error = null; });
+        return;
+      }
+
+      // ── Look up approved_users global mapping ────────────────────────────────
       String? role;
       String? companyId;
 
@@ -196,14 +208,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (approvedDoc.exists && approvedDoc.data() != null) {
         final d = approvedDoc.data()!;
         role = (d['role'] as String? ?? 'employee').toLowerCase();
-        companyId = d['companyId'] as String? ?? '';
+
+        // NEW: self-registered orgs use 'orgId'; legacy uses 'companyId'
+        final orgId = d['orgId'] as String?;
+        companyId = d['companyId'] as String? ?? orgId ?? '';
+
+        // ── NEW: Load from `organizations` collection ──────────────────────
+        if (orgId != null && orgId.isNotEmpty) {
+          await _loadSessionFromOrganizations(user, email, role, orgId);
+          return;
+        }
       } else {
+        // Fallback: find legacy company by managerEmail field
         final companySearch = await FirestoreService.findCompanyByManagerEmail(email);
         if (companySearch.docs.isNotEmpty) {
           role = 'manager';
           companyId = companySearch.docs.first.id;
 
-          // Auto-provision manager into approved_users global mapping to restore full Firestore rule privileges
+          // Auto-provision manager into approved_users
           try {
             await FirestoreService.approvedUserDoc(email).set({
               'role': 'manager',
@@ -212,9 +234,9 @@ class _AuthWrapperState extends State<AuthWrapper> {
               'status': 'approved',
               'createdAt': FieldValue.serverTimestamp(),
             }, SetOptions(merge: true));
-            debugPrint('Manager successfully auto-provisioned into approved_users during session restore.');
+            debugPrint('Manager auto-provisioned into approved_users.');
           } catch (e) {
-            debugPrint('Manager auto-provisioning warning during session restore: $e');
+            debugPrint('Manager auto-provisioning warning: $e');
           }
         }
       }
@@ -223,29 +245,36 @@ class _AuthWrapperState extends State<AuthWrapper> {
         throw Exception('User record not found in system.');
       }
 
-      // Restore company details
+      // ── LEGACY: Load from `approved_companies` collection ────────────────
       final companyDoc = await FirestoreService.companyDoc(companyId).get();
       if (!companyDoc.exists || companyDoc.data() == null) {
         throw Exception('Company record not found.');
       }
-      
       final cd = companyDoc.data()!;
-      
+
       // Restore user name
       String? userName;
-      final userDoc = await FirestoreService.companyDoc(companyId).collection('users').doc(email).get();
+      final userDoc = await FirestoreService.companyDoc(companyId)
+          .collection('users')
+          .doc(email)
+          .get();
       if (userDoc.exists && userDoc.data()?['name'] != null) {
         userName = userDoc.data()?['name'] as String?;
       } else {
-        final q = await FirestoreService.companyDoc(companyId).collection('users').where('email', isEqualTo: email).limit(1).get();
+        final q = await FirestoreService.companyDoc(companyId)
+            .collection('users')
+            .where('email', isEqualTo: email)
+            .limit(1)
+            .get();
         if (q.docs.isNotEmpty) {
           userName = q.docs.first.data()['name'] as String?;
         }
       }
 
-      // Helper to safely parse numeric values (handles both String and num types)
-      double? parseDouble(dynamic v) => v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
-      int? parseInt(dynamic v) => v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
+      double? parseDouble(dynamic v) =>
+          v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
+      int? parseInt(dynamic v) =>
+          v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
 
       AppSession().populate(
         uid: user.uid,
@@ -260,7 +289,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         userName: userName,
       );
 
-      // Handle location
       final loc = cd['location'] as Map<String, dynamic>?;
       if (loc != null) {
         AppSession().officeLat = parseDouble(loc['latitude']);
@@ -268,22 +296,55 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       AppSession().allowedRadius = parseDouble(cd['allowedRadius']) ?? 500;
 
-      // Initialize notifications
       NotificationService().onUserLogin();
 
       if (mounted) {
-        setState(() {
-          _sessionLoaded = true;
-          _error = null;
-        });
+        setState(() { _sessionLoaded = true; _error = null; });
       }
     } catch (e) {
       debugPrint('AuthWrapper Load Error: $e');
-      if (mounted) {
-        setState(() {
-          _error = e.toString();
-        });
+      if (mounted) setState(() { _error = e.toString(); });
+      rethrow;
+    }
+  }
+
+  /// Load session from the new `organizations/{orgId}/members/{uid}` structure.
+  Future<void> _loadSessionFromOrganizations(
+      User user, String email, String role, String orgId) async {
+    try {
+      // Load org master doc
+      final orgDoc = await FirestoreService.orgDoc(orgId).get();
+      if (!orgDoc.exists || orgDoc.data() == null) {
+        throw Exception('Organization record not found.');
       }
+      final od = orgDoc.data()!;
+
+      // Load member profile
+      final memberDoc = await FirestoreService.orgMemberDoc(orgId, user.uid).get();
+      String? userName;
+      if (memberDoc.exists && memberDoc.data() != null) {
+        userName = memberDoc.data()!['fullName'] as String?;
+      }
+
+      // Map admin role to 'manager' so existing app screens work
+      final resolvedRole = (role == 'admin') ? 'manager' : role;
+
+      AppSession().populate(
+        uid: user.uid,
+        email: email,
+        role: resolvedRole,
+        companyId: orgId,
+        companyName: od['companyName'] as String? ?? od['name'] as String?,
+        userName: userName,
+      );
+
+      NotificationService().onUserLogin();
+
+      if (mounted) {
+        setState(() { _sessionLoaded = true; _error = null; });
+      }
+    } catch (e) {
+      debugPrint('_loadSessionFromOrganizations error: $e');
       rethrow;
     }
   }
