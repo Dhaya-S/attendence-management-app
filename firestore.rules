@@ -37,7 +37,11 @@ service cloud.firestore {
              request.auth.token.email.lower() == employeeId.lower();
     }
 
-    // --- RULES ---
+    // Helper to check if current user is an admin of a specific org
+    function isOrgAdmin(orgId) {
+      let memberDoc = /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid);
+      return exists(memberDoc) && get(memberDoc).data.role == "admin";
+    }
 
     // 1. Global mapping used during login - Force Case-Insensitive Deploy
     match /approved_users/{email} {
@@ -45,35 +49,38 @@ service cloud.firestore {
         isOwner(email) || 
         isManager() ||  // Managers need to check if an email is already registered
         (resource != null && resource.data.companyId == userCompanyId()) || 
+        (resource != null && resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId)) ||
         isAdmin()
       );
       
-      // Managers can create new employee approved_user mappings
+      // Managers and Org Admins can create new employee approved_user mappings
       allow create: if isAdmin() || (isSignedIn() && (
         (isManager() && request.resource.data.companyId == userCompanyId()) ||
+        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId)) ||
         (isOwner(email) && 
          (
            (request.resource.data.keys().hasAll(["companyId"]) &&
             exists(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)) &&
             get(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)).data.managerEmail.lower() == email.lower()) 
            ||
-           (request.resource.data.keys().hasAll(["orgId"]) &&
-            exists(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(request.auth.uid)) &&
-            get(/databases/$(database)/documents/organizations/$(request.resource.data.orgId)/members/$(request.auth.uid)).data.role == "admin")
+           (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId))
          ) &&
          (request.resource.data.role == "manager" || request.resource.data.role == "Manager" || request.resource.data.role == "MANAGER" || request.resource.data.role == "admin")
         )
       ));
 
       // Users can only update their own entry without changing role/companyId
-      allow update: if isAdmin() || (
-        isSignedIn() && isOwner(email) &&
-        // Prevent modification of critical fields
-        request.resource.data.role == resource.data.role &&
-        request.resource.data.companyId == resource.data.companyId
-      );
+      // Managers and Org Admins can update their employees
+      allow update: if isAdmin() || (isSignedIn() && (
+        (isOwner(email) && request.resource.data.role == resource.data.role && request.resource.data.companyId == resource.data.companyId) ||
+        (isManager() && request.resource.data.companyId == userCompanyId() && resource.data.companyId == userCompanyId()) ||
+        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId) && resource.data.orgId == request.resource.data.orgId)
+      ));
 
-      allow delete: if isAdmin() || (isSignedIn() && isManager() && resource.data.companyId == userCompanyId());
+      allow delete: if isAdmin() || (isSignedIn() && (
+        (isManager() && resource.data.companyId == userCompanyId()) ||
+        (resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId))
+      ));
     }
     
     match /admin_users/{uid} {

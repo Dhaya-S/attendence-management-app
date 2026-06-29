@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'package:attendance_app/screens/employee_setup_screen.dart';
+import 'package:attendance_app/screens/organization_configuration_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/message_helper.dart';
@@ -337,7 +338,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
         ],
       ),
       const SizedBox(height: 20),
-      _breadcrumb(['Organization', 'Admin', 'Departments', 'Employees'], 2),
+      _breadcrumb(['Organization', 'Admin', 'Departments', 'Config'], 2),
       const SizedBox(height: 24),
       
       // Hierarchy Graphic
@@ -473,7 +474,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
             // Skip → navigate to main app directly
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
-                builder: (_) => EmployeeSetupScreen(
+                builder: (_) => OrganizationConfigurationScreen(
                   orgId: widget.orgId,
                   orgName: widget.orgName,
                 ),
@@ -1124,7 +1125,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Your organization structure is ready. Next, add employees and assign them to departments.',
+        'Your organization structure is ready. Next, configure policies, shifts, and attendance settings.',
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 14, color: AppTheme.textMuted, height: 1.5),
       ),
@@ -1196,7 +1197,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
                 const Text('Setup Progress',
                     style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
                 const Spacer(),
-                const Text('3 of 7 complete', style: TextStyle(fontSize: 11, color: AppTheme.textHint)),
+                const Text('3 of 6 complete', style: TextStyle(fontSize: 11, color: AppTheme.textHint)),
               ],
             ),
             const SizedBox(height: 4),
@@ -1207,8 +1208,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
             _progressItem(true, false, 'Departments Created'),
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
-            _progressItem(false, true, 'Employees Setup'),
-            const Divider(height: 1, color: Color(0xFFF3F4F6)),
+
             _progressItem(false, false, 'Holidays Setup'),
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
             _progressItem(false, false, 'Shift Setup'),
@@ -1242,7 +1242,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
                       style: TextStyle(
                           fontSize: 13, color: AppTheme.primary, fontWeight: FontWeight.w700)),
                   SizedBox(height: 2),
-                  Text('Add employees and assign them to departments',
+                  Text('Configure holidays, shifts, and policies',
                       style: TextStyle(fontSize: 11, color: AppTheme.primary)),
                 ],
               ),
@@ -1253,10 +1253,10 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
       ),
       const Spacer(),
       _primaryBtn(
-        'Continue to Employee Setup',
+        'Continue to Configuration',
         () => Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (_) => EmployeeSetupScreen(
+            builder: (_) => OrganizationConfigurationScreen(
               orgId: widget.orgId,
               orgName: widget.orgName,
             ),

@@ -48,12 +48,12 @@ class _EmpModel {
     this.reportingManagerId,
     this.reportingManagerName,
     this.dob,
-    this.gender = 'Male',
-    this.maritalStatus = 'Single',
-    this.bloodGroup = 'O+',
+    this.gender = '',
+    this.maritalStatus = '',
+    this.bloodGroup = '',
     this.emergencyName = '',
     this.emergencyPhone = '',
-    this.govtIdType = 'Aadhaar Card',
+    this.govtIdType = '',
     this.govtIdNumber = '',
     this.homeAddress = '',
     this.invitationStatus = 'pending',
@@ -138,7 +138,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
   final _designationCtrl = TextEditingController();
   String? _selectedRole;
   String? _selectedEmpType;
-  String? _selectedLocation;
+  final _locationCtrl = TextEditingController();
   String? _selectedManagerId;
   String? _selectedManagerName;
 
@@ -228,6 +228,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     _emergencyPhoneCtrl.dispose();
     _govtIdNumberCtrl.dispose();
     _homeAddressCtrl.dispose();
+    _locationCtrl.dispose();
     super.dispose();
   }
 
@@ -287,7 +288,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
       _designationCtrl.text = existing.designation;
       _selectedRole = existing.role;
       _selectedEmpType = existing.empType;
-      _selectedLocation = existing.location;
+      _locationCtrl.text = existing.location;
       _selectedManagerId = existing.reportingManagerId;
       _selectedManagerName = existing.reportingManagerName;
       _dob = existing.dob;
@@ -314,16 +315,16 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
       _designationCtrl.clear();
       _selectedRole = 'Employee';
       _selectedEmpType = 'Permanent';
-      _selectedLocation = widget.orgName;
+      _locationCtrl.clear();
       _selectedManagerId = null;
       _selectedManagerName = null;
       _dob = null;
-      _selectedGender = 'Male';
-      _selectedMarital = 'Single';
-      _selectedBloodGroup = 'O+';
+      _selectedGender = null;
+      _selectedMarital = null;
+      _selectedBloodGroup = null;
       _emergencyNameCtrl.clear();
       _emergencyPhoneCtrl.clear();
-      _selectedGovtIdType = 'Aadhaar Card';
+      _selectedGovtIdType = null;
       _govtIdNumberCtrl.clear();
       _homeAddressCtrl.clear();
     }
@@ -397,7 +398,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         designation: _designationCtrl.text.trim(),
         role: _selectedRole ?? '',
         empType: _selectedEmpType ?? '',
-        location: _selectedLocation ?? '',
+        location: _locationCtrl.text.trim(),
         reportingManagerId: _selectedManagerId,
         reportingManagerName: _selectedManagerName,
         dob: _dob,
@@ -447,6 +448,17 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         'updatedAt': now,
       });
 
+      // Grant app access by provisioning in approved_users collection
+      await FirestoreService.approvedUserDoc(emp.email).set({
+        'email': emp.email,
+        'role': emp.role.toLowerCase(),
+        'orgId': widget.orgId,
+        'companyId': widget.orgId, // legacy support
+        'status': 'approved',
+        'createdAt': now,
+        'updatedAt': now,
+      }, SetOptions(merge: true));
+
       if (!mounted) return;
       setState(() {
         _employees.add(emp);
@@ -479,7 +491,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
       emp.designation = _designationCtrl.text.trim();
       emp.role = _selectedRole ?? '';
       emp.empType = _selectedEmpType ?? '';
-      emp.location = _selectedLocation ?? '';
+      emp.location = _locationCtrl.text.trim();
       emp.reportingManagerId = _selectedManagerId;
       emp.reportingManagerName = _selectedManagerName;
       emp.dob = _dob;
@@ -518,6 +530,16 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         'homeAddress': emp.homeAddress,
         'updatedAt': FieldValue.serverTimestamp(),
       });
+
+      // Update global app access in approved_users collection
+      await FirestoreService.approvedUserDoc(emp.email).set({
+        'email': emp.email,
+        'role': emp.role.toLowerCase(),
+        'orgId': widget.orgId,
+        'companyId': widget.orgId, // legacy support
+        'status': 'approved',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
       if (!mounted) return;
       setState(() {
@@ -1431,12 +1453,10 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         const SizedBox(height: 24),
         _sectionLabel('LOCATION & REPORTING'),
         const SizedBox(height: 16),
-        _dropdownStrField(
-          label: 'Location *',
-          icon: Icons.location_on_outlined,
-          value: _selectedLocation,
-          items: const ['Bengaluru HQ', 'Mumbai Office', 'Delhi Office', 'Remote'], // Need actual locations later or make it text
-          onChanged: (v) => setState(() => _selectedLocation = v!),
+        _inputField(
+          _locationCtrl,
+          'Work Location / Address *',
+          Icons.location_on_outlined,
         ),
         const SizedBox(height: 16),
         // Reporting manager
@@ -1690,7 +1710,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         _reviewRow('Designation', _designationCtrl.text.trim()),
         _reviewRow('Role', _selectedRole ?? '-'),
         _reviewRow('Reporting Manager', _selectedManagerName ?? 'Not assigned'),
-        _reviewRow('Location', _selectedLocation ?? '-'),
+        _reviewRow('Location', _locationCtrl.text.trim().isEmpty ? '-' : _locationCtrl.text.trim()),
       ]),
       const SizedBox(height: 12),
       // Personal Info

@@ -48,7 +48,7 @@
         <!-- 🗺️ Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyAfcCKnjDU-XEOFZ0kT52qVpYv4maNDkXU"/>
+            android:value="AIzaSyALDMYAfDXu-dDv5dXd6VuQCJCTsRPG4UY"/>
 
         <!-- 📍 Geolocator background service for high-performance mobile tracking -->
         <service

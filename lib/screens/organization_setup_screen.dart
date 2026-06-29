@@ -1,10 +1,18 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
 import 'package:attendance_app/screens/admin_setup_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/message_helper.dart';
+
+const _kGoogleApiKey = 'AIzaSyALDMYAfDXu-dDv5dXd6VuQCJCTsRPG4UY';
 
 class OrganizationSetupScreen extends StatefulWidget {
   const OrganizationSetupScreen({super.key});
@@ -20,7 +28,6 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   final _contactNumberController = TextEditingController();
   final _contactEmailController = TextEditingController();
   final _addressLine1Controller = TextEditingController();
-  final _addressLine2Controller = TextEditingController();
   final _cityController = TextEditingController();
   final _postalCodeController = TextEditingController();
 
@@ -34,10 +41,39 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   String? _createdRequestId;
   DateTime? _createdAt;
 
+  // ── Address / Geocoding state ──────────────────────────────────────────────
+  double? _latitude;
+  double? _longitude;
+  bool _isFetchingLocation = false;
+  bool _isLoadingSuggestions = false;
+  List<Map<String, dynamic>> _addressSuggestions = [];
+  Timer? _debounce;
+
+  static const _states = [
+    'Karnataka',
+    'Tamil Nadu',
+    'Maharashtra',
+    'Telangana',
+    'Kerala',
+    'Delhi',
+    'Gujarat',
+    'Rajasthan',
+    'Uttar Pradesh',
+    'West Bengal',
+  ];
+
   static const _steps = [
     'Organization Details',
     'Location & Address',
     'Review & Create',
+  ];
+
+  static const _sizes = [
+    '1-10 Employees',
+    '11-50 Employees',
+    '51-200 Employees',
+    '201-500 Employees',
+    '500+ Employees',
   ];
 
   static const _organizationTypes = [
@@ -49,23 +85,6 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     'Retail',
   ];
 
-  static const _states = [
-    'Karnataka',
-    'Tamil Nadu',
-    'Maharashtra',
-    'Telangana',
-    'Kerala',
-    'Delhi',
-  ];
-
-  static const _sizes = [
-    '1-10 Employees',
-    '11-50 Employees',
-    '51-200 Employees',
-    '201-500 Employees',
-    '500+ Employees',
-  ];
-
   @override
   void dispose() {
     _organizationNameController.dispose();
@@ -74,10 +93,189 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     _contactNumberController.dispose();
     _contactEmailController.dispose();
     _addressLine1Controller.dispose();
-    _addressLine2Controller.dispose();
     _cityController.dispose();
     _postalCodeController.dispose();
+    _debounce?.cancel();
     super.dispose();
+  }
+
+  // ── Places Autocomplete ───────────────────────────────────────────────────
+
+  void _onAddressSearchChanged(String query) {
+    _debounce?.cancel();
+    if (query.trim().length < 3) {
+      setState(() => _addressSuggestions = []);
+      return;
+    }
+    _debounce = Timer(const Duration(milliseconds: 400), () {
+      _fetchPlacesSuggestions(query.trim());
+    });
+  }
+
+  Future<void> _fetchPlacesSuggestions(String input) async {
+    setState(() => _isLoadingSuggestions = true);
+    try {
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/place/autocomplete/json'
+        '?input=${Uri.encodeComponent(input)}'
+        '&types=geocode'
+        '&language=en'
+        '&key=$_kGoogleApiKey',
+      );
+      final response = await http.get(uri);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final predictions = (data['predictions'] as List?) ?? [];
+        setState(() {
+          _addressSuggestions = predictions
+              .map((p) => {
+                    'placeId': p['place_id'] as String,
+                    'description': p['description'] as String,
+                  })
+              .toList();
+        });
+      }
+    } catch (_) {
+      // Silently ignore network errors
+    } finally {
+      if (mounted) setState(() => _isLoadingSuggestions = false);
+    }
+  }
+
+  Future<void> _fetchPlaceDetails(String placeId, String description) async {
+    setState(() {
+      _isLoadingSuggestions = true;
+      _addressSuggestions = [];
+    });
+    try {
+      final uri = Uri.parse(
+        'https://maps.googleapis.com/maps/api/place/details/json'
+        '?place_id=${Uri.encodeComponent(placeId)}'
+        '&fields=geometry,formatted_address,address_components'
+        '&key=$_kGoogleApiKey',
+      );
+      final response = await http.get(uri);
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final result = data['result'] as Map<String, dynamic>?;
+        if (result != null) {
+          final location = result['geometry']?['location'];
+          final formatted = result['formatted_address'] as String? ?? description;
+          // Try to extract city, state, postal code from address_components
+          String city = '';
+          String state = '';
+          String postalCode = '';
+          String country = 'India';
+          final components = result['address_components'] as List? ?? [];
+          for (final c in components) {
+            final types = (c['types'] as List).cast<String>();
+            if (types.contains('locality')) city = c['long_name'] as String? ?? '';
+            if (types.contains('administrative_area_level_1')) state = c['long_name'] as String? ?? '';
+            if (types.contains('postal_code')) postalCode = c['long_name'] as String? ?? '';
+            if (types.contains('country')) country = c['long_name'] as String? ?? 'India';
+          }
+          // Match state to our list or keep null
+          final matchedState = _states.firstWhere(
+            (s) => state.contains(s) || s.contains(state),
+            orElse: () => '',
+          );
+          setState(() {
+            _latitude = (location?['lat'] as num?)?.toDouble();
+            _longitude = (location?['lng'] as num?)?.toDouble();
+            _addressLine1Controller.text = formatted;
+            if (city.isNotEmpty) _cityController.text = city;
+            if (postalCode.isNotEmpty) _postalCodeController.text = postalCode;
+            if (matchedState.isNotEmpty) _state = matchedState;
+            _country = country;
+            _addressSuggestions = [];
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) MessageHelper.showError(context, 'Failed to get address details.');
+    } finally {
+      if (mounted) setState(() => _isLoadingSuggestions = false);
+    }
+  }
+
+  // ── Live Location ──────────────────────────────────────────────────────────
+
+  Future<void> _fetchLiveLocation() async {
+    setState(() => _isFetchingLocation = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) {
+          MessageHelper.showError(
+            context,
+            'Location permission permanently denied. Enable it in app settings.',
+          );
+        }
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final placemarks = await placemarkFromCoordinates(
+        position.latitude,
+        position.longitude,
+      );
+
+      if (!mounted) return;
+
+      if (placemarks.isNotEmpty) {
+        final p = placemarks.first;
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          // Build address line 1 from street + subLocality
+          final addressParts = [
+            if (p.street != null && p.street!.isNotEmpty) p.street,
+            if (p.subLocality != null && p.subLocality!.isNotEmpty) p.subLocality,
+          ];
+          _addressLine1Controller.text = addressParts.isNotEmpty
+              ? addressParts.join(', ')
+              : '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+          // Auto-fill city
+          if (p.locality != null && p.locality!.isNotEmpty) {
+            _cityController.text = p.locality!;
+          }
+          // Auto-fill postal code
+          if (p.postalCode != null && p.postalCode!.isNotEmpty) {
+            _postalCodeController.text = p.postalCode!;
+          }
+          // Match state
+          if (p.administrativeArea != null && p.administrativeArea!.isNotEmpty) {
+            final area = p.administrativeArea!;
+            final matched = _states.firstWhere(
+              (s) => area.contains(s) || s.contains(area),
+              orElse: () => '',
+            );
+            if (matched.isNotEmpty) _state = matched;
+          }
+          _addressSuggestions = [];
+        });
+      } else {
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+          _addressLine1Controller.text =
+              '${position.latitude.toStringAsFixed(6)}, ${position.longitude.toStringAsFixed(6)}';
+          _addressSuggestions = [];
+        });
+      }
+    } catch (e) {
+      if (mounted) MessageHelper.showError(context, 'Could not fetch location: $e');
+    } finally {
+      if (mounted) setState(() => _isFetchingLocation = false);
+    }
   }
 
   Future<void> _submitOrganization() async {
@@ -393,13 +591,130 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         const SizedBox(height: 20),
         _buildProgressIndicator(2),
         const SizedBox(height: 32),
-        _inputField(_addressLine1Controller, 'Address Line 1 *', Icons.location_on_outlined),
+
+        // ── Address Line 1 with Places Autocomplete ───────────────────────
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _addressLine1Controller,
+              onChanged: _onAddressSearchChanged,
+              style: const TextStyle(
+                  fontSize: 14,
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                labelText: 'Address Line 1 *',
+                labelStyle:
+                    const TextStyle(fontSize: 13, color: AppTheme.textHint),
+                prefixIcon: const Icon(Icons.location_on_outlined,
+                    size: 20, color: AppTheme.textHint),
+                suffixIcon: _isLoadingSuggestions
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: AppTheme.primary),
+                        ),
+                      )
+                    : _isFetchingLocation
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppTheme.primary),
+                            ),
+                          )
+                        : IconButton(
+                            tooltip: 'Use live location',
+                            icon: const Icon(Icons.my_location_rounded,
+                                size: 20, color: AppTheme.primary),
+                            onPressed: _fetchLiveLocation,
+                          ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide:
+                      const BorderSide(color: AppTheme.primary, width: 1.5),
+                ),
+              ),
+            ),
+            // ── Autocomplete suggestions dropdown ─────────────────────────
+            if (_addressSuggestions.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x14000000),
+                      blurRadius: 12,
+                      offset: Offset(0, 4),
+                    )
+                  ],
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _addressSuggestions.length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                  itemBuilder: (context, index) {
+                    final s = _addressSuggestions[index];
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => _fetchPlaceDetails(
+                        s['placeId'] as String,
+                        s['description'] as String,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 12),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.location_on_outlined,
+                                size: 16, color: AppTheme.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                s['description'] as String,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    color: AppTheme.textPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
         const SizedBox(height: 16),
-        _inputField(_addressLine2Controller, 'Address Line 2', Icons.location_on_outlined),
-        const SizedBox(height: 16),
+
+        // ── City & State ──────────────────────────────────────────────────
         Row(
           children: [
-            Expanded(child: _inputField(_cityController, 'City *', null)),
+            Expanded(
+              child: _inputField(_cityController, 'City *', null),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: _dropdownField(
@@ -413,6 +728,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           ],
         ),
         const SizedBox(height: 16),
+
+        // ── Country & Postal Code ─────────────────────────────────────────
         Row(
           children: [
             Expanded(
@@ -436,6 +753,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
           ],
         ),
         const SizedBox(height: 16),
+
+        // ── Time Zone ─────────────────────────────────────────────────────
         _dropdownField(
           label: 'Time Zone *',
           icon: Icons.schedule_rounded,
@@ -469,6 +788,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
       ],
     );
   }
+
 
   Widget _buildReviewStep() {
     return _buildScrollableStep(
@@ -552,8 +872,24 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
               ]),
               const SizedBox(height: 16),
               _reviewSection('Address & Location', () => setState(() => _step = 2), [
-                _reviewRow('Address', _addressLine1Controller.text.trim().isEmpty && _addressLine2Controller.text.trim().isEmpty ? '-' : '${_addressLine1Controller.text.trim()}${_addressLine2Controller.text.trim().isNotEmpty ? ', ' + _addressLine2Controller.text.trim() : ''}', Icons.location_on_outlined),
-                _reviewRow('City, State', '${_cityController.text.trim()}, ${_state ?? '-'} - ${_postalCodeController.text.trim()}', Icons.public_rounded),
+                _reviewRow(
+                  'Address',
+                  _addressLine1Controller.text.trim().isNotEmpty
+                      ? _addressLine1Controller.text.trim()
+                      : '-',
+                  Icons.location_on_outlined,
+                ),
+                _reviewRow(
+                  'City, State',
+                  '${_cityController.text.trim()}, ${_state ?? '-'} - ${_postalCodeController.text.trim()}',
+                  Icons.public_rounded,
+                ),
+                if (_latitude != null)
+                  _reviewRow(
+                    'Coordinates',
+                    'Lat: ${_latitude!.toStringAsFixed(6)}, Lng: ${_longitude!.toStringAsFixed(6)}',
+                    Icons.gps_fixed_rounded,
+                  ),
                 _reviewRow('Time Zone', _timeZone, Icons.schedule_rounded),
               ]),
             ],
@@ -697,12 +1033,19 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
               'contactPerson': _contactPersonController.text.trim(),
               'contactNumber': _contactNumberController.text.trim(),
               'contactEmail': _contactEmailController.text.trim().toLowerCase(),
+              // Address displayed to user
               'addressLine1': _addressLine1Controller.text.trim(),
-              'addressLine2': _addressLine2Controller.text.trim(),
               'city': _cityController.text.trim(),
               'state': _state ?? '',
               'country': _country,
               'postalCode': _postalCodeController.text.trim(),
+              // Geofencing coordinates stored as individual doubles
+              'latitude': _latitude,
+              'longitude': _longitude,
+              // GeoPoint for Firestore geo-queries
+              'location': _latitude != null && _longitude != null
+                  ? GeoPoint(_latitude!, _longitude!)
+                  : null,
               'timeZone': _timeZone,
               'organizationSize': _organizationSize ?? '',
               'status': 'active',

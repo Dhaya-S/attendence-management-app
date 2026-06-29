@@ -5,6 +5,7 @@ import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/message_helper.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/screens/admin_dashboard_screen.dart';
+import 'package:attendance_app/screens/workspace_ready_screen.dart';
 import 'package:intl/intl.dart';
 
 // ── Models ──────────────────────────────────────────────────────────────────
@@ -363,7 +364,7 @@ class _OrganizationConfigurationScreenState
                     const SizedBox(height: 24),
                     Row(
                       children: const [
-                        Text('Org > Admin > Depts > Employees > ', style: TextStyle(fontSize: 10, color: AppTheme.textHint)),
+                        Text('Org > Admin > Depts > ', style: TextStyle(fontSize: 10, color: AppTheme.textHint)),
                         Text('Config', style: TextStyle(fontSize: 10, color: AppTheme.primary, fontWeight: FontWeight.w700)),
                       ],
                     ),
@@ -1084,6 +1085,26 @@ class _OrganizationConfigurationScreenState
     );
   }
 
+  String _calculateHalfDayStr() {
+    if (_shifts.isEmpty) return "4.5 Hours";
+    
+    double totalHours = 0;
+    for (final s in _shifts) {
+      double start = s.startTime.hour + s.startTime.minute / 60.0;
+      double end = s.endTime.hour + s.endTime.minute / 60.0;
+      if (end < start) end += 24; // Cross midnight
+      totalHours += (end - start);
+    }
+    double avgHours = totalHours / _shifts.length;
+    double halfDay = avgHours / 2;
+    
+    if (halfDay == halfDay.toInt()) {
+      return "${halfDay.toInt()} Hours";
+    } else {
+      return "${halfDay.toStringAsFixed(1)} Hours";
+    }
+  }
+
   Widget _buildAttendanceStep() {
     return Column(
       children: [
@@ -1122,12 +1143,9 @@ class _OrganizationConfigurationScreenState
                           const SizedBox(height: 8),
                           _policyRow(
                             'Shift Start',
-                            GestureDetector(
-                              onTap: () async {
-                                final time = await showTimePicker(context: context, initialTime: _attendancePolicy.shiftStart);
-                                if (time != null) setState(() => _attendancePolicy.shiftStart = time);
-                              },
-                              child: Text(_attendancePolicy.shiftStart.format(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                            Text(
+                              _shifts.isEmpty ? 'Not Set' : (_shifts.length == 1 ? _shifts.first.name : 'All Shift'),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1147,22 +1165,16 @@ class _OrganizationConfigurationScreenState
                           const SizedBox(height: 16),
                           _policyRow(
                             'Late Mark After',
-                            GestureDetector(
-                              onTap: () async {
-                                final time = await showTimePicker(context: context, initialTime: _attendancePolicy.lateMarkAfter);
-                                if (time != null) setState(() => _attendancePolicy.lateMarkAfter = time);
-                              },
-                              child: Text(_attendancePolicy.lateMarkAfter.format(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                            Text(
+                              _attendancePolicy.gracePeriodMins == 0 ? 'No Grace' : '${_attendancePolicy.gracePeriodMins} Minutes',
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)
                             ),
                           ),
                           _policyRow(
                             'Half Day After',
-                            GestureDetector(
-                              onTap: () async {
-                                final time = await showTimePicker(context: context, initialTime: _attendancePolicy.halfDayAfter);
-                                if (time != null) setState(() => _attendancePolicy.halfDayAfter = time);
-                              },
-                              child: Text(_attendancePolicy.halfDayAfter.format(context), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                            Text(
+                              _calculateHalfDayStr(),
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary)
                             ),
                           ),
                         ],
@@ -1248,13 +1260,31 @@ class _OrganizationConfigurationScreenState
     );
   }
 
+  Widget _leavePill(String text, bool isActive) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isActive ? const Color(0xFFF0F1FF) : const Color(0xFFF3F4F6),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: isActive ? AppTheme.primary : AppTheme.textSecondary,
+        ),
+      ),
+    );
+  }
+
   Widget _leaveTypeCard(_LeaveModel leave, bool isExpanded) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isExpanded ? AppTheme.primary.withValues(alpha: 0.3) : const Color(0xFFE5E7EB)),
+        border: Border.all(color: isExpanded ? AppTheme.primary : const Color(0xFFE5E7EB)),
         boxShadow: isExpanded ? const [BoxShadow(color: Color(0x08000000), blurRadius: 8, offset: Offset(0, 2))] : null,
       ),
       child: Column(
@@ -1271,22 +1301,22 @@ class _OrganizationConfigurationScreenState
             },
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: Container(
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
-                color: leave.color.withValues(alpha: 0.1),
+                color: isExpanded ? AppTheme.primary.withValues(alpha: 0.1) : const Color(0xFFF3F4F6),
                 borderRadius: BorderRadius.circular(12),
               ),
               alignment: Alignment.center,
-              child: Text(leave.initials, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: leave.color)),
+              child: Text(leave.initials, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isExpanded ? AppTheme.primary : AppTheme.textPrimary)),
             ),
             title: Text(leave.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
             subtitle: Text(leave.allocationDays == 0 ? 'Unlimited' : '${leave.allocationDays} Days / Year', style: const TextStyle(fontSize: 12, color: AppTheme.textHint)),
-            trailing: Icon(isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded, color: AppTheme.textHint),
+            trailing: Icon(isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded, color: isExpanded ? AppTheme.primary : AppTheme.textHint),
           ),
           if (!isExpanded)
             Padding(
-              padding: const EdgeInsets.fromLTRB(72, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(76, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1294,8 +1324,8 @@ class _OrganizationConfigurationScreenState
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _gracePill('Approval Required', leave.approvalRequired),
-                      _gracePill('Carry Forward', leave.carryForward),
+                      _leavePill('Approval Required', leave.approvalRequired),
+                      _leavePill('Carry Forward', leave.carryForward),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -1303,11 +1333,20 @@ class _OrganizationConfigurationScreenState
                     spacing: 8,
                     runSpacing: 8,
                     children: [
-                      _gracePill('Attachment Required', leave.attachmentRequired),
+                      _leavePill('Attachment Required', leave.attachmentRequired),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  Text('${leave.approvalRequired ? 'Approval Required' : 'No Approval'} - ${leave.carryForward ? 'Carry Forward' : 'No Carry Forward'}', style: const TextStyle(fontSize: 10, color: AppTheme.textHint)),
+                  Builder(
+                    builder: (ctx) {
+                      List<String> activeRules = [];
+                      if (leave.approvalRequired) activeRules.add('Approval Required');
+                      if (leave.carryForward) activeRules.add('Carry Forward');
+                      else activeRules.add('No Carry Forward');
+                      if (leave.attachmentRequired) activeRules.add('Attachment Required');
+                      return Text(activeRules.join(' · '), style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary));
+                    }
+                  ),
                 ],
               ),
             ),
@@ -1319,7 +1358,7 @@ class _OrganizationConfigurationScreenState
                 children: [
                   const Divider(height: 1, color: Color(0xFFF3F4F6)),
                   const SizedBox(height: 16),
-                  const Text('ANNUAL ALLOCATION', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textHint, letterSpacing: 1)),
+                  const Text('ANNUAL ALLOCATION', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary, letterSpacing: 0.5)),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1331,26 +1370,38 @@ class _OrganizationConfigurationScreenState
                               if (leave.allocationDays > 0) {
                                 setState(() => leave.allocationDays--);
                               }
-                            }, icon: const Icon(Icons.remove, size: 18), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 36, minHeight: 36)),
-                            Container(width: 40, alignment: Alignment.center, child: Text('${leave.allocationDays}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                            }, icon: const Icon(Icons.remove, size: 16, color: AppTheme.textPrimary), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40)),
+                            Container(width: 40, alignment: Alignment.center, child: Text('${leave.allocationDays}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary))),
                             IconButton(onPressed: () {
                               setState(() => leave.allocationDays++);
-                            }, icon: const Icon(Icons.add, size: 18), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 36, minHeight: 36)),
+                            }, icon: const Icon(Icons.add, size: 16, color: AppTheme.textPrimary), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 40, minHeight: 40)),
                           ],
                         ),
                       ),
                       const SizedBox(width: 12),
-                      const Text('days / year', style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
+                      const Text('days / year', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                     ],
                   ),
                   const SizedBox(height: 24),
-                  const Text('POLICY RULES', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppTheme.textHint, letterSpacing: 1)),
-                  const SizedBox(height: 8),
-                  _toggleRow('Approval Required', 'Manager must approve before leave is granted', leave.approvalRequired, onChanged: (v) => setState(() => leave.approvalRequired = v)),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  _toggleRow('Carry Forward', 'Unused days carry over to next year', leave.carryForward, onChanged: (v) => setState(() => leave.carryForward = v)),
-                  const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  _toggleRow('Attachment Required', 'Supporting document needed on request', leave.attachmentRequired, onChanged: (v) => setState(() => leave.attachmentRequired = v)),
+                  const Text('POLICY RULES', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.textSecondary, letterSpacing: 0.5)),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                    ),
+                    child: Column(
+                      children: [
+                        _toggleRow('Approval Required', 'Manager must approve before leave is granted', leave.approvalRequired, onChanged: (v) => setState(() => leave.approvalRequired = v)),
+                        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        _toggleRow('Carry Forward', 'Unused days carry over to next year', leave.carryForward, onChanged: (v) => setState(() => leave.carryForward = v)),
+                        const Divider(height: 1, color: Color(0xFFF3F4F6)),
+                        _toggleRow('Attachment Required', 'Supporting document needed on request', leave.attachmentRequired, onChanged: (v) => setState(() => leave.attachmentRequired = v)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1663,9 +1714,14 @@ class _OrganizationConfigurationScreenState
         _isSaving = false;
       });
       
-      // Navigate directly to Admin Dashboard
+      // Navigate to Workspace Ready screen
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+        MaterialPageRoute(
+          builder: (_) => WorkspaceReadyScreen(
+            orgId: widget.orgId,
+            orgName: widget.orgName,
+          ),
+        ),
         (r) => false,
       );
     } catch (e) {
@@ -1772,6 +1828,7 @@ class _OrganizationConfigurationScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: false,
       appBar: _step > 0 && _step < 7
           ? AppBar(
               backgroundColor: Colors.white,
@@ -1827,19 +1884,32 @@ class _OrganizationConfigurationScreenState
             )
           : null,
       body: SafeArea(
-        child: Column(
-          children: [
-            if (_step > 0 && _step < 6) _buildStepper(),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: KeyedSubtree(
-                  key: ValueKey<int>(_step),
-                  child: _buildBody(),
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+          child: Column(
+            children: [
+              if (_step > 0 && _step < 6) _buildStepper(),
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  layoutBuilder: (Widget? currentChild, List<Widget> previousChildren) {
+                    return Stack(
+                      alignment: Alignment.topCenter,
+                      children: <Widget>[
+                        ...previousChildren,
+                        if (currentChild != null) currentChild,
+                      ],
+                    );
+                  },
+                  child: KeyedSubtree(
+                    key: ValueKey<int>(_step),
+                    child: _buildBody(),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

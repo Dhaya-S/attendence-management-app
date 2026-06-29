@@ -374,7 +374,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
           ],
         ),
         const SizedBox(height: 16),
-        _systemBreadcrumb(['Organization', 'Admin', 'Departments', 'Employees', 'Config'], 1),
+        _systemBreadcrumb(['Organization', 'Admin', 'Departments', 'Config'], 1),
         const SizedBox(height: 24),
         Container(
           width: double.infinity,
