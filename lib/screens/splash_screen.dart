@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/auth_wrapper.dart';
+import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -180,9 +181,11 @@ class _SplashScreenState extends State<SplashScreen>
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => role == 'manager'
-              ? const ManagerMainScreen()
-              : const EmployeeMainScreen(),
+          builder: (_) {
+            if (role == 'admin') return const AdminDashboardScreen();
+            if (role == 'manager') return const ManagerMainScreen();
+            return const EmployeeMainScreen();
+          },
         ),
       );
     } catch (e) {

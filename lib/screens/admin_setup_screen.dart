@@ -92,7 +92,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
         _lastNameCtrl.text = names.skip(1).join(' ');
       }
     }
-    _emailCtrl.text = contactEmail;
+    _emailCtrl.text = FirebaseAuth.instance.currentUser?.email ?? contactEmail;
     _phoneCtrl.text = contactNumber;
   }
 
@@ -169,19 +169,19 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final email = _emailCtrl.text.trim().toLowerCase();
       final orgId = widget.organizationData['companyId'] as String;
       final now = FieldValue.serverTimestamp();
       final fullName = '${ _firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}';
 
-      // Generate a strong default password since it's no longer collected in UI
-      final generatedPassword = 'Admin_${DateTime.now().millisecondsSinceEpoch}!';
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        MessageHelper.showError(context, 'You must be signed in to complete setup.');
+        setState(() => _isSubmitting = false);
+        return;
+      }
       
-      final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: generatedPassword,
-      );
-      final uid = credential.user!.uid;
+      final uid = currentUser.uid;
+      final email = currentUser.email ?? _emailCtrl.text.trim().toLowerCase();
 
       final orgData = {
         ...widget.organizationData,
@@ -236,7 +236,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
       AppSession().populate(
         uid: uid,
         email: email,
-        role: 'manager', 
+        role: 'admin', 
         companyId: orgId,
         companyName: widget.organizationData['companyName'] as String?,
         userName: fullName,
@@ -248,14 +248,6 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
         _isSubmitting = false;
         _step = 5; 
       });
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _isSubmitting = false);
-      String msg = 'Failed to create account.';
-      if (e.code == 'email-already-in-use') msg = 'This email is already registered.';
-      if (e.code == 'weak-password') msg = 'Password is too weak (min 6 chars).';
-      if (e.code == 'invalid-email') msg = 'Invalid email address format.';
-      MessageHelper.showError(context, msg);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSubmitting = false);

@@ -182,11 +182,12 @@ class _LoginScreenState extends State<LoginScreen>
       }
 
       if (role == null || companyId == null || companyId.isEmpty) {
-        await FirebaseAuth.instance.signOut();
+        // User may be an admin who hasn't completed organization setup.
+        // Pass control to AuthWrapper which handles incomplete setups.
         if (mounted) {
-          MessageHelper.showError(
+          Navigator.pushReplacement(
             context,
-            'Your account is not recognized. Please contact your admin.',
+            MaterialPageRoute(builder: (_) => const AuthWrapper()),
           );
         }
         return;

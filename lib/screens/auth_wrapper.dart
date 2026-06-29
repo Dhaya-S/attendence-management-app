@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/screens/pre_login_screen.dart';
+import 'package:attendance_app/screens/organization_setup_screen.dart';
+import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
 import 'package:attendance_app/utils/app_session.dart';
@@ -19,6 +21,7 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _sessionLoaded = false;
+  bool _needsSetup = false;
   String? _error;
   late Future<User?> _initialAuthFuture;
 
@@ -58,6 +61,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
             if (_error != null) {
               return _errorScreen(_error!);
+            }
+
+            if (_needsSetup) {
+              return const OrganizationSetupScreen();
             }
 
             // 3. User exists -> Load Session if not already loaded
@@ -183,12 +190,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Widget _navigateToMain() {
-    return AppSession().role == 'manager'
-        ? const ManagerMainScreen()
-        : const EmployeeMainScreen();
+    if (AppSession().role == 'admin') return const AdminDashboardScreen();
+    if (AppSession().role == 'manager') return const ManagerMainScreen();
+    return const EmployeeMainScreen();
   }
 
   Future<void> _loadSession(User user) async {
+    // Force asynchronous execution to prevent "setState during build" exceptions
+    await Future.microtask(() {});
+    
     try {
       final email = user.email?.toLowerCase() ?? '';
 
@@ -326,13 +336,10 @@ class _AuthWrapperState extends State<AuthWrapper> {
         userName = memberDoc.data()!['fullName'] as String?;
       }
 
-      // Map admin role to 'manager' so existing app screens work
-      final resolvedRole = (role == 'admin') ? 'manager' : role;
-
       AppSession().populate(
         uid: user.uid,
         email: email,
-        role: resolvedRole,
+        role: role,
         companyId: orgId,
         companyName: od['companyName'] as String? ?? od['name'] as String?,
         userName: userName,

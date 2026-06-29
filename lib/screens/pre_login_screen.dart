@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:attendance_app/screens/login_screen.dart';
-import 'package:attendance_app/screens/organization_setup_screen.dart';
+import 'package:attendance_app/screens/register_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 
 class PreLoginScreen extends StatelessWidget {
@@ -16,7 +16,7 @@ class PreLoginScreen extends StatelessWidget {
   void _openOrganizationSetup(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const OrganizationSetupScreen()),
+      MaterialPageRoute(builder: (_) => const RegisterScreen()),
     );
   }
 
@@ -177,7 +177,7 @@ class PreLoginScreen extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    'Get Started',
+                    'Create Account',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

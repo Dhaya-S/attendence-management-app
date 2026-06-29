@@ -6,7 +6,9 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/screens/employee_setup_screen.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:attendance_app/screens/auth_wrapper.dart';
+import 'package:attendance_app/screens/profile_screen.dart';
 class DashboardActivity {
   final String text;
   final DateTime timestamp;
@@ -359,15 +361,69 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
               const SizedBox(width: 12),
-              Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Color(0xFF1F2937),
-                  shape: BoxShape.circle,
+              PopupMenuButton<String>(
+                offset: const Offset(0, 40),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (value) async {
+                  if (value == 'logout') {
+                    await FirebaseAuth.instance.signOut();
+                    AppSession().clear();
+                    if (!mounted) return;
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                      (route) => false,
+                    );
+                  } else if (value == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'profile',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_outline, size: 20),
+                        SizedBox(width: 8),
+                        Text('Edit Profile'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings_outlined, size: 20),
+                        SizedBox(width: 8),
+                        Text('Settings'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, size: 20, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Logout', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1F2937),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(_getUserInitials(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
                 ),
-                alignment: Alignment.center,
-                child: Text(_getUserInitials(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
             ],
           )
