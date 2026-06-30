@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:attendance_app/screens/admin_setup_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -1123,117 +1125,150 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   }
 
   Widget _buildProgressIndicator(int activeStep) {
-    return Row(
-      children: List.generate(
-        3,
-        (index) {
-          final stepNumber = index + 1;
-          final isComplete = stepNumber < activeStep;
-          final isActive = stepNumber == activeStep;
-          return Expanded(
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isComplete || isActive ? AppTheme.primary : Colors.white,
-                    border: Border.all(
-                      color: isComplete || isActive ? AppTheme.primary : const Color(0xFFD1D5DB),
-                      width: 1.5,
-                    ),
+    List<Widget> children = [];
+    for (int i = 0; i < 3; i++) {
+      final stepNumber = i + 1;
+      final isComplete = stepNumber < activeStep;
+      final isActive = stepNumber == activeStep;
+      
+      final borderColor = (isComplete || isActive) ? const Color(0xFF5C5CFF) : const Color(0xFFE5E7EB);
+      final bgColor = isComplete ? const Color(0xFF5C5CFF) : Colors.white;
+      final textColor = isActive ? const Color(0xFF5C5CFF) : const Color(0xFF9CA3AF);
+
+      children.add(
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bgColor,
+            border: Border.all(
+              color: borderColor,
+              width: 1.5,
+            ),
+          ),
+          alignment: Alignment.center,
+          child: isComplete
+              ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+              : Text(
+                  '$stepNumber',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
                   ),
-                  alignment: Alignment.center,
-                  child: isComplete
-                      ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
-                      : Text(
-                          '$stepNumber',
+                ),
+        ),
+      );
+
+      if (i < 2) {
+        children.add(
+          Expanded(
+            child: Container(
+              height: 1.5,
+              color: isComplete ? const Color(0xFF5C5CFF) : const Color(0xFFE5E7EB),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Row(
+      children: children,
+    );
+  }
+
+  File? _logoFile;
+
+  Future<void> _pickLogo() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery);
+    if (picked != null) {
+      setState(() => _logoFile = File(picked.path));
+    }
+  }
+
+  Widget _uploadCard() {
+    return GestureDetector(
+      onTap: _pickLogo,
+      child: SizedBox(
+        width: 327, // Fits exact width padding limits
+        height: 72, // Exactly 72 Hug as in the screenshot
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFAFAFA),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5), 
+              ),
+              child: _logoFile != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.file(_logoFile!, fit: BoxFit.cover),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.upload_outlined, color: AppTheme.textSecondary, size: 24),
+                        SizedBox(height: 4),
+                        Text(
+                          'Logo',
                           style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isActive ? Colors.white : AppTheme.textHint,
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                ),
-                if (index < 2)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: stepNumber < activeStep ? AppTheme.primary : const Color(0xFFE5E7EB),
+                      ],
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Upload Organization Logo',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.textPrimary,
                     ),
                   ),
-              ],
+                  const SizedBox(height: 4),
+                  const Text(
+                    'PNG, JPG up to 2MB',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textHint,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
 
-  Widget _uploadCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: const [
-                Icon(Icons.file_upload_outlined, color: AppTheme.textHint, size: 22),
-                SizedBox(height: 2),
-                Text(
-                  'Logo',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppTheme.textHint,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Upload Organization Logo',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'PNG, JPG up to 2MB',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textHint,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget _buildLabel(String text) {
+    if (text.endsWith(' *')) {
+      return RichText(
+        text: TextSpan(
+          text: text.substring(0, text.length - 2),
+          style: const TextStyle(fontSize: 13, color: AppTheme.textHint),
+          children: const [
+            TextSpan(text: ' *', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+      );
+    }
+    return Text(text, style: const TextStyle(fontSize: 13, color: AppTheme.textHint));
   }
 
   Widget _inputField(
@@ -1242,26 +1277,28 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     IconData? icon, {
     TextInputType keyboardType = TextInputType.text,
   }) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 13, color: AppTheme.textHint),
-        prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
+    return SizedBox(
+      height: 51,
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          label: _buildLabel(label),
+          prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF5C5CFF), width: 1.5),
+          ),
         ),
       ),
     );
@@ -1274,37 +1311,39 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      onChanged: onChanged,
-      icon: const Icon(Icons.expand_more_rounded, color: AppTheme.textHint, size: 22),
-      style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(fontSize: 13, color: AppTheme.textHint),
-        prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+    return SizedBox(
+      height: 51,
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        onChanged: onChanged,
+        icon: const Icon(Icons.expand_more_rounded, color: AppTheme.textHint, size: 22),
+        style: const TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500),
+        decoration: InputDecoration(
+          label: _buildLabel(label),
+          prefixIcon: icon != null ? Icon(icon, size: 20, color: AppTheme.textHint) : null,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: Color(0xFF5C5CFF), width: 1.5),
+          ),
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
-        ),
+        items: items
+            .map(
+              (item) => DropdownMenuItem<String>(
+                value: item,
+                child: Text(item, style: const TextStyle(fontSize: 14)),
+              ),
+            )
+            .toList(),
       ),
-      items: items
-          .map(
-            (item) => DropdownMenuItem<String>(
-              value: item,
-              child: Text(item, style: const TextStyle(fontSize: 14)),
-            ),
-          )
-          .toList(),
     );
   }
 
@@ -1416,25 +1455,27 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     required String label,
     required VoidCallback? onPressed,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primary,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFB0B2FF),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+    return Center(
+      child: SizedBox(
+        width: 327,
+        height: 51,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF5C5CFF),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFFB0B2FF),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12), 
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -1445,23 +1486,25 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     required String label,
     required VoidCallback onPressed,
   }) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.textPrimary,
-          side: const BorderSide(color: Color(0xFFE5E7EB)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+    return Center(
+      child: SizedBox(
+        width: 327,
+        height: 51,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.textPrimary,
+            side: const BorderSide(color: Color(0xFFE5E7EB)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),

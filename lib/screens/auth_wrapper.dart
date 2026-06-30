@@ -252,7 +252,15 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       if (role == null || companyId == null || companyId.isEmpty) {
-        throw Exception('User record not found in system.');
+        // Brand new admins won't have a record yet; route them to the setup flow.
+        if (mounted) {
+          setState(() {
+            _needsSetup = true;
+            _error = null;
+            _sessionLoaded = true;
+          });
+        }
+        return;
       }
 
       // ── LEGACY: Load from `approved_companies` collection ────────────────

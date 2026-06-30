@@ -369,8 +369,8 @@ class _LoginScreenState extends State<LoginScreen>
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: EdgeInsets.only(
-                    left: 16,
-                    right: 16,
+                    left: 24,
+                    right: 24,
                     top: 22,
                     bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                   ),
@@ -382,18 +382,10 @@ class _LoginScreenState extends State<LoginScreen>
                         children: [
                           Row(
                             children: [
-                              Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primary,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.auto_awesome_rounded,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
+                              Image.asset(
+                                'assets/signin logo.png',
+                                height: 40,
+                                fit: BoxFit.contain,
                               ),
                               const SizedBox(width: 12),
                               RichText(
@@ -403,15 +395,15 @@ class _LoginScreenState extends State<LoginScreen>
                                       text: 'Attendance',
                                       style: TextStyle(
                                         color: AppTheme.textPrimary,
-                                        fontSize: 18,
+                                        fontSize: 20,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                     TextSpan(
                                       text: 'OS',
                                       style: TextStyle(
-                                        color: AppTheme.primary,
-                                        fontSize: 18,
+                                        color: Color(0xFF5C5CFF),
+                                        fontSize: 20,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -420,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 46),
+                          const SizedBox(height: 32),
                            Text(
                             _isSignupMode ? 'Set Password' : 'Welcome Back',
                             style: AppTheme.h1.copyWith(
@@ -433,12 +425,12 @@ class _LoginScreenState extends State<LoginScreen>
                           Text(
                             _isSignupMode
                                 ? 'Create a password for your invited email'
-                                : 'Sign in to access your dashboard',
+                                : 'Sign in to your account to continue',
                             style: AppTheme.bodyMedium.copyWith(
                               color: AppTheme.textMuted,
                             ),
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 32),
                           _buildInputField(
                             controller: emailController,
                             focusNode: _emailFocus,
@@ -446,7 +438,7 @@ class _LoginScreenState extends State<LoginScreen>
                             icon: Icons.mail_outline_rounded,
                             keyboardType: TextInputType.emailAddress,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 16),
                           _buildInputField(
                             controller: passwordController,
                             focusNode: _passwordFocus,
@@ -461,7 +453,7 @@ class _LoginScreenState extends State<LoginScreen>
                             },
                           ),
                           if (_isSignupMode) ...[
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16),
                             _buildInputField(
                               controller: confirmPasswordController,
                               focusNode: _confirmPasswordFocus,
@@ -476,7 +468,7 @@ class _LoginScreenState extends State<LoginScreen>
                               },
                             ),
                           ],
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 12),
                           if (!_isSignupMode)
                             Align(
                             alignment: Alignment.centerRight,
@@ -492,7 +484,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 );
                               },
                               style: TextButton.styleFrom(
-                                foregroundColor: AppTheme.primary,
+                                foregroundColor: const Color(0xFF5C5CFF),
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero,
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -501,43 +493,104 @@ class _LoginScreenState extends State<LoginScreen>
                                 'Forgot Password?',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
                               ),
                             ),
                           const Spacer(),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 56,
-                            child: ElevatedButton(
-                              onPressed: isLoading ? null : login,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.primary,
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                          Center(
+                            child: SizedBox(
+                              width: 327,
+                              height: 51,
+                              child: ElevatedButton(
+                                onPressed: isLoading ? null : login,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF5C5CFF),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
+                                child: isLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2.5,
+                                        ),
+                                      )
+                                    : Text(
+                                        _isSignupMode ? 'Set Password & Login' : 'Sign In',
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                               ),
-                              child: isLoading
-                                  ? const SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        color: Colors.white,
-                                        strokeWidth: 2.5,
-                                      ),
-                                    )
-                                  : Text(
-                                      _isSignupMode ? 'Set Password & Login' : 'Sign In',
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
                             ),
                           ),
+                          const SizedBox(height: 16),
+                          if (!_isSignupMode) ...[
+                            Center(
+                              child: SizedBox(
+                                width: 327,
+                                height: 51,
+                                child: OutlinedButton(
+                                  onPressed: () {
+                                    MessageHelper.showWarning(
+                                      context,
+                                      'Google sign-in is not configured yet.',
+                                    );
+                                  },
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.textPrimary,
+                                    backgroundColor: Colors.white,
+                                    side: const BorderSide(color: Color(0xFFE5E7EB)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: AppTheme.textPrimary,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: const Text(
+                                          'G',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.textPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      const Text(
+                                        'Sign in with Google',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 18),
                           // Toggle between login and set password mode
                           Center(
@@ -550,7 +603,7 @@ class _LoginScreenState extends State<LoginScreen>
                                 });
                               },
                               style: TextButton.styleFrom(
-                                foregroundColor: AppTheme.primary,
+                                foregroundColor: const Color(0xFF5C5CFF),
                               ),
                               child: Text(
                                 _isSignupMode
@@ -563,83 +616,6 @@ class _LoginScreenState extends State<LoginScreen>
                               ),
                             ),
                           ),
-                          if (!_isSignupMode) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Expanded(
-                                  child: Divider(color: Color(0xFFE5E7EB)),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                                  child: Text(
-                                    'or',
-                                    style: TextStyle(
-                                      color: AppTheme.textMuted,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                                const Expanded(
-                                  child: Divider(color: Color(0xFFE5E7EB)),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 54,
-                              child: OutlinedButton(
-                                onPressed: () {
-                                  MessageHelper.showWarning(
-                                    context,
-                                    'Google sign-in is not configured yet.',
-                                  );
-                                },
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppTheme.textPrimary,
-                                  backgroundColor: Colors.white,
-                                  side: const BorderSide(color: Color(0xFFE5E7EB)),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: AppTheme.textPrimary,
-                                        ),
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: const Text(
-                                        'G',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppTheme.textPrimary,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Sign in with Google',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
@@ -669,7 +645,7 @@ class _LoginScreenState extends State<LoginScreen>
       duration: const Duration(milliseconds: 200),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isFocused ? AppTheme.primary : const Color(0xFFE5E7EB),
           width: isFocused ? 1.4 : 1,

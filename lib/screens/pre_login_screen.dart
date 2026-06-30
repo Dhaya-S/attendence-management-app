@@ -35,7 +35,7 @@ class PreLoginScreen extends StatelessWidget {
                 child: TextButton(
                   onPressed: () => _openLogin(context),
                   style: TextButton.styleFrom(
-                    foregroundColor: AppTheme.primary,
+                    foregroundColor: const Color(0xFF5C5CFF),
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -44,7 +44,7 @@ class PreLoginScreen extends StatelessWidget {
                     'Sign In',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -104,19 +104,19 @@ class PreLoginScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _FeatureTile(
-                      icon: Icons.calendar_today_rounded,
+                      iconPath: 'assets/attendance.png',
                       label: 'Attendance',
-                      iconColor: Color(0xFF5B5DF7),
-                      backgroundColor: Color(0xFFE8E9FB),
+                      iconColor: Color(0xFF5C5CFF),
+                      backgroundColor: Color(0xFFEEEDFF),
                     ),
                   ),
                   SizedBox(width: 12),
                   Expanded(
                     child: _FeatureTile(
-                      icon: Icons.description_outlined,
+                      iconPath: 'assets/leave.png',
                       label: 'Leave',
-                      iconColor: Color(0xFF1D9BF0),
-                      backgroundColor: Color(0xFFD7ECFB),
+                      iconColor: Color(0xFF009EE6),
+                      backgroundColor: Color(0xFFE5F5FF),
                     ),
                   ),
                 ],
@@ -126,19 +126,19 @@ class PreLoginScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _FeatureTile(
-                      icon: Icons.groups_2_outlined,
+                      iconPath: 'assets/teams.png',
                       label: 'Teams',
-                      iconColor: Color(0xFF8B5CF6),
-                      backgroundColor: Color(0xFFE9E1FB),
+                      iconColor: Color(0xFF8A5CF5),
+                      backgroundColor: Color(0xFFF0EBFF),
                     ),
                   ),
                   SizedBox(width: 12),
                   Expanded(
                     child: _FeatureTile(
-                      icon: Icons.apartment_rounded,
+                      iconPath: 'assets/organization.png',
                       label: 'Organization',
-                      iconColor: Color(0xFF10B981),
-                      backgroundColor: Color(0xFFD5F5E7),
+                      iconColor: Color(0xFF15B27A),
+                      backgroundColor: Color(0xFFDCFCE7),
                     ),
                   ),
                 ],
@@ -163,47 +163,51 @@ class PreLoginScreen extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: () => _openOrganizationSetup(context),
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: AppTheme.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              Center(
+                child: SizedBox(
+                  width: 327,
+                  height: 51,
+                  child: ElevatedButton(
+                    onPressed: () => _openOrganizationSetup(context),
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: const Color(0xFF5C5CFF),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'Create Account',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                    child: const Text(
+                      'Create Account',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
               const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: OutlinedButton(
-                  onPressed: () => _openLogin(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF1F2937),
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    backgroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              Center(
+                child: SizedBox(
+                  width: 327,
+                  height: 51,
+                  child: OutlinedButton(
+                    onPressed: () => _openLogin(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1F2937),
+                      side: const BorderSide(color: Color(0xFFE5E7EB)),
+                      backgroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  ),
-                  child: const Text(
-                    'Sign In',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                    child: const Text(
+                      'Sign In',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
@@ -261,13 +265,13 @@ class _OverviewStatCard extends StatelessWidget {
 }
 
 class _FeatureTile extends StatelessWidget {
-  final IconData icon;
+  final String iconPath;
   final String label;
   final Color iconColor;
   final Color backgroundColor;
 
   const _FeatureTile({
-    required this.icon,
+    required this.iconPath,
     required this.label,
     required this.iconColor,
     required this.backgroundColor,
@@ -285,13 +289,17 @@ class _FeatureTile extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: iconColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: Colors.white, size: 16),
+            clipBehavior: Clip.antiAlias,
+            child: Image.asset(
+              iconPath,
+              fit: BoxFit.cover,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -299,7 +307,7 @@ class _FeatureTile extends StatelessWidget {
               label,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w500,
+                fontWeight: FontWeight.w600,
                 color: Color(0xFF111827),
               ),
             ),

@@ -1076,51 +1076,56 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   }
 
   Widget _buildProgressIndicator(int activeStep) {
-    return Row(
-      children: List.generate(
-        4,
-        (index) {
-          final stepNumber = index + 1;
-          final isComplete = stepNumber < activeStep;
-          final isActive = stepNumber == activeStep;
-          return Expanded(
-            child: Row(
-              children: [
-                Container(
-                  width: 30,
-                  height: 30,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isComplete || isActive ? AppTheme.primary : Colors.white,
-                    border: Border.all(
-                      color: isComplete || isActive ? AppTheme.primary : const Color(0xFFD1D5DB),
-                      width: 1.5,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: isComplete
-                      ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
-                      : Text(
-                          '$stepNumber',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                            color: isActive ? Colors.white : AppTheme.textHint,
-                          ),
-                        ),
-                ),
-                if (index < 3)
-                  Expanded(
-                    child: Container(
-                      height: 2,
-                      color: stepNumber < activeStep ? AppTheme.primary : const Color(0xFFE5E7EB),
-                    ),
-                  ),
-              ],
+    List<Widget> children = [];
+    for (int i = 0; i < 4; i++) {
+      final stepNumber = i + 1;
+      final isComplete = stepNumber < activeStep;
+      final isActive = stepNumber == activeStep;
+
+      final borderColor = (isComplete || isActive) ? const Color(0xFF5C5CFF) : const Color(0xFFE5E7EB);
+      final bgColor = isComplete ? const Color(0xFF5C5CFF) : Colors.white;
+      final textColor = isActive ? const Color(0xFF5C5CFF) : const Color(0xFF9CA3AF);
+
+      children.add(
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: bgColor,
+            border: Border.all(
+              color: borderColor,
+              width: 1.5,
             ),
-          );
-        },
-      ),
+          ),
+          alignment: Alignment.center,
+          child: isComplete
+              ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+              : Text(
+                  '$stepNumber',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: textColor,
+                  ),
+                ),
+        ),
+      );
+
+      if (i < 3) {
+        children.add(
+          Expanded(
+            child: Container(
+              height: 1.5,
+              color: isComplete ? const Color(0xFF5C5CFF) : const Color(0xFFE5E7EB),
+            ),
+          ),
+        );
+      }
+    }
+
+    return Row(
+      children: children,
     );
   }
 
@@ -1424,35 +1429,39 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   }
 
   Widget _primaryBtn(String label, VoidCallback? onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppTheme.primary,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: const Color(0xFFB0B2FF),
-          elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Center(
+      child: SizedBox(
+        width: 327,
+        height: 51,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF5C5CFF),
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: const Color(0xFFB0B2FF),
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       ),
     );
   }
 
   Widget _secondaryBtn(String label, VoidCallback onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.textPrimary,
-          side: const BorderSide(color: Color(0xFFE5E7EB)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Center(
+      child: SizedBox(
+        width: 327,
+        height: 51,
+        child: OutlinedButton(
+          onPressed: onPressed,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppTheme.textPrimary,
+            side: const BorderSide(color: Color(0xFFE5E7EB)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
       ),
     );
   }
