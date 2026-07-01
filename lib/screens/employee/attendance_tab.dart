@@ -1,3 +1,4 @@
+import 'package:attendance_app/screens/employee/employee_attendance_overview_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,7 +34,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _attendanceStream =
         FirestoreService.userAttendanceCol(user?.email ?? '').snapshots();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -58,7 +59,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     try {
       final now = DateTime.now();
       final userEmail = user?.email ?? '';
-      
+
       final data = {
         'companyId': FirestoreService.companyId,
         'userId': userEmail,
@@ -76,184 +77,65 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
       await NotificationHelper.notifyEmployee(
         employeeEmail: userEmail,
-        title: isCheckIn ? 'Check-In Successful ✅' : 'Check-Out Successful 👋',
-        body: 'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
+        title:
+            isCheckIn ? 'Check-In Successful âœ…' : 'Check-Out Successful ðŸ‘‹',
+        body:
+            'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',
         extraData: {'userId': user?.uid},
       );
 
       if (isCheckIn) {
         final eParts = AppSession().shiftEndTime.split(':');
-        final shiftEnd = DateTime(now.year, now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1]));
+        final shiftEnd = DateTime(now.year, now.month, now.day,
+            int.parse(eParts[0]), int.parse(eParts[1]));
         await NotificationService().scheduleCheckoutReminder(shiftEnd);
       } else {
         await NotificationService().cancelCheckoutReminder();
       }
-
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'), backgroundColor: AppTheme.danger));
       }
     } finally {
       if (mounted) setState(() => _isCheckingInOut = false);
     }
   }
 
-  // --- Common Header Components ---
-
-  Widget _buildHeader() {
-    final rawName =
-        AppSession().userName ?? user?.displayName ?? 'Employee';
-    final initials = rawName.trim().isEmpty
-        ? 'EM'
-        : (rawName.split(' ').length == 1
-            ? rawName.substring(0, 2).toUpperCase()
-            : rawName.split(' ')[0][0] + rawName.split(' ').last[0])
-                .toUpperCase();
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Attendance System',
-                  style: TextStyle(
-                    color: AppTheme.textHint,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  rawName,
-                  style: const TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.5,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.divider),
-                ),
-                padding: const EdgeInsets.all(8),
-                child: const Icon(Icons.notifications_none,
-                    color: AppTheme.textSecondary, size: 22),
-              ),
-              const SizedBox(width: 12),
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppTheme.primary,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSpaceTabs() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.primary),
-              borderRadius: BorderRadius.circular(20),
-              color: Colors.transparent,
-            ),
-            child: const Text(
-              'My Space',
-              style: TextStyle(
-                color: AppTheme.primary,
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(width: 24),
-          const Text(
-            'Team',
-            style: TextStyle(
-              color: AppTheme.textHint,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 24),
-          const Text(
-            'Organization',
-            style: TextStyle(
-              color: AppTheme.textHint,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(),
-            const SizedBox(height: 10),
-            _buildSpaceTabs(),
-            const SizedBox(height: 20),
-            TabBar(
-              controller: _tabController,
-              labelColor: AppTheme.primary,
-              unselectedLabelColor: AppTheme.textHint,
-              indicatorColor: AppTheme.primary,
-              indicatorWeight: 3,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              labelPadding: const EdgeInsets.only(right: 32),
-              labelStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-              tabs: const [
-                Tab(text: 'Overview'),
-                Tab(text: 'Summary'),
-                Tab(text: 'Analytics'),
-              ],
+            Container(
+              color: Colors.white,
+              child: TabBar(
+                controller: _tabController,
+                labelColor: const Color(0xFF5C5CFF),
+                unselectedLabelColor: const Color(0xFF6B7280),
+                indicatorColor: const Color(0xFF5C5CFF),
+                indicatorWeight: 2,
+                isScrollable: false,
+                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                tabs: const [
+                  Tab(text: 'Overview'),
+                  Tab(text: 'Summary'),
+                  Tab(text: 'Requests'),
+                  Tab(text: 'Analytics'),
+                ],
+              ),
             ),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildOverviewTab(),
+                  const EmployeeAttendanceOverviewTab(),
                   _buildSummaryTab(),
+                  const Center(child: Text('Requests Tab')),
                   _buildAnalyticsTab(),
                 ],
               ),
@@ -279,7 +161,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
         final docs = snapshot.data!.docs;
         final now = DateTime.now();
         final todayStr = DateFormat('yyyy-MM-dd').format(now);
-        
+
         Map<String, dynamic>? todayData;
         try {
           final doc = docs.firstWhere((d) => d.id == todayStr);
@@ -327,13 +209,15 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
     if (hasCheckedIn && checkInTs != null) {
       subText = 'Since ${DateFormat('hh:mm a').format(checkInTs.toDate())}';
-      
+
       if (!hasCheckedOut) {
         final diff = DateTime.now().difference(checkInTs.toDate());
         int h = diff.inHours;
         int m = diff.inMinutes % 60;
         int s = diff.inSeconds % 60;
-        timeText = h > 0 ? '${h}h ${m}m ${s}s' : '${m}m ${s.toString().padLeft(2, '0')}s';
+        timeText = h > 0
+            ? '${h}h ${m}m ${s}s'
+            : '${m}m ${s.toString().padLeft(2, '0')}s';
       } else {
         final outTs = todayData['checkOut'] as Timestamp;
         final diff = outTs.toDate().difference(checkInTs.toDate());
@@ -404,11 +288,16 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
           const SizedBox(height: 20),
           Row(
             children: [
-              Expanded(child: _buildTodayStat('Shift Start', AppSession().shiftStartTime)),
+              Expanded(
+                  child: _buildTodayStat(
+                      'Shift Start', AppSession().shiftStartTime)),
               const SizedBox(width: 8),
-              Expanded(child: _buildTodayStat('Shift End', AppSession().shiftEndTime)),
+              Expanded(
+                  child:
+                      _buildTodayStat('Shift End', AppSession().shiftEndTime)),
               const SizedBox(width: 8),
-              Expanded(child: _buildTodayStat('Status', 'On Time', isStatus: true)),
+              Expanded(
+                  child: _buildTodayStat('Status', 'On Time', isStatus: true)),
             ],
           ),
           const SizedBox(height: 24),
@@ -416,13 +305,15 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: _isCheckingInOut ? null : () async {
-                    if (!hasCheckedIn) {
-                      await _handleCheckInOut('checked_in', true);
-                    } else if (!hasCheckedOut) {
-                      await _handleCheckInOut('checked_out', false);
-                    }
-                  },
+                  onPressed: _isCheckingInOut
+                      ? null
+                      : () async {
+                          if (!hasCheckedIn) {
+                            await _handleCheckInOut('checked_in', true);
+                          } else if (!hasCheckedOut) {
+                            await _handleCheckInOut('checked_out', false);
+                          }
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5C5CFF),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -431,9 +322,17 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                     elevation: 0,
                   ),
                   child: _isCheckingInOut
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
                       : Text(
-                          !hasCheckedIn ? 'Check In' : (!hasCheckedOut ? 'Check Out' : 'Done for Today'),
+                          !hasCheckedIn
+                              ? 'Check In'
+                              : (!hasCheckedOut
+                                  ? 'Check Out'
+                                  : 'Done for Today'),
                           style: const TextStyle(
                               color: Colors.white,
                               fontSize: 14,
@@ -445,14 +344,19 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => EmployeeAttendanceCorrectionScreen(date: DateTime.now())));
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => EmployeeAttendanceCorrectionScreen(
+                                date: DateTime.now())));
                   },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
-                    side: BorderSide(color: AppTheme.divider.withValues(alpha: 0.5)),
+                    side: BorderSide(
+                        color: AppTheme.divider.withValues(alpha: 0.5)),
                   ),
                   child: const Text(
                     'Correction',
@@ -544,7 +448,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               ),
               Row(
                 children: [
-                  const Icon(Icons.trending_up, color: const Color(0xFF4CAF50), size: 16),
+                  const Icon(Icons.trending_up,
+                      color: const Color(0xFF4CAF50), size: 16),
                   const SizedBox(width: 4),
                   const Text(
                     '98% attendance',
@@ -576,15 +481,24 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
   Widget _buildWeekDayCircle(String day, String hours, int statusType) {
     Color bgColor;
     Widget icon;
-    if (statusType == 1) { // Present
+    if (statusType == 1) {
+      // Present
       bgColor = const Color(0xFFE8F5E9);
       icon = const Icon(Icons.check, color: Color(0xFF4CAF50), size: 16);
-    } else if (statusType == 2) { // Late
+    } else if (statusType == 2) {
+      // Late
       bgColor = const Color(0xFFFFF3E0);
-      icon = const Text('L', style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.w800));
-    } else if (statusType == 3) { // Active
+      icon = const Text('L',
+          style: TextStyle(
+              color: Colors.orange, fontSize: 12, fontWeight: FontWeight.w800));
+    } else if (statusType == 3) {
+      // Active
       bgColor = const Color(0xFF5C5CFF);
-      icon = Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle));
+      icon = Container(
+          width: 4,
+          height: 4,
+          decoration:
+              const BoxDecoration(color: Colors.white, shape: BoxShape.circle));
     } else {
       bgColor = AppTheme.divider;
       icon = const SizedBox.shrink();
@@ -594,7 +508,10 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       children: [
         Text(
           day,
-          style: const TextStyle(color: AppTheme.textHint, fontSize: 11, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+              color: AppTheme.textHint,
+              fontSize: 11,
+              fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),
         Container(
@@ -609,7 +526,10 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
         const SizedBox(height: 8),
         Text(
           hours,
-          style: const TextStyle(color: AppTheme.textHint, fontSize: 10, fontWeight: FontWeight.w500),
+          style: const TextStyle(
+              color: AppTheme.textHint,
+              fontSize: 10,
+              fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -632,16 +552,27 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               color: const Color(0xFFE8EAF6),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.bar_chart, color: Color(0xFF5C5CFF), size: 18),
+            child:
+                const Icon(Icons.bar_chart, color: Color(0xFF5C5CFF), size: 18),
           ),
           const SizedBox(width: 12),
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Attendance\nHistory', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w800, height: 1.2)),
+                Text('Attendance\nHistory',
+                    style: TextStyle(
+                        color: AppTheme.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2)),
                 SizedBox(height: 4),
-                Text('View past\nrecords', style: TextStyle(color: AppTheme.textHint, fontSize: 9, fontWeight: FontWeight.w600, height: 1.2)),
+                Text('View past\nrecords',
+                    style: TextStyle(
+                        color: AppTheme.textHint,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        height: 1.2)),
               ],
             ),
           ),
@@ -653,7 +584,11 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
   Widget _buildCorrectionShortcut() {
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => EmployeeAttendanceCorrectionScreen(date: DateTime.now())));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    EmployeeAttendanceCorrectionScreen(date: DateTime.now())));
       },
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -671,16 +606,27 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                 color: const Color(0xFFFFF3E0),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.error_outline, color: Colors.orange, size: 18),
+              child: const Icon(Icons.error_outline,
+                  color: Colors.orange, size: 18),
             ),
             const SizedBox(width: 12),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Request\nCorrection', style: TextStyle(color: AppTheme.textPrimary, fontSize: 12, fontWeight: FontWeight.w800, height: 1.2)),
+                  Text('Request\nCorrection',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2)),
                   SizedBox(height: 4),
-                  Text('Fix attendance\nerrors', style: TextStyle(color: AppTheme.textHint, fontSize: 9, fontWeight: FontWeight.w600, height: 1.2)),
+                  Text('Fix attendance\nerrors',
+                      style: TextStyle(
+                          color: AppTheme.textHint,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2)),
                 ],
               ),
             ),
@@ -700,7 +646,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     }
 
     // A simple mock for attendance percentage based on present vs 22 working days
-    double percentage = present == 0 ? 0.0 : ((present / 22) * 100).clamp(0, 100);
+    double percentage =
+        present == 0 ? 0.0 : ((present / 22) * 100).clamp(0, 100);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -725,7 +672,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               ),
               Row(
                 children: [
-                  const Icon(Icons.trending_up, color: Color(0xFF4CAF50), size: 16),
+                  const Icon(Icons.trending_up,
+                      color: Color(0xFF4CAF50), size: 16),
                   const SizedBox(width: 4),
                   Text(
                     '${percentage.toStringAsFixed(1)}%',
@@ -742,15 +690,18 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
           Row(
             children: [
               Expanded(
-                child: _buildWeekStatBox(present, 'Present', const Color(0xFF4CAF50), const Color(0xFFE8F5E9)),
+                child: _buildWeekStatBox(present, 'Present',
+                    const Color(0xFF4CAF50), const Color(0xFFE8F5E9)),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildWeekStatBox(late, 'Late', Colors.orange, const Color(0xFFFFF3E0)),
+                child: _buildWeekStatBox(
+                    late, 'Late', Colors.orange, const Color(0xFFFFF3E0)),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildWeekStatBox(0, 'Absent', Colors.red, const Color(0xFFFFEBEE)),
+                child: _buildWeekStatBox(
+                    0, 'Absent', Colors.red, const Color(0xFFFFEBEE)),
               ),
             ],
           ),
@@ -759,7 +710,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     );
   }
 
-  Widget _buildMonthStatBox(int count, String label, Color color, Color bgColor) {
+  Widget _buildMonthStatBox(
+      int count, String label, Color color, Color bgColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
@@ -770,12 +722,19 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
         children: [
           Text(
             count.toString(),
-            style: TextStyle(color: color, fontSize: 32, fontWeight: FontWeight.w800, height: 1.0),
+            style: TextStyle(
+                color: color,
+                fontSize: 32,
+                fontWeight: FontWeight.w800,
+                height: 1.0),
           ),
           const SizedBox(height: 8),
           Text(
             label,
-            style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: color.withValues(alpha: 0.8),
+                fontSize: 11,
+                fontWeight: FontWeight.w600),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
@@ -784,7 +743,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     );
   }
 
-  Widget _buildWeekStatBox(int count, String label, Color color, Color bgColor) {
+  Widget _buildWeekStatBox(
+      int count, String label, Color color, Color bgColor) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
@@ -795,12 +755,19 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
         children: [
           Text(
             count.toString(),
-            style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w800, height: 1.0),
+            style: TextStyle(
+                color: color,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                height: 1.0),
           ),
           const SizedBox(height: 6),
           Text(
             label,
-            style: TextStyle(color: color.withValues(alpha: 0.8), fontSize: 10, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: color.withValues(alpha: 0.8),
+                fontSize: 10,
+                fontWeight: FontWeight.w600),
             overflow: TextOverflow.ellipsis,
             maxLines: 1,
           ),
@@ -830,37 +797,61 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                   GestureDetector(
                     onTap: () => setState(() => _isMonthView = false),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: !_isMonthView ? AppTheme.primary : Colors.transparent),
+                        border: Border.all(
+                            color: !_isMonthView
+                                ? AppTheme.primary
+                                : Colors.transparent),
                       ),
-                      child: Text('Week', style: TextStyle(color: !_isMonthView ? AppTheme.primary : AppTheme.textHint, fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text('Week',
+                          style: TextStyle(
+                              color: !_isMonthView
+                                  ? AppTheme.primary
+                                  : AppTheme.textHint,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => setState(() => _isMonthView = true),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.transparent,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _isMonthView ? AppTheme.primary : Colors.transparent),
+                        border: Border.all(
+                            color: _isMonthView
+                                ? AppTheme.primary
+                                : Colors.transparent),
                       ),
-                      child: Text('Month', style: TextStyle(color: _isMonthView ? AppTheme.primary : AppTheme.textHint, fontSize: 13, fontWeight: FontWeight.w600)),
+                      child: Text('Month',
+                          style: TextStyle(
+                              color: _isMonthView
+                                  ? AppTheme.primary
+                                  : AppTheme.textHint,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
               ),
               OutlinedButton.icon(
                 onPressed: () {},
-                icon: const Icon(Icons.filter_list, size: 16, color: AppTheme.textSecondary),
-                label: const Text('Filter', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                icon: const Icon(Icons.filter_list,
+                    size: 16, color: AppTheme.textSecondary),
+                label: const Text('Filter',
+                    style:
+                        TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: AppTheme.divider),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20)),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                 ),
               )
@@ -882,10 +873,13 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
   bool _isToday(DateTime date) {
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
-  Widget _buildCalendarCell(DateTime date, String? status, bool isSelected, bool isToday) {
+  Widget _buildCalendarCell(
+      DateTime date, String? status, bool isSelected, bool isToday) {
     Color? bgColor;
     Color? dotColor;
     Color textColor = AppTheme.textPrimary;
@@ -933,10 +927,18 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('${date.day}', style: TextStyle(color: textColor, fontWeight: FontWeight.w700, fontSize: 13)),
+            Text('${date.day}',
+                style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13)),
             if (dotColor != null) ...[
               const SizedBox(height: 2),
-              Container(width: 4, height: 4, decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle)),
+              Container(
+                  width: 4,
+                  height: 4,
+                  decoration:
+                      BoxDecoration(color: dotColor, shape: BoxShape.circle)),
             ]
           ],
         ),
@@ -971,7 +973,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
               bool inRange = false;
               if (isMonth) {
-                inRange = date.month == _focusedDay.month && date.year == _focusedDay.year;
+                inRange = date.month == _focusedDay.month &&
+                    date.year == _focusedDay.year;
               } else {
                 inRange = _isSameWeek(date, _focusedDay);
               }
@@ -982,7 +985,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                 if (st == 'holiday') holiday++;
                 if (st == 'leave') leave++;
                 // In week view, absent is usually everything else not marked, but let's just count st == absent
-                if (st == 'absent') absent++; // assuming we might have 'absent' status in db explicitly
+                if (st == 'absent')
+                  absent++; // assuming we might have 'absent' status in db explicitly
               }
             }
           }
@@ -990,10 +994,12 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
         if (!isMonth) {
           int absentCount = 0; // The screenshot has 0 absent
-          List<DocumentSnapshot> weekDocs = snapshot.hasData ? snapshot.data!.docs.where((d) {
-            final date = DateTime.tryParse(d.id);
-            return date != null && _isSameWeek(date, _focusedDay);
-          }).toList() : [];
+          List<DocumentSnapshot> weekDocs = snapshot.hasData
+              ? snapshot.data!.docs.where((d) {
+                  final date = DateTime.tryParse(d.id);
+                  return date != null && _isSameWeek(date, _focusedDay);
+                }).toList()
+              : [];
           weekDocs.sort((a, b) => b.id.compareTo(a.id));
 
           return SingleChildScrollView(
@@ -1007,26 +1013,47 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       GestureDetector(
-                        onTap: () => setState(() => _focusedDay = _focusedDay.subtract(const Duration(days: 7))),
+                        onTap: () => setState(() => _focusedDay =
+                            _focusedDay.subtract(const Duration(days: 7))),
                         child: Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider, width: 0.5)),
-                          child: const Icon(Icons.chevron_left, size: 20, color: AppTheme.textSecondary),
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: AppTheme.divider, width: 0.5)),
+                          child: const Icon(Icons.chevron_left,
+                              size: 20, color: AppTheme.textSecondary),
                         ),
                       ),
                       Column(
                         children: [
-                          Text(DateFormat('MMMM yyyy').format(_focusedDay), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+                          Text(DateFormat('MMMM yyyy').format(_focusedDay),
+                              style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppTheme.textPrimary)),
                           const SizedBox(height: 4),
-                          Text('${DateFormat('dd MMM').format(_focusedDay.subtract(Duration(days: _focusedDay.weekday % 7)))} - ${DateFormat('dd MMM yyyy').format(_focusedDay.add(Duration(days: 6 - (_focusedDay.weekday % 7))))}', style: const TextStyle(fontSize: 12, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
+                          Text(
+                              '${DateFormat('dd MMM').format(_focusedDay.subtract(Duration(days: _focusedDay.weekday % 7)))} - ${DateFormat('dd MMM yyyy').format(_focusedDay.add(Duration(days: 6 - (_focusedDay.weekday % 7))))}',
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppTheme.textHint,
+                                  fontWeight: FontWeight.w600)),
                         ],
                       ),
                       GestureDetector(
-                        onTap: () => setState(() => _focusedDay = _focusedDay.add(const Duration(days: 7))),
+                        onTap: () => setState(() => _focusedDay =
+                            _focusedDay.add(const Duration(days: 7))),
                         child: Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider, width: 0.5)),
-                          child: const Icon(Icons.chevron_right, size: 20, color: AppTheme.textSecondary),
+                          decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: AppTheme.divider, width: 0.5)),
+                          child: const Icon(Icons.chevron_right,
+                              size: 20, color: AppTheme.textSecondary),
                         ),
                       ),
                     ],
@@ -1037,13 +1064,24 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
-                      Expanded(child: _buildWeekStatBox(present, 'Present', const Color(0xFF4CAF50), const Color(0xFFE8F5E9))),
+                      Expanded(
+                          child: _buildWeekStatBox(
+                              present,
+                              'Present',
+                              const Color(0xFF4CAF50),
+                              const Color(0xFFE8F5E9))),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildWeekStatBox(late, 'Late', Colors.orange, const Color(0xFFFFF3E0))),
+                      Expanded(
+                          child: _buildWeekStatBox(late, 'Late', Colors.orange,
+                              const Color(0xFFFFF3E0))),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildWeekStatBox(leave, 'Leave', Colors.grey, Colors.grey.shade100)),
+                      Expanded(
+                          child: _buildWeekStatBox(leave, 'Leave', Colors.grey,
+                              Colors.grey.shade100)),
                       const SizedBox(width: 8),
-                      Expanded(child: _buildWeekStatBox(absentCount, 'Absent', Colors.red, const Color(0xFFFFEBEE))),
+                      Expanded(
+                          child: _buildWeekStatBox(absentCount, 'Absent',
+                              Colors.red, const Color(0xFFFFEBEE))),
                     ],
                   ),
                 ),
@@ -1056,7 +1094,11 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                       final date = DateTime.tryParse(doc.id)!;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildWeekDayCard(date, data, statusMap[DateTime(date.year, date.month, date.day)]),
+                        child: _buildWeekDayCard(
+                            date,
+                            data,
+                            statusMap[
+                                DateTime(date.year, date.month, date.day)]),
                       );
                     }).toList(),
                   ),
@@ -1079,38 +1121,56 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                   children: [
                     GestureDetector(
                       onTap: () {
-                         setState(() {
-                           if (isMonth) {
-                             _focusedDay = DateTime(_focusedDay.year, _focusedDay.month - 1, _focusedDay.day);
-                           } else {
-                             _focusedDay = _focusedDay.subtract(const Duration(days: 7));
-                           }
-                         });
+                        setState(() {
+                          if (isMonth) {
+                            _focusedDay = DateTime(_focusedDay.year,
+                                _focusedDay.month - 1, _focusedDay.day);
+                          } else {
+                            _focusedDay =
+                                _focusedDay.subtract(const Duration(days: 7));
+                          }
+                        });
                       },
                       child: Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider, width: 0.5)),
-                        child: const Icon(Icons.chevron_left, size: 20, color: AppTheme.textSecondary),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: AppTheme.divider, width: 0.5)),
+                        child: const Icon(Icons.chevron_left,
+                            size: 20, color: AppTheme.textSecondary),
                       ),
                     ),
                     Text(
-                      isMonth ? DateFormat('MMMM yyyy').format(_focusedDay) : '${DateFormat('MMM d').format(_focusedDay.subtract(Duration(days: _focusedDay.weekday % 7)))} - ${DateFormat('MMM d').format(_focusedDay.add(Duration(days: 6 - (_focusedDay.weekday % 7))))}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)
-                    ),
+                        isMonth
+                            ? DateFormat('MMMM yyyy').format(_focusedDay)
+                            : '${DateFormat('MMM d').format(_focusedDay.subtract(Duration(days: _focusedDay.weekday % 7)))} - ${DateFormat('MMM d').format(_focusedDay.add(Duration(days: 6 - (_focusedDay.weekday % 7))))}',
+                        style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.textPrimary)),
                     GestureDetector(
                       onTap: () {
-                         setState(() {
-                           if (isMonth) {
-                             _focusedDay = DateTime(_focusedDay.year, _focusedDay.month + 1, _focusedDay.day);
-                           } else {
-                             _focusedDay = _focusedDay.add(const Duration(days: 7));
-                           }
-                         });
+                        setState(() {
+                          if (isMonth) {
+                            _focusedDay = DateTime(_focusedDay.year,
+                                _focusedDay.month + 1, _focusedDay.day);
+                          } else {
+                            _focusedDay =
+                                _focusedDay.add(const Duration(days: 7));
+                          }
+                        });
                       },
                       child: Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppTheme.divider, width: 0.5)),
-                        child: const Icon(Icons.chevron_right, size: 20, color: AppTheme.textSecondary),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                                color: AppTheme.divider, width: 0.5)),
+                        child: const Icon(Icons.chevron_right,
+                            size: 20, color: AppTheme.textSecondary),
                       ),
                     ),
                   ],
@@ -1137,36 +1197,65 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                     lastDay: DateTime.utc(2030, 12, 31),
                     focusedDay: _focusedDay,
                     headerVisible: false,
-                    calendarFormat: isMonth ? CalendarFormat.month : CalendarFormat.week,
+                    calendarFormat:
+                        isMonth ? CalendarFormat.month : CalendarFormat.week,
                     daysOfWeekStyle: const DaysOfWeekStyle(
-                      weekdayStyle: TextStyle(color: AppTheme.textHint, fontSize: 12, fontWeight: FontWeight.bold),
-                      weekendStyle: TextStyle(color: AppTheme.textHint, fontSize: 12, fontWeight: FontWeight.bold),
+                      weekdayStyle: TextStyle(
+                          color: AppTheme.textHint,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold),
+                      weekendStyle: TextStyle(
+                          color: AppTheme.textHint,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold),
                     ),
                     calendarStyle: const CalendarStyle(
                       outsideDaysVisible: false,
                     ),
                     calendarBuilders: CalendarBuilders(
-                      defaultBuilder: (context, day, focusedDay) => _buildCalendarCell(day, statusMap[DateTime(day.year, day.month, day.day)], false, false),
-                      todayBuilder: (context, day, focusedDay) => _buildCalendarCell(day, statusMap[DateTime(day.year, day.month, day.day)], false, true),
-                      selectedBuilder: (context, day, focusedDay) => _buildCalendarCell(day, statusMap[DateTime(day.year, day.month, day.day)], true, false),
-                      outsideBuilder: (context, day, focusedDay) => const SizedBox.shrink(),
+                      defaultBuilder: (context, day, focusedDay) =>
+                          _buildCalendarCell(
+                              day,
+                              statusMap[DateTime(day.year, day.month, day.day)],
+                              false,
+                              false),
+                      todayBuilder: (context, day, focusedDay) =>
+                          _buildCalendarCell(
+                              day,
+                              statusMap[DateTime(day.year, day.month, day.day)],
+                              false,
+                              true),
+                      selectedBuilder: (context, day, focusedDay) =>
+                          _buildCalendarCell(
+                              day,
+                              statusMap[DateTime(day.year, day.month, day.day)],
+                              true,
+                              false),
+                      outsideBuilder: (context, day, focusedDay) =>
+                          const SizedBox.shrink(),
                     ),
                     onDaySelected: (selectedDay, focusedDay) {
                       setState(() {
                         _selectedDay = selectedDay;
                         _focusedDay = focusedDay;
                       });
-                      
+
                       Map<String, dynamic> dayData = {};
                       if (snapshot.hasData) {
                         try {
-                          final dateStr = DateFormat('yyyy-MM-dd').format(selectedDay);
-                          final doc = snapshot.data!.docs.firstWhere((d) => d.id == dateStr);
+                          final dateStr =
+                              DateFormat('yyyy-MM-dd').format(selectedDay);
+                          final doc = snapshot.data!.docs
+                              .firstWhere((d) => d.id == dateStr);
                           dayData = doc.data() as Map<String, dynamic>;
                         } catch (_) {}
                       }
 
-                      Navigator.push(context, MaterialPageRoute(builder: (_) => EmployeeAttendanceDetailScreen(date: selectedDay, data: dayData)));
+                      Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => EmployeeAttendanceDetailScreen(
+                                  date: selectedDay, data: dayData)));
                     },
                     onPageChanged: (focusedDay) {
                       setState(() {
@@ -1181,7 +1270,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(30),
@@ -1211,17 +1301,38 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(isMonth ? '${DateFormat('MMMM').format(_focusedDay)} Summary' : 'This Week Summary', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                    Text(
+                        isMonth
+                            ? '${DateFormat('MMMM').format(_focusedDay)} Summary'
+                            : 'This Week Summary',
+                        style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary)),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(child: _buildMonthStatBox(present, 'Present', const Color(0xFF4CAF50), const Color(0xFFE8F5E9))),
+                        Expanded(
+                            child: _buildMonthStatBox(
+                                present,
+                                'Present',
+                                const Color(0xFF4CAF50),
+                                const Color(0xFFE8F5E9))),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMonthStatBox(late, 'Late', Colors.orange, const Color(0xFFFFF3E0))),
+                        Expanded(
+                            child: _buildMonthStatBox(late, 'Late',
+                                Colors.orange, const Color(0xFFFFF3E0))),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMonthStatBox(holiday, 'Holiday', const Color(0xFF5C5CFF), const Color(0xFFE8EAF6))),
+                        Expanded(
+                            child: _buildMonthStatBox(
+                                holiday,
+                                'Holiday',
+                                const Color(0xFF5C5CFF),
+                                const Color(0xFFE8EAF6))),
                         const SizedBox(width: 8),
-                        Expanded(child: _buildMonthStatBox(leave, 'Leave', Colors.grey, Colors.grey.shade100)),
+                        Expanded(
+                            child: _buildMonthStatBox(leave, 'Leave',
+                                Colors.grey, Colors.grey.shade100)),
                       ],
                     ),
                   ],
@@ -1235,7 +1346,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     );
   }
 
-  Widget _buildWeekDayCard(DateTime date, Map<String, dynamic> data, String? status) {
+  Widget _buildWeekDayCard(
+      DateTime date, Map<String, dynamic> data, String? status) {
     Color bgColor = Colors.grey.shade100;
     Color textColor = Colors.grey;
     String statusText = 'Absent';
@@ -1245,7 +1357,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       textColor = const Color(0xFF4CAF50);
       statusText = 'Present';
       if (data['status'] == 'active' || data['checkOut'] == null) {
-         statusText = 'Active';
+        statusText = 'Active';
       }
     } else if (status == 'late') {
       bgColor = const Color(0xFFFFF3E0);
@@ -1269,29 +1381,43 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
 
     String dayTitle = DateFormat('EEE').format(date);
     final now = DateTime.now();
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+    if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day) {
       dayTitle = 'Today';
-    } else if (date.year == now.year && date.month == now.month && date.day == now.day - 1) {
+    } else if (date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day - 1) {
       dayTitle = 'Yesterday';
     }
 
     final checkInTs = data['checkIn'] as Timestamp?;
     final checkOutTs = data['checkOut'] as Timestamp?;
-    String cin = checkInTs != null ? DateFormat('hh:mm a').format(checkInTs.toDate()) : '--:--';
-    String cout = checkOutTs != null ? DateFormat('hh:mm a').format(checkOutTs.toDate()) : '--:--';
+    String cin = checkInTs != null
+        ? DateFormat('hh:mm a').format(checkInTs.toDate())
+        : '--:--';
+    String cout = checkOutTs != null
+        ? DateFormat('hh:mm a').format(checkOutTs.toDate())
+        : '--:--';
 
     String? totalHours;
     if (checkInTs != null && checkOutTs != null) {
-       final diff = checkOutTs.toDate().difference(checkInTs.toDate());
-       totalHours = '${diff.inHours}h ${diff.inMinutes.remainder(60).toString().padLeft(2, '0')}m';
+      final diff = checkOutTs.toDate().difference(checkInTs.toDate());
+      totalHours =
+          '${diff.inHours}h ${diff.inMinutes.remainder(60).toString().padLeft(2, '0')}m';
     }
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => EmployeeAttendanceDetailScreen(date: date, data: data)));
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) =>
+                    EmployeeAttendanceDetailScreen(date: date, data: data)));
       },
       child: Container(
-        padding: const EdgeInsets.only(left: 12, right: 16, top: 12, bottom: 12),
+        padding:
+            const EdgeInsets.only(left: 12, right: 16, top: 12, bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -1316,9 +1442,19 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(DateFormat('MMM').format(date), style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w800, height: 1.0)),
+                  Text(DateFormat('MMM').format(date),
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          height: 1.0)),
                   const SizedBox(height: 2),
-                  Text(DateFormat('d').format(date), style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.w700, height: 1.0)),
+                  Text(DateFormat('d').format(date),
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          height: 1.0)),
                 ],
               ),
             ),
@@ -1329,19 +1465,43 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                 children: [
                   Row(
                     children: [
-                      Text(dayTitle, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
+                      Text(dayTitle,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: AppTheme.textPrimary)),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(12)),
-                        child: Text(statusText, style: TextStyle(color: textColor, fontSize: 10, fontWeight: FontWeight.w700)),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Text(statusText,
+                            style: TextStyle(
+                                color: textColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700)),
                       ),
-                      if (data['overtime'] == true || (totalHours != null && checkOutTs!.toDate().difference(checkInTs!.toDate()).inHours > 8)) ...[
+                      if (data['overtime'] == true ||
+                          (totalHours != null &&
+                              checkOutTs!
+                                      .toDate()
+                                      .difference(checkInTs!.toDate())
+                                      .inHours >
+                                  8)) ...[
                         const SizedBox(width: 4),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: const Color(0xFFE8EAF6), borderRadius: BorderRadius.circular(12)),
-                          child: const Text('+OT', style: TextStyle(color: Color(0xFF5C5CFF), fontSize: 10, fontWeight: FontWeight.w700)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFE8EAF6),
+                              borderRadius: BorderRadius.circular(12)),
+                          child: const Text('+OT',
+                              style: TextStyle(
+                                  color: Color(0xFF5C5CFF),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700)),
                         ),
                       ],
                     ],
@@ -1349,14 +1509,34 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      const Text('In: ', style: TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
-                      Text(cin, style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
+                      const Text('In: ',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textHint,
+                              fontWeight: FontWeight.w600)),
+                      Text(cin,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w700)),
                       const SizedBox(width: 12),
-                      const Text('Out: ', style: TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
-                      Text(cout, style: const TextStyle(fontSize: 11, color: AppTheme.textPrimary, fontWeight: FontWeight.w700)),
+                      const Text('Out: ',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textHint,
+                              fontWeight: FontWeight.w600)),
+                      Text(cout,
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: AppTheme.textPrimary,
+                              fontWeight: FontWeight.w700)),
                       if (totalHours != null) ...[
                         const SizedBox(width: 12),
-                        Text(totalHours, style: const TextStyle(fontSize: 11, color: Color(0xFF5C5CFF), fontWeight: FontWeight.w700)),
+                        Text(totalHours,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF5C5CFF),
+                                fontWeight: FontWeight.w700)),
                       ]
                     ],
                   ),
@@ -1373,9 +1553,16 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
   Widget _buildLegend(Color color, String text) {
     return Row(
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
+        Text(text,
+            style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textHint,
+                fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -1407,18 +1594,33 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Attendance Rate · ${DateFormat('MMMM yyyy').format(DateTime.now())}', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13, fontWeight: FontWeight.w500)),
+                Text(
+                    'Attendance Rate Â· ${DateFormat('MMMM yyyy').format(DateTime.now())}',
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500)),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Text('98.2%', style: TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -1)),
+                    const Text('98.2%',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 36,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -1)),
                     Row(
                       children: [
-                        const Icon(Icons.trending_up, color: Colors.white, size: 16),
+                        const Icon(Icons.trending_up,
+                            color: Colors.white, size: 16),
                         const SizedBox(width: 4),
-                        Text('+2.1% vs last month', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12, fontWeight: FontWeight.w600)),
+                        Text('+2.1% vs last month',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ],
@@ -1437,7 +1639,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Attendance Trend
           Container(
             padding: const EdgeInsets.all(20),
@@ -1452,8 +1654,16 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Attendance Trend', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-                    Text(DateFormat('MMMM yyyy').format(DateTime.now()), style: const TextStyle(fontSize: 12, color: AppTheme.textHint, fontWeight: FontWeight.w500)),
+                    const Text('Attendance Trend',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.textPrimary)),
+                    Text(DateFormat('MMMM yyyy').format(DateTime.now()),
+                        style: const TextStyle(
+                            fontSize: 12,
+                            color: AppTheme.textHint,
+                            fontWeight: FontWeight.w500)),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -1469,13 +1679,21 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
                         bottomTitles: AxisTitles(
                           sideTitles: SideTitles(
                             showTitles: true,
-                            getTitlesWidget: (val, meta) => Text('W${val.toInt() + 1}', style: const TextStyle(color: AppTheme.textHint, fontSize: 11, fontWeight: FontWeight.w600)),
+                            getTitlesWidget: (val, meta) => Text(
+                                'W${val.toInt() + 1}',
+                                style: const TextStyle(
+                                    color: AppTheme.textHint,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
                             reservedSize: 22,
                           ),
                         ),
-                        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                        leftTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
+                        rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false)),
                       ),
                       borderData: FlBorderData(show: false),
                       gridData: const FlGridData(show: false),
@@ -1492,29 +1710,40 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
             ),
           ),
           const SizedBox(height: 20),
-          
+
           // Grid Stats
           Row(
             children: [
-              Expanded(child: _buildGridStat('Avg Daily Hours', '8h 04m', Icons.trending_up, '+12m')),
+              Expanded(
+                  child: _buildGridStat(
+                      'Avg Daily Hours', '8h 04m', Icons.trending_up, '+12m')),
               const SizedBox(width: 16),
-              Expanded(child: _buildGridStat('Punctuality Score', '95%', Icons.trending_down, '-2%', isNegative: true)),
+              Expanded(
+                  child: _buildGridStat(
+                      'Punctuality Score', '95%', Icons.trending_down, '-2%',
+                      isNegative: true)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _buildGridStat('Total Overtime', '3h 22m', Icons.trending_up, '+1h')),
+              Expanded(
+                  child: _buildGridStat(
+                      'Total Overtime', '3h 22m', Icons.trending_up, '+1h')),
               const SizedBox(width: 16),
-              Expanded(child: _buildGridStat('Consistency', 'High', Icons.trending_flat, 'Stable')),
+              Expanded(
+                  child: _buildGridStat(
+                      'Consistency', 'High', Icons.trending_flat, 'Stable')),
             ],
           ),
           const SizedBox(height: 20),
-          
+
           // List tiles
-          _buildActionTile(Icons.bar_chart, AppTheme.primary, 'Monthly Summary', 'Full month breakdown & report'),
+          _buildActionTile(Icons.bar_chart, AppTheme.primary, 'Monthly Summary',
+              'Full month breakdown & report'),
           const SizedBox(height: 12),
-          _buildActionTile(Icons.access_time, AppTheme.success, 'Work Hours Breakdown', 'Productive hours & overtime trends'),
+          _buildActionTile(Icons.access_time, AppTheme.success,
+              'Work Hours Breakdown', 'Productive hours & overtime trends'),
           const SizedBox(height: 80),
         ],
       ),
@@ -1527,7 +1756,9 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       barRods: [
         BarChartRodData(
           toY: y,
-          color: y == 98 ? AppTheme.primary : AppTheme.primary.withValues(alpha: 0.5),
+          color: y == 98
+              ? AppTheme.primary
+              : AppTheme.primary.withValues(alpha: 0.5),
           width: 45,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
         ),
@@ -1545,18 +1776,27 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       ),
       child: Column(
         children: [
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+          Text(value,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(label,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.8),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500)),
         ],
       ),
     );
   }
 
-  Widget _buildGridStat(String title, String value, IconData icon, String sub, {bool isNegative = false}) {
+  Widget _buildGridStat(String title, String value, IconData icon, String sub,
+      {bool isNegative = false}) {
     Color color = isNegative ? AppTheme.danger : AppTheme.primary;
     if (sub == 'Stable') color = AppTheme.success;
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1567,15 +1807,25 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textHint,
+                  fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 20, color: AppTheme.textPrimary, fontWeight: FontWeight.w800)),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 20,
+                  color: AppTheme.textPrimary,
+                  fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
           Row(
             children: [
               Icon(icon, size: 14, color: color),
               const SizedBox(width: 4),
-              Text(sub, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w700)),
+              Text(sub,
+                  style: TextStyle(
+                      fontSize: 11, color: color, fontWeight: FontWeight.w700)),
             ],
           ),
         ],
@@ -1583,7 +1833,8 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
     );
   }
 
-  Widget _buildActionTile(IconData icon, Color color, String title, String sub) {
+  Widget _buildActionTile(
+      IconData icon, Color color, String title, String sub) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1606,9 +1857,15 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textPrimary)),
                 const SizedBox(height: 4),
-                Text(sub, style: const TextStyle(fontSize: 11, color: AppTheme.textHint)),
+                Text(sub,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.textHint)),
               ],
             ),
           ),

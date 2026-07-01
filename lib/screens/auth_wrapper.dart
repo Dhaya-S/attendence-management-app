@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/screens/pre_login_screen.dart';
-import 'package:attendance_app/screens/organization_setup_screen.dart';
 import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
@@ -64,7 +63,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
             }
 
             if (_needsSetup) {
-              return const OrganizationSetupScreen();
+              // Sign out so the app starts fresh from PreLoginScreen.
+              // The user will re-register and be routed through the normal
+              // Register → OrganizationSetupScreen push flow.
+              FirebaseAuth.instance.signOut();
+              AppSession().clear();
+              _needsSetup = false;
+              return const PreLoginScreen();
             }
 
             // 3. User exists -> Load Session if not already loaded

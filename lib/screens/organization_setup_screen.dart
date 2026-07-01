@@ -331,7 +331,9 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
 
   void _goBack() {
     if (_step == 0) {
-      Navigator.pop(context);
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
       return;
     }
     setState(() => _step -= 1);
@@ -349,10 +351,13 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 18),
-          onPressed: _step == 4 ? () => Navigator.pop(context) : _goBack,
-        ),
+        leading: (_step == 0 && !Navigator.canPop(context))
+            ? const SizedBox.shrink()
+            : IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textPrimary, size: 18),
+                onPressed: _step == 4 ? () => Navigator.pop(context) : _goBack,
+              ),
+        automaticallyImplyLeading: false,
       ),
       body: SafeArea(
         child: AnimatedSwitcher(
@@ -539,6 +544,13 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
             );
           },
         ),
+        if (Navigator.canPop(context)) ...[
+          const SizedBox(height: 10),
+          _secondaryButton(
+            label: 'Back',
+            onPressed: () => Navigator.pop(context),
+          ),
+        ],
       ],
     );
   }
@@ -582,6 +594,8 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         const Spacer(),
         const SizedBox(height: 20),
         _primaryButton(label: 'Continue', onPressed: _goNext),
+        const SizedBox(height: 10),
+        _secondaryButton(label: 'Back', onPressed: _goBack),
       ],
     );
   }
