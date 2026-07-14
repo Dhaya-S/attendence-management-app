@@ -15,7 +15,8 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
 
   bool isLoading = false;
   bool _isPasswordVisible = false;
@@ -45,7 +46,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     if (password.length < 6) {
-      MessageHelper.showWarning(context, 'Password must be at least 6 characters');
+      MessageHelper.showWarning(
+        context,
+        'Password must be at least 6 characters',
+      );
       return;
     }
 
@@ -58,7 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (!mounted) return;
-      
+
       // Successfully created auth account, now navigate to org setup.
       Navigator.push(
         context,
@@ -66,7 +70,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } on FirebaseAuthException catch (e) {
       String msg = 'Failed to create account.';
-      if (e.code == 'email-already-in-use') msg = 'This email is already registered.';
+      if (e.code == 'email-already-in-use')
+        msg = 'This email is already registered.';
       if (e.code == 'invalid-email') msg = 'Invalid email address.';
       if (e.code == 'weak-password') msg = 'Password is too weak.';
       MessageHelper.showError(context, msg);
@@ -95,10 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Create Account',
-                style: AppTheme.h1.copyWith(fontSize: 28),
-              ),
+              Text('Create Account', style: AppTheme.h1.copyWith(fontSize: 28)),
               const SizedBox(height: 8),
               Text(
                 'Get started with AttendanceOS by creating your admin account.',
@@ -126,7 +128,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 label: 'Confirm Password',
                 isVisible: _isConfirmPasswordVisible,
                 onVisibilityChanged: () {
-                  setState(() => _isConfirmPasswordVisible = !_isConfirmPasswordVisible);
+                  setState(
+                    () =>
+                        _isConfirmPasswordVisible = !_isConfirmPasswordVisible,
+                  );
                 },
               ),
               const SizedBox(height: 32),
@@ -150,7 +155,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             width: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(
@@ -205,13 +212,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFF3F4F6), width: 1.5),
+              borderSide: const BorderSide(
+                color: Color(0xFFF3F4F6),
+                width: 1.5,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 16,
+            ),
           ),
         ),
       ],
@@ -243,10 +256,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
           decoration: InputDecoration(
             hintText: 'Enter your $label'.toLowerCase(),
             hintStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 14),
-            prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF), size: 20),
+            prefixIcon: const Icon(
+              Icons.lock_outline,
+              color: Color(0xFF9CA3AF),
+              size: 20,
+            ),
             suffixIcon: IconButton(
               icon: Icon(
-                isVisible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                isVisible
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
                 color: const Color(0xFF9CA3AF),
                 size: 20,
               ),
@@ -260,13 +279,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
-              borderSide: const BorderSide(color: Color(0xFFF3F4F6), width: 1.5),
+              borderSide: const BorderSide(
+                color: Color(0xFFF3F4F6),
+                width: 1.5,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: AppTheme.primary, width: 1.5),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 20,
+              vertical: 16,
+            ),
           ),
         ),
       ],
