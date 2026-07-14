@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/features/attendance/screens/manager/manager_home_tab.dart';
-import 'package:attendance_app/features/attendance/screens/manager/manager_calendar_tab.dart';
+import 'package:attendance_app/features/attendance/screens/manager/manager_attendance_tab.dart';
 import 'package:attendance_app/features/attendance/screens/manager/manager_reports_tab.dart';
 import 'package:attendance_app/features/settings/screens/manager/manager_profile_tab.dart';
 import 'package:attendance_app/features/employee_management/screens/manager/add_employee_screen.dart';
@@ -19,8 +19,10 @@ class _ManagerMainScreenState extends State<ManagerMainScreen> {
 
   List<Widget> get _pages => [
     ManagerHomeTab(onTabChange: (index) => setState(() => _currentIndex = index)),
-    ManagerCalendarTab(onTabChange: (index) => setState(() => _currentIndex = index)),
+    ManagerAttendanceTab(onTabChange: (index) => setState(() => _currentIndex = index)),
+    // Leave tab (placeholder for now, using Reports tab)
     ManagerReportsTab(onTabChange: (index) => setState(() => _currentIndex = index)),
+    // More tab
     ManagerProfileTab(onTabChange: (index) => setState(() => _currentIndex = index)),
   ];
 
@@ -64,13 +66,10 @@ class _ManagerMainScreenState extends State<ManagerMainScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _navItem(Icons.home_outlined, Icons.home_rounded, 'Home', 0),
-              _navItem(Icons.calendar_today_outlined,
-                  Icons.calendar_today_rounded, 'Calendar', 1),
+              _navItem(Icons.access_time_outlined, Icons.access_time_filled, 'Attendance', 1),
               const SizedBox(width: 48), // space for FAB
-              _navItem(Icons.bar_chart_outlined, Icons.bar_chart_rounded,
-                  'Reports', 2),
-              _navItem(
-                  Icons.person_outline, Icons.person_rounded, 'Profile', 3),
+              _navItem(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Leave', 2),
+              _navItem(Icons.more_horiz_outlined, Icons.more_horiz, 'More', 3),
             ],
           ),
         ),
