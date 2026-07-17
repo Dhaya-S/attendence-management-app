@@ -170,6 +170,11 @@ class FirestoreService {
     return _db.collectionGroup('notifications').where('companyId', isEqualTo: _cid);
   }
 
+  /// All tasks for the current company via collection group query.
+  static Query<Map<String, dynamic>> get allTasksQuery {
+    return _db.collectionGroup('tasks').where('companyId', isEqualTo: _cid);
+  }
+
   /// Alias for backward compatibility
   static Query<Map<String, dynamic>> get companyLeaveRequestsQuery => allLeaveRequestsQuery;
 
@@ -179,6 +184,22 @@ class FirestoreService {
   /// `/approved_companies/{companyId}/global_notifications`
   static CollectionReference<Map<String, dynamic>> get globalNotificationsCol =>
       companyDoc().collection('global_notifications');
+
+  /// `/approved_companies/{companyId}/announcements`
+  static CollectionReference<Map<String, dynamic>> get announcementsCol =>
+      companyDoc().collection('announcements');
+
+  /// `/approved_companies/{companyId}/company_calendar`
+  static CollectionReference<Map<String, dynamic>> get companyCalendarCol =>
+      companyDoc().collection('company_calendar');
+
+  /// `/approved_companies/{companyId}/tasks`
+  static CollectionReference<Map<String, dynamic>> get tasksCol =>
+      companyDoc().collection('tasks');
+
+  /// `/approved_companies/{companyId}/feed_posts`
+  static CollectionReference<Map<String, dynamic>> get feedPostsCol =>
+      companyDoc().collection('feed_posts');
 
   // ── Legacy / Flat Collections (To be removed after migration) ───────────
 

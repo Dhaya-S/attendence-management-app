@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/screens/pre_login_screen.dart';
+import 'package:attendance_app/screens/organization_setup_screen.dart';
 import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
@@ -63,13 +64,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
             }
 
             if (_needsSetup) {
-              // Sign out so the app starts fresh from PreLoginScreen.
-              // The user will re-register and be routed through the normal
-              // Register → OrganizationSetupScreen push flow.
-              FirebaseAuth.instance.signOut();
-              AppSession().clear();
-              _needsSetup = false;
-              return const PreLoginScreen();
+              // The user is authenticated but not yet approved.
+              // They are likely in the middle of the setup flow.
+              // We return the OrganizationSetupScreen so they can continue,
+              // rather than signing them out which breaks the flow.
+              return const OrganizationSetupScreen();
             }
 
             // 3. User exists -> Load Session if not already loaded

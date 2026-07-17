@@ -5,6 +5,7 @@ import 'package:attendance_app/screens/employee/employee_team_members_tab.dart';
 import 'package:attendance_app/screens/employee/employee_attendance_summary_screen.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -1665,7 +1666,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           .collection('approved_companies')
           .doc(FirestoreService.companyId)
           .collection('leave_requests')
-          .where('userId', isEqualTo: userEmail)
+          .where('userId', isEqualTo: AppSession().uid)
           .where('status', isEqualTo: 'pending')
           .limit(5)
           .snapshots(),
@@ -1675,7 +1676,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               .collection('approved_companies')
               .doc(FirestoreService.companyId)
               .collection('attendance_corrections')
-              .where('userId', isEqualTo: userEmail)
+              .where('userId', isEqualTo: AppSession().uid)
               .where('status', isEqualTo: 'pending')
               .limit(3)
               .snapshots(),

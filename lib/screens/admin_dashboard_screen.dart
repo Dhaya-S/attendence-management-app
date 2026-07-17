@@ -1,90 +1,192 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
-import 'package:attendance_app/screens/employee_setup_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:attendance_app/utils/location_service.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
+import 'package:attendance_app/utils/notification_service.dart';
 import 'package:attendance_app/screens/auth_wrapper.dart';
 import 'package:attendance_app/screens/profile_screen.dart';
-class DashboardActivity {
-  final String text;
-  final DateTime timestamp;
-  DashboardActivity(this.text, this.timestamp);
-}
+import 'package:attendance_app/widgets/live_attendance_builder.dart';
+import 'package:attendance_app/widgets/announcements_tab_view.dart';
+import 'package:attendance_app/widgets/calendar_tab_view.dart';
+import 'package:attendance_app/widgets/tasks_tab_view.dart';
+import 'package:attendance_app/widgets/team_members_view.dart';
+import 'package:attendance_app/widgets/team_feed_view.dart';
+import 'package:attendance_app/widgets/team_tasks_view.dart';
+import 'package:attendance_app/widgets/team_departments_view.dart';
+import 'package:attendance_app/widgets/org_overview_tab.dart';
+import 'package:attendance_app/widgets/org_policies_tab.dart';
+import 'package:attendance_app/widgets/org_reports_tab.dart';
+import 'package:attendance_app/features/attendance/screens/admin/admin_attendance_tab.dart';
+import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({Key? key}) : super(key: key);
+  const AdminDashboardScreen({super.key});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final user = FirebaseAuth.instance.currentUser;
+  late final Stream<DocumentSnapshot> _currentUserStream = FirestoreService.userStreamByEmail(user?.email ?? '');
+  late final Stream<QuerySnapshot> _orgUsersStream;
+
+  // Tabs State
+  int _selectedMainTab = 0; // 0: My Space, 1: Team, 2: Organization
+  int _selectedSubTab = 0; // 0: Dashboard, 1: Approvals, 2: Leave, 3: Announcements, 4: Calendar
   int _bottomNavIndex = 0;
+
+  // Approvals State
+  int _selectedApprovalTab = 0; // 0: All, 1: Shift, 2: Department, 3: Task, 4: Leave, 5: Attendance
+  Map<String, dynamic>? _selectedApprovalData;
+  DocumentReference? _selectedApprovalRef;
+
+  // Personal Attendance State
+  late final CollectionReference<Map<String, dynamic>> _todayRef;
+  late final Stream<DocumentSnapshot> _todayAttendanceStream;
+  LocationData? _currentLocationData;
+  bool _isCheckingInOut = false;
+  Timer? _timer;
+
   late final String orgId;
-  late final String orgName;
 
   @override
   void initState() {
     super.initState();
     orgId = AppSession().companyId ?? '';
-    orgName = AppSession().companyName ?? 'Organization';
+    _orgUsersStream = FirestoreService.orgMembersCol(orgId).snapshots();
+    final userEmail = user?.email ?? '';
+    _todayRef = FirestoreService.userAttendanceCol(userEmail);
+    _todayAttendanceStream = _todayRef.doc(_getAttendanceDocId()).snapshots();
+
+    _startLocationUpdates();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
-  // ─── Real-Time Stream Getters ──────────────────────────────────────────────
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
-  Stream<int> get _pendingActionsStream {
-    final leaves = FirestoreService.allLeaveRequestsQuery.where('status', isEqualTo: 'pending').snapshots();
-    final overtime = FirestoreService.allOvertimeRequestsQuery.snapshots();
-    final adjustments = FirestoreService.allAttendanceRecordsCol
-        .where('isAdjustmentRequest', isEqualTo: true)
-        .where('remarkStatus', isEqualTo: 'pending')
-        .snapshots();
+  String _getAttendanceDocId() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
-    final controller = StreamController<int>();
-    
-    StreamSubscription? sub1;
-    StreamSubscription? sub2;
-    StreamSubscription? sub3;
-
-    int count1 = 0;
-    int count2 = 0;
-    int count3 = 0;
-
-    void update() {
-      if (!controller.isClosed) {
-        controller.add(count1 + count2 + count3);
+  void _startLocationUpdates() {
+    LocationService().startRealtimeTracking();
+    LocationService.getStream().listen((data) {
+      if (mounted && data.position != null) {
+        setState(() => _currentLocationData = data);
       }
+    });
+  }
+
+  Future<void> _handleCheckInOut(String status, bool isCheckIn) async {
+    if (_isCheckingInOut) return;
+    setState(() => _isCheckingInOut = true);
+    try {
+      final now = DateTime.now();
+      final userEmail = user?.email ?? '';
+      final isInside = _currentLocationData?.isWithinRadius ?? false;
+      final data = {
+        'companyId': FirestoreService.companyId,
+        'userId': userEmail,
+        'status': status,
+        if (isCheckIn) 'workMode': isInside ? 'office' : 'wfh',
+        if (isCheckIn) 'checkIn': Timestamp.fromDate(now),
+        if (isCheckIn) 'checkInLocation': _currentLocationData?.address ?? 'Unknown',
+        if (!isCheckIn) 'checkOut': Timestamp.fromDate(now),
+        if (!isCheckIn) 'checkOutLocation': _currentLocationData?.address ?? 'Unknown',
+        'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+        'recordDate': DateFormat('yyyy-MM-dd').format(now),
+      };
+      
+      await _todayRef.doc(_getAttendanceDocId()).set(data, SetOptions(merge: true));
+      
+      await NotificationHelper.notifyEmployee(
+        employeeEmail: userEmail,
+        title: isCheckIn ? 'Check-In Successful' : 'Check-Out Successful',
+        body: 'You have successfully ${isCheckIn ? "checked in" : "checked out"} at ${DateFormat('hh:mm a').format(now)}.',
+        type: isCheckIn ? 'check_in' : 'check_out',
+        extraData: {'userId': user?.uid},
+      );
+      
+      if (isCheckIn) {
+        final eParts = AppSession().shiftEndTime.split(':');
+        await NotificationService().scheduleCheckoutReminder(DateTime(now.year, now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1])));
+      } else {
+        await NotificationService().cancelCheckoutReminder();
+      }
+      
+      if (mounted) _showSuccessModal(isCheckIn ? 'Check In' : 'Check Out', now);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+      }
+    } finally {
+      if (mounted) setState(() => _isCheckingInOut = false);
     }
+  }
 
-    sub1 = leaves.listen((snap) {
-      count1 = snap.docs.length;
-      update();
-    }, onError: (_) {});
+  void _showSuccessModal(String title, DateTime time) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.6),
+      builder: (context) => ElasticIn(
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(28),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(color: Color(0xFFECFDF5), shape: BoxShape.circle),
+                child: const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 56),
+              ),
+              const SizedBox(height: 20),
+              const Text('Successfully Done', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
+              const SizedBox(height: 6),
+              Text(title, style: const TextStyle(color: Color(0xFF5C5CFF), fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+              const SizedBox(height: 12),
+              Text(DateFormat('hh:mm a').format(time), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+              const SizedBox(height: 4),
+              Text(DateFormat('EEEE, dd MMM yyyy').format(time), style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5C5CFF),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: const Text('Done', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
 
-    sub2 = overtime.listen((snap) {
-      count2 = snap.docs.where((doc) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        return data['status'] == 'pending';
-      }).length;
-      update();
-    }, onError: (_) {});
-
-    sub3 = adjustments.listen((snap) {
-      count3 = snap.docs.length;
-      update();
-    }, onError: (_) {});
-
-    controller.onCancel = () {
-      sub1?.cancel();
-      sub2?.cancel();
-      sub3?.cancel();
-    };
-
-    return controller.stream;
+  // Real-time Streams for Stats
+  Stream<int> get _pendingLeavesStream {
+    return FirestoreService.allLeaveRequestsQuery.where('status', isEqualTo: 'pending').snapshots()
+      .map((snap) => snap.docs.length);
   }
 
   Stream<Map<String, int>> get _todayStatsStream {
@@ -163,199 +265,158 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return controller.stream;
   }
 
-  Stream<List<DashboardActivity>> get _recentActivityStream {
-    final controller = StreamController<List<DashboardActivity>>();
-
-    final members = FirestoreService.orgMembersCol(orgId).snapshots();
-    final depts = FirestoreService.orgDepartmentsCol(orgId).snapshots();
-    final attendance = FirestoreService.allAttendanceRecordsCol.snapshots();
-    final leaves = FirestoreService.allLeaveRequestsQuery.snapshots();
-
-    StreamSubscription? subMem;
-    StreamSubscription? subDept;
-    StreamSubscription? subAtt;
-    StreamSubscription? subLeave;
-
-    List<DocumentSnapshot> memDocs = [];
-    List<DocumentSnapshot> deptDocs = [];
-    List<DocumentSnapshot> attDocs = [];
-    List<DocumentSnapshot> leaveDocs = [];
-
-    void update() {
-      if (controller.isClosed) return;
-
-      final List<DashboardActivity> activities = [];
-
-      for (final doc in memDocs) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        final createdAt = data['createdAt'];
-        final fullName = data['fullName'] ?? '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim();
-        final role = data['role'] ?? 'employee';
-        final designation = data['designation'] ?? 'Staff';
-        
-        if (createdAt is Timestamp && role != 'admin') {
-          activities.add(DashboardActivity(
-            '$fullName joined as $designation',
-            createdAt.toDate(),
-          ));
-        }
-      }
-
-      for (final doc in deptDocs) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        final createdAt = data['createdAt'];
-        final name = data['name'] ?? 'New Dept';
-        if (createdAt is Timestamp) {
-          activities.add(DashboardActivity(
-            'New department "$name" created',
-            createdAt.toDate(),
-          ));
-        }
-      }
-
-      for (final doc in attDocs) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        final checkIn = data['checkIn'];
-        final userEmail = data['userEmail'] ?? data['userId'] ?? 'Employee';
-        final workMode = data['workMode'] == 'wfh' ? 'WFH' : 'Office';
-        
-        if (checkIn is Timestamp) {
-          activities.add(DashboardActivity(
-            '$userEmail checked in ($workMode)',
-            checkIn.toDate(),
-          ));
-        }
-
-        final checkOut = data['checkOut'];
-        if (checkOut is Timestamp) {
-          activities.add(DashboardActivity(
-            '$userEmail checked out',
-            checkOut.toDate(),
-          ));
-        }
-      }
-
-      for (final doc in leaveDocs) {
-        final data = doc.data() as Map<String, dynamic>? ?? {};
-        final updatedAt = data['updatedAt'] ?? data['createdAt'];
-        final userEmail = data['userEmail'] ?? 'Employee';
-        final status = data['status'] ?? 'pending';
-        final type = data['leaveType'] ?? 'Leave';
-
-        if (updatedAt is Timestamp) {
-          activities.add(DashboardActivity(
-            'Leave request ($type) for $userEmail is $status',
-            updatedAt.toDate(),
-          ));
-        }
-      }
-
-      activities.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      controller.add(activities.take(4).toList());
-    }
-
-    subMem = members.listen((snap) {
-      memDocs = snap.docs;
-      update();
-    }, onError: (_) {});
-
-    subDept = depts.listen((snap) {
-      deptDocs = snap.docs;
-      update();
-    }, onError: (_) {});
-
-    subAtt = attendance.listen((snap) {
-      attDocs = snap.docs;
-      update();
-    }, onError: (_) {});
-
-    subLeave = leaves.listen((snap) {
-      leaveDocs = snap.docs;
-      update();
-    }, onError: (_) {});
-
-    controller.onCancel = () {
-      subMem?.cancel();
-      subDept?.cancel();
-      subAtt?.cancel();
-      subLeave?.cancel();
-    };
-
-    return controller.stream;
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
   }
 
-  String _getUserInitials() {
-    final name = AppSession().userName ?? '';
-    if (name.isEmpty) {
-      final email = AppSession().email ?? 'A';
-      return email.substring(0, email.indexOf('@')).substring(0, 2).toUpperCase();
+  String _getInitials(String name) {
+    if (name.trim().isEmpty) return 'RA';
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length == 1) {
+      return parts[0].substring(0, parts[0].length >= 2 ? 2 : 1).toUpperCase();
     }
-    final parts = name.split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return name.substring(0, 2.clamp(0, name.length)).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
-  String formatRelativeTime(DateTime dt) {
-    final now = DateTime.now();
-    final diff = now.difference(dt);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    return DateFormat('MMM dd').format(dt);
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F9),
+      body: IndexedStack(
+        index: _bottomNavIndex,
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeader(),
+                _buildTopNavigation(),
+                _buildSubNavigation(),
+                Expanded(
+                  child: _selectedMainTab == 0
+                      ? (_selectedSubTab == 0
+                          ? _buildDashboardView()
+                          : (_selectedSubTab == 1 
+                              ? _buildApprovalsView() 
+                              : (_selectedSubTab == 2
+                                  ? const Center(child: Text('Leave View'))
+                                  : (_selectedSubTab == 3 
+                                      ? const AnnouncementsTabView(isAdmin: true) 
+                                      : (_selectedSubTab == 4
+                                          ? const CalendarTabView()
+                                          : (_selectedSubTab == 5
+                                              ? const TasksTabView()
+                                              : const Center(child: Text('Under Construction'))))))))
+                      : _selectedMainTab == 1 
+                          ? (_selectedSubTab == 0
+                              ? const TeamMembersView()
+                              : (_selectedSubTab == 1
+                                  ? const TeamFeedView()
+                                  : (_selectedSubTab == 2
+                                      ? const AnnouncementsTabView(isAdmin: true)
+                                      : (_selectedSubTab == 3
+                                          ? const TeamTasksView()
+                                          : (_selectedSubTab == 4
+                                              ? const TeamDepartmentsView()
+                                              : const Center(child: Text('Under Construction')))))))
+                          : _selectedMainTab == 2
+                              ? (_selectedSubTab == 0
+                                  ? const OrgOverviewTab()
+                                  : (_selectedSubTab == 1
+                                      ? const OrgPoliciesTab()
+                                      : (_selectedSubTab == 2
+                                          ? const AnnouncementsTabView(isAdmin: true)
+                                          : (_selectedSubTab == 3
+                                              ? const OrgReportsTab()
+                                              : const Center(child: Text('Under Construction'))))))
+                              : const Center(child: Text('Under Construction')),
+                ),
+              ],
+            ),
+          ),
+          const SafeArea(child: AdminAttendanceTab()),
+          const SafeArea(child: UniversalLeaveTab()),
+          const SafeArea(child: Center(child: Text('More View Under Construction'))),
+        ],
+      ),
+      bottomNavigationBar: _buildBottomNav(),
+    );
   }
-
-  // ─── Header and Tabs ────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    return Padding(
+    return Container(
+      color: Colors.white,
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Organization', style: TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 2),
-              Text(orgName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
-            ],
+          Expanded(
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: _currentUserStream,
+              builder: (context, snapshot) {
+                final data = snapshot.data?.data() as Map<String, dynamic>?;
+                String rawName = AppSession().userName ?? 'Admin';
+                if (data?['name'] != null && data!['name'].toString().trim().isNotEmpty) {
+                  rawName = data['name'].toString();
+                } else if (user?.displayName != null && user!.displayName!.trim().isNotEmpty) {
+                  rawName = user!.displayName!;
+                }
+                final firstName = rawName.split(' ')[0];
+                final greeting = _getGreeting();
+                
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$greeting, $firstName',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF1F2937),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'HR Admin - ${DateFormat('EEEE, d MMMM yyyy').format(DateTime.now())}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
           Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3F4F6),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.search_rounded, size: 20, color: AppTheme.textSecondary),
-              ),
-              const SizedBox(width: 8),
               Stack(
                 children: [
                   Container(
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF3F4F6),
-                      borderRadius: BorderRadius.circular(12),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFE5E7EB)),
+                      color: Colors.white,
                     ),
-                    child: const Icon(Icons.notifications_none_rounded, size: 20, color: AppTheme.textSecondary),
+                    child: const Icon(Icons.notifications_none_rounded, size: 20, color: Color(0xFF4B5563)),
                   ),
                   Positioned(
-                    top: 8,
-                    right: 8,
+                    top: 0,
+                    right: 0,
                     child: Container(
-                      width: 6,
-                      height: 6,
+                      width: 14,
+                      height: 14,
                       decoration: const BoxDecoration(
-                        color: Colors.red,
+                        color: Color(0xFFEF4444),
                         shape: BoxShape.circle,
                       ),
+                      alignment: Alignment.center,
+                      child: const Text('3', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ],
@@ -388,17 +449,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       children: [
                         Icon(Icons.person_outline, size: 20),
                         SizedBox(width: 8),
-                        Text('Edit Profile'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'settings',
-                    child: Row(
-                      children: [
-                        Icon(Icons.settings_outlined, size: 20),
-                        SizedBox(width: 8),
-                        Text('Settings'),
+                        Text('Profile'),
                       ],
                     ),
                   ),
@@ -414,555 +465,1376 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                   ),
                 ],
-                child: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF1F2937),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(_getUserInitials(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+                child: StreamBuilder<DocumentSnapshot>(
+                  stream: _currentUserStream,
+                  builder: (context, snapshot) {
+                    String? imageUrl;
+                    String name = AppSession().userName ?? 'Admin';
+                    if (snapshot.hasData && snapshot.data!.exists) {
+                      final data = snapshot.data!.data() as Map<String, dynamic>;
+                      imageUrl = data['profileImageUrl'];
+                      if (data['name'] != null) name = data['name'];
+                    }
+                    return Container(
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Color(0xFF5C5CFF),
+                      ),
+                      child: ClipOval(
+                        child: imageUrl != null && imageUrl.isNotEmpty
+                            ? (imageUrl.startsWith('http')
+                                ? Image.network(imageUrl, fit: BoxFit.cover)
+                                : Image.memory(base64Decode(imageUrl), fit: BoxFit.cover))
+                            : Center(child: Text(_getInitials(name), style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold))),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
-          )
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildTopTabs() {
-    return Padding(
+  Widget _buildTopNavigation() {
+    return Container(
+      color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('My Space', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
-          const SizedBox(width: 32),
-          const Text('Team', style: TextStyle(fontSize: 13, color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
-          const SizedBox(width: 32),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF), // very light blue
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text('Organization', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.primary)),
-          ),
+          _buildTopTab('My Space', 0),
+          _buildTopTab('Team', 1),
+          _buildTopTab('Organization', 2),
         ],
       ),
     );
   }
 
-  Widget _buildSubTabs() {
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFFF3F4F6), width: 1.5)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _subTabItem('Dashboard', true),
-            _subTabItem('Employees', false),
-            _subTabItem('Policies', false),
-            _subTabItem('Roles', false),
-            _subTabItem('Settings', false),
-          ],
+  Widget _buildTopTab(String label, int index) {
+    final isActive = _selectedMainTab == index;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _selectedMainTab = index;
+        _selectedSubTab = 0; // Reset sub tab
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        margin: const EdgeInsets.only(right: 12),
+        decoration: BoxDecoration(
+          color: isActive ? const Color(0xFFEEF2FF) : Colors.transparent, // Very light blue
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isActive ? const Color(0xFF5C5CFF) : Colors.transparent,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+            color: isActive ? const Color(0xFF5C5CFF) : const Color(0xFF6B7280),
+          ),
         ),
       ),
     );
   }
 
-  Widget _subTabItem(String title, bool isActive) {
+  Widget _buildSubNavigation() {
     return Container(
-      padding: const EdgeInsets.only(bottom: 12, top: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: isActive ? AppTheme.primary : Colors.transparent, width: 2)),
+      color: Colors.white,
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: _selectedMainTab == 0 
+          ? Row(
+              children: [
+                _buildSubTab('Dashboard', 0),
+                _buildSubTab('Approvals', 1),
+                _buildSubTab('Leave', 2),
+                _buildSubTab('Announcements', 3),
+                _buildSubTab('Calendar', 4),
+                _buildSubTab('Tasks', 5),
+              ],
+            )
+          : _selectedMainTab == 1
+            ? Row(
+                children: [
+                  _buildSubTab('Members', 0),
+                  _buildSubTab('Feed', 1),
+                  _buildSubTab('Announcements', 2),
+                  _buildSubTab('Task', 3),
+                  _buildSubTab('Department', 4),
+                ],
+              )
+            : _selectedMainTab == 2
+              ? Row(
+                  children: [
+                    _buildSubTab('Overview', 0),
+                    _buildSubTab('Policies', 1),
+                    _buildSubTab('Announcements', 2),
+                    _buildSubTab('Reports', 3),
+                  ],
+                )
+              : const SizedBox(),
       ),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-          color: isActive ? AppTheme.primary : AppTheme.textHint,
+    );
+  }
+
+  Widget _buildSubTab(String label, int index) {
+    final isActive = _selectedSubTab == index;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _selectedSubTab = index;
+        _selectedApprovalData = null; // reset approval view
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isActive ? const Color(0xFF5C5CFF) : Colors.transparent,
+              width: 2.5,
+            ),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
+            color: isActive ? const Color(0xFF5C5CFF) : const Color(0xFF9CA3AF),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildAlerts() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+  Widget _buildDashboardView() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      physics: const BouncingScrollPhysics(),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Warning alert
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFFBEB),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFFEF08A)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.error_outline_rounded, color: Color(0xFFD97706), size: 16),
-                SizedBox(width: 8),
-                Text('3 employee onboarding invitations pending', style: TextStyle(fontSize: 12, color: Color(0xFFB45309), fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // Info alert
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFBFDBFE)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline_rounded, color: AppTheme.primary, size: 16),
-                SizedBox(width: 8),
-                Text('Attendance policy renewal due in 7 days', style: TextStyle(fontSize: 12, color: AppTheme.primary, fontWeight: FontWeight.w500)),
-              ],
-            ),
-          ),
+          _buildAttendanceTodayCard(),
+          const SizedBox(height: 16),
+          _buildMonthlyAttendanceCard(),
+          const SizedBox(height: 16),
+          _buildStatsGrid(),
+          const SizedBox(height: 16),
+          _buildOrgWideAttendanceCard(),
+          const SizedBox(height: 16),
+          _buildPendingApprovalsCard(),
+          const SizedBox(height: 16),
+          _buildMyTasksCard(),
+          const SizedBox(height: 16),
+          _buildDepartmentHeadcountCard(),
+          const SizedBox(height: 16),
+          _buildRecentActivityCard(),
+          const SizedBox(height: 40),
         ],
       ),
     );
   }
 
-  Widget _statCard(String value, String label, String subtext, Color color, Color bgColor, IconData icon) {
+  Widget _buildApprovalsView() {
+    if (_selectedApprovalData != null) {
+      return _buildApprovalDetailView();
+    }
+    
+    return Column(
+      children: [
+        _buildApprovalSecondaryTabs(),
+        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirestoreService.allLeaveRequestsQuery.snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
+              
+              final allDocs = snapshot.data?.docs ?? [];
+              
+              List<DocumentSnapshot> filteredDocs = allDocs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>? ?? {};
+                String type = (data['leaveType'] ?? data['type'] ?? 'leave').toString().toLowerCase();
+                if (_selectedApprovalTab == 1) return type == 'shift';
+                if (_selectedApprovalTab == 2) return type == 'department';
+                if (_selectedApprovalTab == 3) return type == 'task';
+                if (_selectedApprovalTab == 4) return type == 'leave' || type == 'annual' || type == 'sick' || type == 'wfh';
+                if (_selectedApprovalTab == 5) return type == 'attendance';
+                return true;
+              }).toList();
+
+              List<Widget> listItems = [];
+              
+              // Inject mock data to match the UI if real data is missing for specific tabs
+              if (filteredDocs.isEmpty) {
+                if (_selectedApprovalTab == 1) { // Shift Mock
+                  listItems.add(_buildMockCard('KR', 'Kavya Reddy', 'Engineering · Applied Jul 26', 'Shift Change', 'General -> Night Shift · Jul 29', 'Shift', const Color(0xFF10B981), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                } else if (_selectedApprovalTab == 2) { // Department Mock
+                  listItems.add(_buildMockCard('SP', 'Sneha Patel', 'HR · Applied Jul 26', 'Department Transfer', 'HR -> Operations', 'Department', const Color(0xFF5C5CFF), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                } else if (_selectedApprovalTab == 3) { // Task Mock
+                  listItems.add(_buildMockCard('DJ', 'Deepak Joshi', 'Operations · Applied Jul 27', 'Task Extension', 'Q3 Audit - Extend to Aug 5', 'Task', const Color(0xFFF59E0B), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                } else if (_selectedApprovalTab == 5) { // Attendance Mock
+                  listItems.add(_buildMockCard('RK', 'Rohit Kumar', 'Sales · Applied Jul 25', 'Attendance Correction', 'Jul 24 · Missing check-out', 'Attendance', const Color(0xFFEF4444), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                }
+              }
+
+              final pendingDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] == 'pending' || (d.data() as Map<String, dynamic>?)?['status'] == null).toList();
+              final processedDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] != 'pending' && (d.data() as Map<String, dynamic>?)?['status'] != null).toList();
+
+              if (pendingDocs.isNotEmpty || (_selectedApprovalTab == 0 && listItems.isEmpty)) {
+                listItems.add(Padding(
+                  padding: const EdgeInsets.only(bottom: 16, top: 0),
+                  child: Text('PENDING · ${pendingDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                ));
+                for (var doc in pendingDocs) {
+                  listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
+                }
+              }
+
+              if (processedDocs.isNotEmpty) {
+                listItems.add(Padding(
+                  padding: const EdgeInsets.only(bottom: 16, top: 24),
+                  child: Text('PROCESSED · ${processedDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                ));
+                for (var doc in processedDocs) {
+                  listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
+                }
+              }
+              
+              if (listItems.isEmpty) {
+                return const Center(child: Text('No requests found', style: TextStyle(color: Colors.grey)));
+              }
+
+              return ListView(
+                padding: const EdgeInsets.all(20),
+                children: listItems,
+              );
+            }
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMockCard(String initials, String name, String subtitle, String title, String details, String tag, Color avatarColor, Color tagColor, Color tagBgColor) {
+    Map<String, dynamic> detailData = {
+      'title': title,
+      'type': tag,
+      'details': details,
+      'appliedOn': subtitle.contains('Applied') ? subtitle.split('Applied')[1].trim() : 'Jul 26',
+      'status': 'Pending',
+      'empName': name,
+      'empDept': subtitle.split('·')[0].trim(),
+      'initials': initials,
+      'avatarColor': avatarColor.value,
+    };
+    
     return Container(
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFF3F4F6)),
-        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(10)),
-            child: Icon(icon, color: color, size: 18),
+          Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                    Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: const Text('Pending', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFD97706))),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 8),
-          Text(subtext, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                const SizedBox(height: 4),
+                Text(details, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: tagBgColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: tagColor.withOpacity(0.3)),
+                ),
+                child: Text(tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: tagColor)),
+              ),
+              GestureDetector(
+                onTap: () => setState(() {
+                   _selectedApprovalData = detailData;
+                   _selectedApprovalRef = null;
+                }),
+                child: Row(
+                  children: const [
+                    Text('Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward, size: 14, color: Color(0xFF5C5CFF)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildApprovalSecondaryTabs() {
+    final tabs = ['All', 'Shift', 'Department', 'Task', 'Leave', 'Attendance'];
+    return Container(
+      color: Colors.white,
+      height: 48,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: tabs.length,
+        itemBuilder: (context, index) {
+          final isActive = _selectedApprovalTab == index;
+          return GestureDetector(
+            onTap: () => setState(() => _selectedApprovalTab = index),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: isActive ? const Color(0xFF5C5CFF) : Colors.transparent,
+                    width: 2.5,
+                  ),
+                ),
+              ),
+              child: Text(
+                tabs[index],
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive ? const Color(0xFF5C5CFF) : const Color(0xFF6B7280),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildApprovalRequestCard(DocumentSnapshot doc, Map<String, dynamic> data) {
+    String rawType = (data['leaveType'] ?? data['type'] ?? 'Leave').toString();
+    String type = rawType.toLowerCase();
+    
+    String title = type == 'wfh' ? 'Work From Home' : (type == 'sick' ? 'Sick Leave' : 'Annual Leave');
+    String badgeTag = type == 'wfh' ? 'WFH' : 'Leave';
+    
+    if (type == 'attendance') {
+       title = 'Attendance Correction';
+       badgeTag = 'Attendance';
+    } else if (type == 'shift') {
+       title = 'Shift Change';
+       badgeTag = 'Shift';
+    }
+    
+    DateTime appliedDate = (data['appliedOn'] as Timestamp?)?.toDate() ?? DateTime.now();
+    String appliedStr = DateFormat('MMM d').format(appliedDate);
+    
+    DateTime fromDate = (data['fromDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+    DateTime toDate = (data['toDate'] as Timestamp?)?.toDate() ?? DateTime.now();
+    
+    String dateRange = '';
+    if (type == 'attendance' && data['recordDate'] != null) {
+       dateRange = '${data['recordDate']} · Missing check-out';
+    } else {
+       dateRange = '${DateFormat('MMM d').format(fromDate)}–${DateFormat('d').format(toDate)} · ${toDate.difference(fromDate).inDays + 1} days';
+    }
+    
+    String empId = data['userId'] ?? data['employeeId'] ?? 'Unknown';
+    String empName = empId.split('@')[0];
+    
+    String status = (data['status'] ?? 'pending').toString().toLowerCase();
+    
+    Color statusBgColor = const Color(0xFFFFFBEB);
+    Color statusBorderColor = const Color(0xFFFDE68A);
+    Color statusTextColor = const Color(0xFFD97706);
+    String statusText = 'Pending';
+    
+    if (status == 'approved') {
+       statusBgColor = const Color(0xFFECFDF5);
+       statusBorderColor = const Color(0xFF10B981).withOpacity(0.3);
+       statusTextColor = const Color(0xFF10B981);
+       statusText = 'Approved';
+    } else if (status == 'rejected') {
+       statusBgColor = const Color(0xFFFEF2F2);
+       statusBorderColor = const Color(0xFFFCA5A5);
+       statusTextColor = const Color(0xFFEF4444);
+       statusText = 'Rejected';
+    }
+    
+    List<Color> colors = [const Color(0xFFA855F7), const Color(0xFF10B981), const Color(0xFFF59E0B), const Color(0xFFEF4444), const Color(0xFF5C5CFF)];
+    Color avatarColor = colors[empName.length % colors.length];
+    
+    Map<String, dynamic> detailData = {
+      'title': title,
+      'type': badgeTag,
+      'details': dateRange,
+      'appliedOn': appliedStr,
+      'status': statusText,
+      'empName': empName,
+      'empDept': 'Engineering',
+      'initials': _getInitials(empName),
+      'avatarColor': avatarColor.value,
+    };
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF3F4F6)),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(_getInitials(empName), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(empName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                    Text('Engineering · Applied $appliedStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusBgColor,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: statusBorderColor),
+                ),
+                child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusTextColor)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF9FAFB),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                const SizedBox(height: 4),
+                Text(dateRange, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEEF2FF),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                ),
+                child: Text(badgeTag, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
+              ),
+              GestureDetector(
+                onTap: () => setState(() {
+                   _selectedApprovalData = detailData;
+                   _selectedApprovalRef = doc.reference;
+                }),
+                child: Row(
+                  children: const [
+                    Text('Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward, size: 14, color: Color(0xFF5C5CFF)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovalDetailView() {
+    final data = _selectedApprovalData!;
+    
+    String title = data['title'];
+    String type = data['type'];
+    String details = data['details'];
+    String appliedStr = data['appliedOn'];
+    String status = data['status'];
+    String empName = data['empName'];
+    String empDept = data['empDept'];
+    String initials = data['initials'];
+    Color avatarColor = Color(data['avatarColor']);
+    
+    Color statusBgColor = const Color(0xFFFFFBEB);
+    Color statusBorderColor = const Color(0xFFFDE68A);
+    Color statusTextColor = const Color(0xFFD97706);
+    
+    if (status == 'Approved') {
+       statusBgColor = const Color(0xFFECFDF5);
+       statusBorderColor = const Color(0xFF10B981).withOpacity(0.3);
+       statusTextColor = const Color(0xFF10B981);
+    } else if (status == 'Rejected') {
+       statusBgColor = const Color(0xFFFEF2F2);
+       statusBorderColor = const Color(0xFFFCA5A5);
+       statusTextColor = const Color(0xFFEF4444);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _selectedApprovalData = null),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                const Icon(Icons.arrow_back_ios, size: 16, color: Color(0xFF1F2937)),
+                const SizedBox(width: 8),
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFE5E7EB)),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF3F4F6)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48, height: 48,
+                        decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+                        alignment: Alignment.center,
+                        child: Text(initials, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(empName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                            Text(empDept, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: statusBgColor,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: statusBorderColor),
+                        ),
+                        child: Text(status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusTextColor)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFF3F4F6)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('REQUEST DETAILS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+                      const SizedBox(height: 24),
+                      _buildDetailRow('Type', type),
+                      const Divider(height: 32, color: Color(0xFFF3F4F6)),
+                      _buildDetailRow('Title', title),
+                      const Divider(height: 32, color: Color(0xFFF3F4F6)),
+                      _buildDetailRow('Details', details),
+                      const Divider(height: 32, color: Color(0xFFF3F4F6)),
+                      _buildDetailRow('Applied On', appliedStr),
+                      const Divider(height: 32, color: Color(0xFFF3F4F6)),
+                      _buildDetailRow('Status', status),
+                    ],
+                  ),
+                ),
+                if (status == 'Pending') ...[
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _updateApprovalStatus('approved'),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF10B981)), // Green
+                            backgroundColor: const Color(0xFFECFDF5),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Approve', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF10B981))),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _updateApprovalStatus('rejected'),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFFCA5A5)), // Red
+                            backgroundColor: const Color(0xFFFEF2F2),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Reject', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFEF4444))),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+      ],
+    );
+  }
+
+  void _updateApprovalStatus(String status) async {
+    if (_selectedApprovalRef == null) {
+      // Mock data scenario
+      setState(() => _selectedApprovalData = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Mock request ${status} successfully'), backgroundColor: status == 'approved' ? AppTheme.success : AppTheme.danger));
+      }
+      return;
+    }
+    
+    try {
+      await _selectedApprovalRef!.update({'status': status});
+      setState(() => _selectedApprovalData = null);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Request $status successfully'), backgroundColor: status == 'approved' ? AppTheme.success : AppTheme.danger));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.danger));
+      }
+    }
+  }
+
+
+  Widget _buildCardContainer({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))],
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildAttendanceTodayCard() {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _todayAttendanceStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final checkIn = data?['checkIn'] as Timestamp?;
+        final checkOut = data?['checkOut'] as Timestamp?;
+        final isCheckedIn = checkIn != null && checkOut == null;
+        final isCheckedOut = checkIn != null && checkOut != null;
+
+        String elapsed = "00:00:00";
+        if (isCheckedIn) {
+          final diff = DateTime.now().difference(checkIn.toDate());
+          final h = diff.inHours.toString().padLeft(2, '0');
+          final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
+          final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
+          elapsed = "$h:$m:$s";
+        } else if (isCheckedOut) {
+          final diff = checkOut.toDate().difference(checkIn.toDate());
+          final h = diff.inHours.toString().padLeft(2, '0');
+          final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
+          final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
+          elapsed = "$h:$m:$s";
+        }
+
+        return _buildCardContainer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'ATTENDANCE — TODAY',
+                    style: TextStyle(fontSize: 10, fontWeight: 
+FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: checkIn != null ? const Color(0xFFECFDF5) : const Color(0xFFF3F4F6),
+                      border: Border.all(color: checkIn != null ? const Color(0xFF10B981).withOpacity(0.3) : const Color(0xFFD1D5DB)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(checkIn != null ? Icons.check_circle_outline : Icons.cancel_outlined, 
+                          color: checkIn != null ? const Color(0xFF10B981) : const Color(0xFF9CA3AF), size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          checkIn != null ? 'Present' : 'Absent',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, 
+                            color: checkIn != null ? const Color(0xFF10B981) : const Color(0xFF9CA3AF)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (checkIn != null) ...[
+                Text(
+                  isCheckedOut ? 'Checked Out' : 'Checked In',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${DateFormat('hh:mm a').format(checkIn.toDate())} - General Shift',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF9CA3AF)),
+                ),
+                const SizedBox(height: 24),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.access_time, color: Color(0xFF5C5CFF), size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            elapsed, // Mocking the large negative time style in image but with real positive time
+                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF5C5CFF), letterSpacing: -0.5),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text('Time Worked Today', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (!isCheckedOut)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', false),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFFCA5A5)),
+                        backgroundColor: const Color(0xFFFEF2F2), // Light Red
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: _isCheckingInOut
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xFFEF4444), strokeWidth: 2))
+                          : const Text('Check Out', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFEF4444))),
+                    ),
+                  )
+              ] else ...[
+                const Text(
+                  'Not Checked In',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF5C5CFF),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: _isCheckingInOut
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                        : const Text('Check In', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ),
+                )
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMonthlyAttendanceCard() {
+    return _buildCardContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'MONTHLY ATTENDANCE — ${DateFormat('MMMM yyyy').format(DateTime.now()).toUpperCase()}',
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _buildLegendItem(const Color(0xFF1D4ED8), '≥9 hrs'), // Dark Blue
+              const SizedBox(width: 16),
+              _buildLegendItem(const Color(0xFFF59E0B), 'Late (<9 hrs)'), // Orange
+              const SizedBox(width: 16),
+              _buildLegendItem(const Color(0xFF93C5FD), 'Leave'), // Light Blue
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: 120,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: 10,
+                barTouchData: BarTouchData(enabled: false),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (double value, TitleMeta meta) {
+                        const style = TextStyle(color: Color(0xFF9CA3AF), fontSize: 10);
+                        String text = '';
+                        switch (value.toInt()) {
+                          case 0: text = '1'; break;
+                          case 3: text = '4'; break;
+                          case 6: text = '7'; break;
+                          case 9: text = '10'; break;
+                          case 12: text = '13'; break;
+                        }
+                        return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 20,
+                      interval: 3,
+                      getTitlesWidget: (value, meta) {
+                        return Text(value.toInt().toString(), style: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 10));
+                      },
+                    ),
+                  ),
+                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  checkToShowHorizontalLine: (value) => value % 3 == 0,
+                  getDrawingHorizontalLine: (value) => FlLine(color: const Color(0xFFF3F4F6), strokeWidth: 1, dashArray: [4, 4]),
+                  drawVerticalLine: false,
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: [
+                  _makeBarGroup(0, 9.5, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(1, 9, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(2, 8.5, const Color(0xFFF59E0B)),
+                  _makeBarGroup(3, 0, Colors.transparent),
+                  _makeBarGroup(4, 0, Colors.transparent),
+                  _makeBarGroup(5, 9, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(6, 0, Colors.transparent),
+                  _makeBarGroup(7, 9.2, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(8, 9, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(9, 8, const Color(0xFFF59E0B)),
+                  _makeBarGroup(10, 0, Colors.transparent),
+                  _makeBarGroup(11, 9.5, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(12, 9, const Color(0xFF1D4ED8)),
+                  _makeBarGroup(13, 8.2, const Color(0xFFF59E0B)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String text) {
+    return Row(
+      children: [
+        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.rectangle)),
+        const SizedBox(width: 6),
+        Text(text, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  BarChartGroupData _makeBarGroup(int x, double y, Color color) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+          toY: y,
+          color: color,
+          width: 8,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+        )
+      ],
     );
   }
 
   Widget _buildStatsGrid() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+    return StreamBuilder<Map<String, int>>(
+      stream: _todayStatsStream,
+      builder: (context, statsSnap) {
+        final stats = statsSnap.data ?? {'present': 0, 'wfh': 0, 'onLeave': 0};
+        return StreamBuilder<QuerySnapshot>(
+          stream: _orgUsersStream,
+          builder: (context, usersSnap) {
+            final totalEmp = usersSnap.data?.docs.where((d) => (d.data() as Map)['role'] != 'admin').length ?? 0;
+            return GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.5, // width/height ratio
+              children: [
+                _buildStatCard(totalEmp.toString(), 'Total Employees', const Color(0xFFEEF2FF), const Color(0xFF5C5CFF)),
+                _buildStatCard(stats['present'].toString(), 'Present Today', const Color(0xFFECFDF5), const Color(0xFF10B981)),
+                _buildStatCard(stats['onLeave'].toString(), 'On Leave', const Color(0xFFFAF5FF), const Color(0xFFA855F7)), // Light purple, purple text
+                _buildStatCard(stats['wfh'].toString(), 'Working from Home', const Color(0xFFEFF6FF), const Color(0xFF2563EB)), // Light blue, darker blue text
+                _buildStatCard('8', 'New This Month', const Color(0xFFFFFBEB), const Color(0xFFF59E0B)), // Mock data
+                _buildStatCard('3', 'Open Alerts', const Color(0xFFFEF2F2), const Color(0xFFEF4444)), // Mock data
+              ],
+            );
+          },
+        );
+      }
+    );
+  }
+
+  Widget _buildStatCard(String value, String label, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: textColor)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOrgWideAttendanceCard() {
+    return StreamBuilder<Map<String, int>>(
+      stream: _todayStatsStream,
+      builder: (context, statsSnap) {
+        final stats = statsSnap.data ?? {'present': 0, 'wfh': 0, 'onLeave': 0};
+        final p = stats['present'] ?? 0;
+        final w = stats['wfh'] ?? 0;
+        final l = stats['onLeave'] ?? 0;
+        return StreamBuilder<QuerySnapshot>(
+          stream: _orgUsersStream,
+          builder: (context, usersSnap) {
+            final total = usersSnap.data?.docs.where((d) => (d.data() as Map)['role'] != 'admin').length ?? 0;
+            final nm = (total - p - l - w) < 0 ? 0 : (total - p - l - w);
+            
+            return _buildCardContainer(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ATTENDANCE — TODAY (ORG-WIDE)',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildProgressBar('Present', p, total, const Color(0xFF10B981)),
+                  const SizedBox(height: 16),
+                  _buildProgressBar('On Leave', l, total, const Color(0xFFA855F7)),
+                  const SizedBox(height: 16),
+                  _buildProgressBar('WFH', w, total, const Color(0xFF2563EB)),
+                  const SizedBox(height: 16),
+                  _buildProgressBar('Not Marked', nm, total, const Color(0xFFD1D5DB)),
+                ],
+              ),
+            );
+          },
+        );
+      }
+    );
+  }
+
+  Widget _buildProgressBar(String label, int value, int total, Color color) {
+    double progress = total == 0 ? 0 : value / total;
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+            Text(value.toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: const Color(0xFFF3F4F6),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            minHeight: 6,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPendingApprovalsCard() {
+    return StreamBuilder<int>(
+      stream: _pendingLeavesStream,
+      builder: (context, snapshot) {
+        final pendingCount = snapshot.data ?? 0;
+        return _buildCardContainer(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Pending Approvals', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+                  const SizedBox(height: 4),
+                  Text('$pendingCount requests awaiting your action', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFFDE68A)),
+                ),
+                child: Row(
+                  children: [
+                    Text('$pendingCount Pending', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFFD97706))),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right, size: 14, color: Color(0xFFD97706)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Widget _buildMyTasksCard() {
+    return _buildCardContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: [
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirestoreService.orgMembersCol(orgId).snapshots(),
-                  builder: (context, snapshot) {
-                    final docs = snapshot.data?.docs ?? [];
-                    final employees = docs.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>? ?? {};
-                      return data['role'] != 'admin';
-                    }).toList();
-                    
-                    final now = DateTime.now();
-                    final sevenDaysAgo = now.subtract(const Duration(days: 7));
-                    final recentCount = employees.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>? ?? {};
-                      final createdAt = data['createdAt'];
-                      if (createdAt is Timestamp) {
-                        return createdAt.toDate().isAfter(sevenDaysAgo);
-                      }
-                      return false;
-                    }).length;
-
-                    return _statCard(
-                      '${employees.length}',
-                      'Total Employees',
-                      '+$recentCount this week',
-                      AppTheme.primary,
-                      const Color(0xFFEFF6FF),
-                      Icons.people_outline_rounded,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirestoreService.orgDepartmentsCol(orgId).snapshots(),
-                  builder: (context, snapshot) {
-                    final docs = snapshot.data?.docs ?? [];
-                    final activeCount = docs.where((doc) {
-                      final data = doc.data() as Map<String, dynamic>? ?? {};
-                      return data['isActive'] != false;
-                    }).length;
-                    return _statCard(
-                      '${docs.length}',
-                      'Departments',
-                      '$activeCount active',
-                      const Color(0xFF10B981),
-                      const Color(0xFFECFDF5),
-                      Icons.business_outlined,
-                    );
-                  },
-                ),
-              ),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: const [
+              Text('MY TASKS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+              Text('5 active', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: StreamBuilder<int>(
-                  stream: _pendingActionsStream,
-                  builder: (context, snapshot) {
-                    final count = snapshot.data ?? 0;
-                    return _statCard(
-                      '$count',
-                      'Pending Actions',
-                      count > 0 ? '$count needs review' : 'All caught up',
-                      const Color(0xFFF59E0B),
-                      const Color(0xFFFFFBEB),
-                      Icons.error_outline_rounded,
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirestoreService.orgPoliciesCol(orgId).snapshots(),
-                  builder: (context, snapshot) {
-                    final docs = snapshot.data?.docs ?? [];
-                    final count = docs.where((doc) => doc.id.startsWith('leave_') || doc.id == 'attendance').length;
-                    return _statCard(
-                      '$count',
-                      'Active Policies',
-                      'Configured',
-                      const Color(0xFF06B6D4),
-                      const Color(0xFFECFEFF),
-                      Icons.description_outlined,
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+          _buildTaskItem('Review Q3 Policy Updates', 'Due Aug 5, 2026', 'Assigned', const Color(0xFF5C5CFF), const Color(0xFFEEF2FF), null),
+          const Divider(height: 32, color: Color(0xFFF3F4F6)),
+          _buildTaskItem('Conduct Employee Satisfaction...', 'Due Jul 31, 2026', 'In Progress', const Color(0xFFD97706), const Color(0xFFFFFBEB), '01:02:28'),
+          const Divider(height: 32, color: Color(0xFFF3F4F6)),
+          _buildTaskItem('Audit Leave Records - Q2', 'Due Jul 20, 2026', 'Overdue', const Color(0xFFEF4444), const Color(0xFFFEF2F2), null),
+          const Divider(height: 32, color: Color(0xFFF3F4F6)),
+          _buildTaskItem('Prepare Onboarding Docs', 'Due Aug 10, 2026', 'Assigned', const Color(0xFF5C5CFF), const Color(0xFFEEF2FF), null),
         ],
       ),
     );
   }
 
-  Widget _quickActionBtn(String title, Color iconColor, Color bgColor, IconData icon, [VoidCallback? onTap]) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          height: 44,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+  Widget _buildTaskItem(String title, String subtitle, String badgeText, Color badgeColor, Color badgeBg, String? timer) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: iconColor, size: 16),
-              const SizedBox(width: 6),
-              Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: iconColor)),
+              Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)), maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 4),
+              Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
             ],
           ),
         ),
-      ),
+        if (timer != null) ...[
+          Text(timer, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF9CA3AF))),
+          const SizedBox(width: 8),
+        ],
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: badgeBg,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: badgeColor.withOpacity(0.3)),
+          ),
+          child: Text(badgeText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: badgeColor)),
+        ),
+      ],
     );
   }
 
-  Widget _buildQuickActions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFF3F4F6)),
-          boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Quick Actions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                _quickActionBtn('Add Employee', const Color(0xFF4F46E5), const Color(0xFFEEF2FF), Icons.person_add_outlined, () {
-                  final session = AppSession();
-                  if (session.companyId != null) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => EmployeeSetupScreen(
-                          orgId: session.companyId!,
-                          orgName: session.companyName ?? '',
-                        ),
-                      ),
-                    );
-                  }
-                }),
-                const SizedBox(width: 12),
-                _quickActionBtn('Create Dept', const Color(0xFF10B981), const Color(0xFFECFDF5), Icons.domain_add_outlined),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _quickActionBtn('Manage Policies', const Color(0xFFD97706), const Color(0xFFFFFBEB), Icons.assignment_outlined),
-                const SizedBox(width: 12),
-                _quickActionBtn('Assign Roles', const Color(0xFF6366F1), const Color(0xFFEEF2FF), Icons.admin_panel_settings_outlined),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _activityItem(String text, String time) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+  Widget _buildDepartmentHeadcountCard() {
+    return _buildCardContainer(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(text, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(time, style: const TextStyle(fontSize: 10, color: AppTheme.textHint)),
+          const Text('DEPARTMENT HEADCOUNT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Engineering', 54, const Color(0xFF5C5CFF)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Design', 22, const Color(0xFFA855F7)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Marketing', 31, const Color(0xFFF59E0B)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Sales', 45, const Color(0xFF10B981)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('HR', 18, const Color(0xFFEC4899)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Finance', 27, const Color(0xFF1D4ED8)),
+          const SizedBox(height: 16),
+          _buildDeptHeadcountItem('Operations', 50, const Color(0xFFEF4444)),
         ],
       ),
     );
   }
 
-  Widget _buildRecentActivity() {
-    return StreamBuilder<List<DashboardActivity>>(
-      stream: _recentActivityStream,
-      builder: (context, snapshot) {
-        final activities = snapshot.data ?? [];
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFF3F4F6)),
-              boxShadow: const [BoxShadow(color: Color(0x05000000), blurRadius: 10, offset: Offset(0, 4))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: const [
-                    Text('Recent Activity', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppTheme.textPrimary)),
-                    Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.primary)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                if (activities.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24.0),
-                    child: Center(
-                      child: Text(
-                        'No recent activity',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textHint),
-                      ),
-                    ),
-                  )
-                else
-                  ...activities.map((act) => _activityItem(act.text, formatRelativeTime(act.timestamp))),
-              ],
-            ),
-          ),
-        );
-      },
+  Widget _buildDeptHeadcountItem(String dept, int count, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+            const SizedBox(width: 12),
+            Text(dept, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+          ],
+        ),
+        Text(count.toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+      ],
     );
   }
 
-  Widget _workforceStat(String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.15),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          children: [
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w500)),
-          ],
-        ),
+  Widget _buildRecentActivityCard() {
+    return _buildCardContainer(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('RECENT ACTIVITY', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+          const SizedBox(height: 16),
+          _buildActivityItem('Priya Sharma joined Engineering', '2m ago', Icons.person_add_outlined, const Color(0xFF10B981), const Color(0xFFECFDF5)),
+          const SizedBox(height: 20),
+          _buildActivityItem('Neha Gupta applied for sick leave', '15m ago', Icons.calendar_today_outlined, const Color(0xFFA855F7), const Color(0xFFFAF5FF)),
+          const SizedBox(height: 20),
+          _buildActivityItem('WFH approved for Arjun Mehta', '1h ago', Icons.check_circle_outline, const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)),
+          const SizedBox(height: 20),
+          _buildActivityItem('3 attendance corrections pending', '2h ago', Icons.error_outline, const Color(0xFFF59E0B), const Color(0xFFFFFBEB)),
+        ],
       ),
     );
   }
 
-  Widget _buildWorkforceToday() {
-    return StreamBuilder<Map<String, int>>(
-      stream: _todayStatsStream,
-      builder: (context, snapshot) {
-        final data = snapshot.data ?? {'present': 0, 'wfh': 0, 'onLeave': 0};
-        final present = data['present'] ?? 0;
-        final wfh = data['wfh'] ?? 0;
-        final onLeave = data['onLeave'] ?? 0;
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: const [BoxShadow(color: Color(0x334F46E5), blurRadius: 16, offset: Offset(0, 8))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Workforce Today', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    _workforceStat('$present', 'Present'),
-                    const SizedBox(width: 12),
-                    _workforceStat('$onLeave', 'On Leave'),
-                    const SizedBox(width: 12),
-                    _workforceStat('$wfh', 'WFH'),
-                  ],
-                )
-              ],
-            ),
+  Widget _buildActivityItem(String text, String time, IconData icon, Color iconColor, Color bgColor) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
+          child: Icon(icon, color: iconColor, size: 16),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(text, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF1F2937))),
+              const SizedBox(height: 2),
+              Text(time, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
+            ],
           ),
-        );
-      },
+        ),
+      ],
     );
   }
+
 
   Widget _buildBottomNav() {
     return Container(
-      padding: const EdgeInsets.only(top: 12, bottom: 24, left: 16, right: 16),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
+        boxShadow: [BoxShadow(color: Color(0x0A000000), offset: Offset(0, -4), blurRadius: 16)],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _navItem(0, Icons.home_filled, 'Home'),
-          _navItem(1, Icons.access_time_rounded, 'Attendance'),
-          GestureDetector(
-            onTap: () {},
-            child: Container(
-              margin: const EdgeInsets.only(top: 4),
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: Color(0xFF111827),
-                shape: BoxShape.circle,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _navItem(0, Icons.home_outlined, Icons.home_filled, 'Home'),
+              _navItem(1, Icons.access_time, Icons.access_time_filled, 'Attendance'),
+              GestureDetector(
+                onTap: () {}, // Add Action
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF5C5CFF),
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Color(0x405C5CFF), blurRadius: 12, offset: Offset(0, 4))],
+                  ),
+                  child: const Icon(Icons.add, color: Colors.white, size: 28),
+                ),
               ),
-              child: const Icon(Icons.add, color: Colors.white, size: 28),
-            ),
+              _navItem(2, Icons.calendar_today_outlined, Icons.calendar_today, 'Leave'),
+              _navItem(3, Icons.more_horiz, Icons.more_horiz, 'More'),
+            ],
           ),
-          _navItem(2, Icons.description_outlined, 'Leave'),
-          _navItem(3, Icons.more_horiz_rounded, 'More'),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _navItem(int index, IconData icon, String label) {
+  Widget _navItem(int index, IconData outlineIcon, IconData filledIcon, String label) {
     bool isSelected = _bottomNavIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _bottomNavIndex = index),
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: 60,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              icon,
+              isSelected ? filledIcon : outlineIcon,
               size: 24,
-              color: isSelected ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+              color: isSelected ? const Color(0xFF5C5CFF) : const Color(0xFF9CA3AF),
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
                 fontSize: 10,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                color: isSelected ? const Color(0xFF111827) : const Color(0xFF9CA3AF),
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? const Color(0xFF5C5CFF) : const Color(0xFF9CA3AF),
               ),
             )
           ],
         ),
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            _buildTopTabs(),
-            const SizedBox(height: 16),
-            _buildSubTabs(),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 24),
-                    _buildAlerts(),
-                    const SizedBox(height: 24),
-                    _buildStatsGrid(),
-                    const SizedBox(height: 24),
-                    _buildQuickActions(),
-                    const SizedBox(height: 24),
-                    _buildRecentActivity(),
-                    const SizedBox(height: 24),
-                    _buildWorkforceToday(),
-                    const SizedBox(height: 40),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 }

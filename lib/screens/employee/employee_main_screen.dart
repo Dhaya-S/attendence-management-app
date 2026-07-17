@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/screens/employee/home_tab.dart';
 import 'package:attendance_app/screens/employee/attendance_tab.dart';
-import 'package:attendance_app/screens/employee/leave_tab.dart';
+import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
 import 'package:attendance_app/screens/employee/employee_attendance_correction_screen.dart';
 
 class EmployeeMainScreen extends StatefulWidget {
@@ -22,7 +22,7 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
   final List<Widget> _tabs = const [
     EmployeeHomeTab(),
     EmployeeAttendanceTab(),
-    EmployeeLeaveTab(),
+    const UniversalLeaveTab(),
   ];
 
   void _onItemTapped(int index) {

@@ -27,8 +27,8 @@ service cloud.firestore {
 
     function isManager() {
       let user = getApprovedUser();
-      // Case-insensitive check: handles "manager", "Manager", "MANAGER"
-      return user != null && (user.role == "manager" || user.role == "Manager" || user.role == "MANAGER");
+      // Case-insensitive check: handles "manager", "admin"
+      return user != null && (user.role == "manager" || user.role == "Manager" || user.role == "MANAGER" || user.role == "admin" || user.role == "Admin" || user.role == "ADMIN");
     }
 
     function isOwner(employeeId) {
@@ -345,6 +345,30 @@ service cloud.firestore {
         );
       }
 
+      // ── Announcements ─────────────────────────────────────────────
+      match /announcements/{id} {
+        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && (
+          (userCompanyId() == companyId && (isManager() || isOrgAdmin(companyId))) ||
+          isAdmin()
+        );
+      }
+
+      // ── Tasks ─────────────────────────────────────────────────────
+      match /tasks/{id} {
+        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && (
+          (userCompanyId() == companyId && (isManager() || isOrgAdmin(companyId))) ||
+          isAdmin()
+        );
+      }
+
+      // ── Feed Posts ────────────────────────────────────────────────
+      match /feed_posts/{id} {
+        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
+      }
+
     } // end match /approved_companies/{companyId}
 
     // 3. Collection Group Queries (Essential for Managers using collectionGroup) — v2 fix: 2026-05-18
@@ -393,6 +417,31 @@ service cloud.firestore {
       allow write: if isSignedIn() && (
         (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
         (resource != null && resource.data.userId == request.auth.uid) ||
+        (isManager() && userCompanyId() != "NONE") ||
+        isAdmin()
+      );
+    }
+
+    match /{path=**}/attendance_corrections/{requestId} {
+      allow read: if isSignedIn() && (
+        (isManager() && userCompanyId() != "NONE") ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        isAdmin()
+      );
+      allow write: if isSignedIn() && (
+        (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (isManager() && userCompanyId() != "NONE") ||
+        isAdmin()
+      );
+    }
+
+    match /{path=**}/tasks/{taskId} {
+      allow read: if isSignedIn() && (
+        (isManager() && userCompanyId() != "NONE") ||
+        isAdmin()
+      );
+      allow write: if isSignedIn() && (
         (isManager() && userCompanyId() != "NONE") ||
         isAdmin()
       );

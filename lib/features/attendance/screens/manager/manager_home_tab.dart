@@ -13,6 +13,7 @@ import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/utils/notification_service.dart';
 import 'package:attendance_app/widgets/live_attendance_builder.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
+import 'package:attendance_app/widgets/announcements_tab_view.dart';
 
 class ManagerHomeTab extends StatefulWidget {
   final Function(int)? onTabChange;
@@ -219,7 +220,9 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                       ? _buildDashboardView()
                       : _selectedSubTab == 1
                           ? _buildApprovalsView()
-                          : const Center(child: Text('Coming Soon')))
+                          : _selectedSubTab == 2
+                              ? const AnnouncementsTabView(isAdmin: false)
+                              : const Center(child: Text('Coming Soon')))
                   : _selectedMainTab == 2
                       ? (_selectedSubTab == 0
                           ? _buildOrgOverviewView()
