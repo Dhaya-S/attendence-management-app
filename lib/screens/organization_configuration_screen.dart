@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -8,7 +8,7 @@ import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/workspace_ready_screen.dart';
 import 'package:intl/intl.dart';
 
-// ── Models ──────────────────────────────────────────────────────────────────
+// â”€â”€ Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _HolidayModel {
   String id;
@@ -100,7 +100,7 @@ class _AttendancePolicy {
   });
 }
 
-// ── Screen ──────────────────────────────────────────────────────────────────
+// â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class OrganizationConfigurationScreen extends StatefulWidget {
   final String orgId;
@@ -376,7 +376,7 @@ class _OrganizationConfigurationScreenState
                         const SizedBox(width: 12),
                         _statBox('3', 'Shifts', Icons.access_time_rounded, const Color(0xFF3B82F6)),
                         const SizedBox(width: 12),
-                        _statBox('—', 'Policies', Icons.assignment_outlined, const Color(0xFF10B981)),
+                        _statBox('â€”', 'Policies', Icons.assignment_outlined, const Color(0xFF10B981)),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -766,7 +766,7 @@ class _OrganizationConfigurationScreenState
                                       children: [
                                         Text(s.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
                                         const SizedBox(height: 4),
-                                        Text('${s.startTime.format(context)} – ${s.endTime.format(context)}', style: TextStyle(fontSize: 12, color: s.color, fontWeight: FontWeight.w500)),
+                                        Text('${s.startTime.format(context)} â€“ ${s.endTime.format(context)}', style: TextStyle(fontSize: 12, color: s.color, fontWeight: FontWeight.w500)),
                                       ],
                                     ),
                                   ),
@@ -1344,7 +1344,7 @@ class _OrganizationConfigurationScreenState
                       if (leave.carryForward) activeRules.add('Carry Forward');
                       else activeRules.add('No Carry Forward');
                       if (leave.attachmentRequired) activeRules.add('Attachment Required');
-                      return Text(activeRules.join(' · '), style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary));
+                      return Text(activeRules.join(' Â· '), style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary));
                     }
                   ),
                 ],
@@ -1592,8 +1592,8 @@ class _OrganizationConfigurationScreenState
                     _reviewItem('Organization', widget.orgName, Icons.business_outlined),
                     _reviewItem('Holidays', '${_holidays.length} holidays configured', Icons.calendar_today_rounded),
                     _reviewItem('Shifts', '${_shifts.length} shifts - ${_shifts.map((s) => s.name).join(', ')}', Icons.access_time_rounded),
-                    _reviewItem('Attendance Policy', 'Grace: ${_attendancePolicy.gracePeriodMins} min · Late mark: ${_attendancePolicy.lateMarkAfter.format(context)}', Icons.assignment_turned_in_outlined),
-                    _reviewItem('Leave Policy', _leaveTypes.map((l) => l.initials).join(' · '), Icons.description_outlined),
+                    _reviewItem('Attendance Policy', 'Grace: ${_attendancePolicy.gracePeriodMins} min Â· Late mark: ${_attendancePolicy.lateMarkAfter.format(context)}', Icons.assignment_turned_in_outlined),
+                    _reviewItem('Leave Policy', _leaveTypes.map((l) => l.initials).join(' Â· '), Icons.description_outlined),
                     _reviewItem('Notifications', '${_notifications.where((n) => n.emailEnabled || n.pushEnabled).length} alerts active', Icons.notifications_outlined),
                     const SizedBox(height: 32),
                   ],

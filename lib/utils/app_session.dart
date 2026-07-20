@@ -1,15 +1,15 @@
-/// AppSession — Global in-memory state for the authenticated user.
+﻿/// AppSession â€” Global in-memory state for the authenticated user.
 ///
 /// After a successful login, [companyId], [role], and company location
 /// are stored here so every screen can access them without re-querying
 /// Firestore on every navigation push.
 class AppSession {
-  // ── Singleton ────────────────────────────────────────────────────────────
+  // â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static final AppSession _instance = AppSession._internal();
   factory AppSession() => _instance;
   AppSession._internal();
 
-  // ── Authenticated User Info ──────────────────────────────────────────────
+  // â”€â”€ Authenticated User Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? uid;
   String? email;
   String? role; // 'manager' | 'employee'
@@ -17,7 +17,7 @@ class AppSession {
   String? companyName;
   String? userName;
 
-  // ── Company Office Location (fetched from approved_companies doc) ─────────
+  // â”€â”€ Company Office Location (fetched from organizations doc) â”€â”€â”€â”€â”€â”€â”€â”€â”€
   double? officeLat;
   double? officeLng;
 
@@ -36,7 +36,7 @@ class AppSession {
   /// Annual paid leave entitlement per employee (days)
   int paidLeavesPerYear = 12;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   bool get isManager => role?.toLowerCase() == 'manager';
   bool get isEmployee => role?.toLowerCase() == 'employee';

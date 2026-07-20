@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
@@ -71,90 +72,101 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
   }
 
   Widget _buildAnnouncementsList() {
-    List<Map<String, dynamic>> anns = [
-      {
-        'tag': 'Policy',
-        'ago': '2 days ago',
-        'title': 'Updated Leave Policy FY 2025–26',
-        'desc':
-            'Effective July 1st, 2025: All employees must submit leave requests at least one week in advance. Any exceptions must be approved directly by the HR manager.',
-        'likes': '12',
-        'hearts': '4',
-        'stars': '6',
-        'comments': '3',
-      },
-      {
-        'tag': 'HR',
-        'ago': 'Yesterday',
-        'title': 'Work From Office Reminder',
-        'desc':
-            'All employees must report Mon–Thu. WFH on Fridays only with manager approval. Failure to comply will result in a leave deduction for the day.',
-        'likes': '8',
-        'hearts': '2',
-        'stars': '1',
-        'comments': '1',
-      },
-      {
-        'tag': 'Events',
-        'ago': '3 days ago',
-        'title': 'Team Building Day – 2 Aug',
-        'desc':
-            'Join us for team building at Lotus Valley Resort on August 2nd. Buses leave at 8 AM. Ensure you carry your ID card and casual wear.',
-        'likes': '20',
-        'hearts': '15',
-        'stars': '22',
-        'comments': '7',
-      },
-      {
-        'tag': 'Reminders',
-        'ago': '4 days ago',
-        'title': 'Appraisal Submission Deadline',
-        'desc':
-            'Submit self-appraisal forms by July 31st on the HR portal. Late submissions will not be entertained for this review cycle.',
-        'likes': '5',
-        'hearts': '1',
-        'stars': '0',
-        'comments': '2',
-      },
-    ];
+    Query query = FirestoreService.announcementsCol
+        .where('audience', isEqualTo: 'all')
+        .where('status', isEqualTo: 'published')
+        .orderBy('timestamp', descending: true);
+        
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots() as Stream<QuerySnapshot<Object?>>,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(40),
+            child: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
 
-    if (_selectedFilter != 'All') {
-      anns = anns
-          .where((a) =>
-              a['tag'].toString().toLowerCase() ==
-              _selectedFilter.toLowerCase())
-          .toList();
-    }
+        final docs = snapshot.data?.docs ?? [];
+        
+        List<DocumentSnapshot> filteredDocs = docs;
+        if (_selectedFilter != 'All') {
+          filteredDocs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final tag = (data['category'] ?? '').toString().toLowerCase();
+            return tag == _selectedFilter.toLowerCase();
+          }).toList();
+        }
 
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 100),
-      itemCount: anns.length,
-      itemBuilder: (context, index) {
-        final a = anns[index];
-        return _buildAnnouncementCard(a);
+        if (filteredDocs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(
+              child: Text(
+                'No announcements available',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
+            ),
+          );
+        }
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: 100),
+          itemCount: filteredDocs.length,
+          itemBuilder: (context, index) {
+            return _buildAnnouncementCard(filteredDocs[index]);
+          },
+        );
       },
     );
   }
 
-  Widget _buildAnnouncementCard(Map<String, dynamic> data) {
+  void _toggleLike(DocumentReference ref) {
+    // In a real app, track the user's ID to prevent multiple likes. 
+    // Here we just increment for simplicity since employees are read-only.
+    FirestoreService.announcementsCol.firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      if (!snapshot.exists) return;
+      
+      final data = snapshot.data() as Map<String, dynamic>?;
+      final currentLikes = data?['likes'] ?? 0;
+      transaction.update(ref, {'likes': currentLikes + 1});
+    }).catchError((error) => debugPrint("Failed to update likes: $error"));
+  }
+
+  Widget _buildAnnouncementCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final tag = (data['category'] ?? 'General').toString();
+    final lowerTag = tag.toLowerCase();
+    
+    DateTime timestamp = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+    String timeStr = _formatTimestamp(timestamp);
     Color tagColor;
     Color tagBgColor;
-    final tag = data['tag'].toString().toLowerCase();
 
-    if (tag == 'hr') {
+    if (lowerTag == 'hr') {
       tagColor = const Color(0xFF2563EB); // Blue
       tagBgColor = const Color(0xFFEFF6FF);
-    } else if (tag == 'policy') {
+    } else if (lowerTag == 'policy') {
       tagColor = const Color(0xFF8B5CF6); // Purple/Indigo
       tagBgColor = const Color(0xFFF5F3FF);
-    } else if (tag == 'events') {
+    } else if (lowerTag == 'events') {
       tagColor = const Color(0xFF8B5CF6); // Purple/Indigo
       tagBgColor = const Color(0xFFF5F3FF);
-    } else if (tag == 'reminders') {
+    } else if (lowerTag == 'reminders') {
       tagColor = const Color(0xFFD97706); // Orange/Amber
       tagBgColor = const Color(0xFFFFFBEB);
+    } else if (lowerTag == 'manager update') {
+      tagColor = const Color(0xFF10B981); 
+      tagBgColor = const Color(0xFFECFDF5);
     } else {
       tagColor = const Color(0xFF5C5CFF);
       tagBgColor = const Color(0xFFEEEEFF);
@@ -182,7 +194,7 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  data['tag'],
+                  tag,
                   style: TextStyle(
                     fontSize: 11,
                     color: tagColor,
@@ -192,7 +204,7 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
                 ),
               ),
               Text(
-                data['ago'],
+                timeStr,
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF9CA3AF),
@@ -203,7 +215,7 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
           ),
           const SizedBox(height: 16),
           Text(
-            data['title'],
+            data['title'] ?? 'No Title',
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w800,
@@ -213,7 +225,7 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
           ),
           const SizedBox(height: 8),
           Text(
-            data['desc'],
+            data['message'] ?? '',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -229,11 +241,10 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
             children: [
               Row(
                 children: [
-                  _statIcon(Icons.thumb_up_alt_outlined, data['likes']),
-                  const SizedBox(width: 12),
-                  _statIcon(Icons.favorite_border_rounded, data['hearts']),
-                  const SizedBox(width: 12),
-                  _statIcon(Icons.star_border_rounded, data['stars']),
+                  GestureDetector(
+                    onTap: () => _toggleLike(doc.reference),
+                    child: _statIcon(Icons.thumb_up_alt_outlined, '${data['likes'] ?? 0}'),
+                  ),
                 ],
               ),
               Row(
@@ -242,7 +253,7 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
                       size: 16, color: Color(0xFF9CA3AF)),
                   const SizedBox(width: 4),
                   Text(
-                    data['comments'],
+                    '${data['commentsCount'] ?? 0}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Color(0xFF6B7280),
@@ -281,5 +292,20 @@ class _EmployeeAnnouncementTabState extends State<EmployeeAnnouncementTab> {
         ],
       ),
     );
+  }
+
+  String _formatTimestamp(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+    
+    if (difference.inDays == 0) {
+      return DateFormat('hh:mm a').format(time);
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return DateFormat('MMM d, yyyy').format(time);
+    }
   }
 }

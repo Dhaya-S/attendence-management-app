@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -228,7 +228,7 @@ class _EmployeeAttendanceSummaryScreenState
     if (data != null && data['checkIn'] != null) {
       final cin = _fmtTime(data['checkIn'] as Timestamp?);
       final cout = (data['checkOut'] != null) ? _fmtTime(data['checkOut'] as Timestamp?) : 'Ongoing';
-      timeStr = '$cin – $cout';
+      timeStr = '$cin â€“ $cout';
       
       final inTs = (data['checkIn'] as Timestamp).toDate();
       final outTs = (data['checkOut'] as Timestamp?)?.toDate() ?? now;

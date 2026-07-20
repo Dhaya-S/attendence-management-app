@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 
@@ -105,7 +105,7 @@ class _DateRangeSelectionModalState extends State<DateRangeSelectionModal> {
         children: [
           Icon(Icons.calendar_month_rounded, color: AppTheme.primary, size: 16),
           const SizedBox(width: 8),
-          Text('${DateFormat('MMMM dd').format(_startDate)} — ${DateFormat('MMMM dd, yyyy').format(_endDate)}', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700, fontSize: 12)),
+          Text('${DateFormat('MMMM dd').format(_startDate)} â€” ${DateFormat('MMMM dd, yyyy').format(_endDate)}', style: TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w700, fontSize: 12)),
         ],
       ),
     );

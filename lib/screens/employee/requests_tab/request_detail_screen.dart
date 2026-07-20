@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import 'request_correction_form.dart';
 
-/// Screen 2 — Request Detail (matches center panel in mockup)
+/// Screen 2 â€” Request Detail (matches center panel in mockup)
 class RequestDetailScreen extends StatelessWidget {
   final Map<String, dynamic> item;
   const RequestDetailScreen({super.key, required this.item});
@@ -248,7 +248,7 @@ class RequestDetailScreen extends StatelessWidget {
               Navigator.pop(context);
               try {
                 await FirebaseFirestore.instance
-                    .collection('approved_companies')
+                    .collection('organizations')
                     .doc(_getCompanyId())
                     .collection('attendance_corrections')
                     .doc(item['id'])

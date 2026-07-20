@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -403,7 +403,7 @@ class _ManagerNotificationsScreenState
     String? userId = data['userId'] as String?;
     String? recordDate = data['recordDate'] as String?;
 
-    // Path analysis: approved_companies/{cid}/attendance/{userId}/records/{date}
+    // Path analysis: organizations/{cid}/attendance/{userId}/records/{date}
     final pathParts = doc.reference.path.split('/');
     // Try to find 'attendance' segment and extract userId from the next part
     final attIdx = pathParts.indexOf('attendance');

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/features/auth/screens/manager/manager_success_password_screen.dart';
@@ -313,7 +313,7 @@ class _ManagerCreatePasswordScreenState
                     size: 20),
                 onPressed: onToggle,
               ),
-              hintText: '••••••••',
+              hintText: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
               hintStyle:
                   TextStyle(color: AppTheme.textHint, fontSize: 14),
               border: InputBorder.none,

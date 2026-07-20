@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -250,7 +250,7 @@ class WorkspaceReadyScreen extends StatelessWidget {
                                       ),
                                       SizedBox(height: 3),
                                       Text(
-                                        'Employees · Managers · Admins can now sign in',
+                                        'Employees Â· Managers Â· Admins can now sign in',
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: Color(0xFFE0E7FF),

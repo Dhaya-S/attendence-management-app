@@ -1,4 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/app_session.dart';
 
 class EmployeeTeamAnnouncementsTab extends StatefulWidget {
   const EmployeeTeamAnnouncementsTab({super.key});
@@ -13,46 +17,10 @@ class _EmployeeTeamAnnouncementsTabState
   int _selectedFilter = 0;
   final List<String> _filters = [
     'All',
-    'Birthdays',
-    'New Hires',
-    'Manager',
+    'Task',
+    'Meeting',
+    'Policy',
     'Events'
-  ];
-
-  final List<Map<String, dynamic>> _announcements = [
-    {
-      'tag': 'Task',
-      'tagColor': const Color(0xFF6366F1), // Indigo/Purple
-      'tagBg': const Color(0xFFEEF2FF),
-      'time': '09:00 AM',
-      'title': 'Wireframe Review — EOD Today',
-      'subtitle': 'Due: Today, 6:00 PM',
-      'subtitleColor': const Color(0xFF5C5CFF),
-      'body':
-          'Complete the wireframe review and send updated Figma files to the team...',
-    },
-    {
-      'tag': 'Meeting',
-      'tagColor': const Color(0xFF3B82F6), // Blue
-      'tagBg': const Color(0xFFEFF6FF),
-      'time': 'Yesterday',
-      'title': 'Sprint Planning — Thursday 3 PM',
-      'subtitle': 'Conference Room A · Thu 3:00 PM',
-      'subtitleColor': const Color(0xFF5C5CFF),
-      'body':
-          'Weekly sprint planning has been moved to Thursday at 3:00 PM in Confer...',
-    },
-    {
-      'tag': 'Policy',
-      'tagColor': const Color(0xFF6366F1), // Indigo/Purple
-      'tagBg': const Color(0xFFEEF2FF),
-      'time': '2 days ago',
-      'title': 'WFO Policy Update',
-      'subtitle': 'Effective: Aug 1, 2026',
-      'subtitleColor': const Color(0xFF5C5CFF),
-      'body':
-          'Work From Office policy updated effective August 1, 2026. All team mem...',
-    },
   ];
 
   @override
@@ -62,16 +30,7 @@ class _EmployeeTeamAnnouncementsTabState
         _buildFilters(),
         Container(
           color: const Color(0xFFF9FAFB),
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _announcements.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 16),
-            itemBuilder: (context, index) {
-              return _buildAnnouncementCard(_announcements[index]);
-            },
-          ),
+          child: _buildAnnouncementsList(),
         ),
       ],
     );
@@ -123,7 +82,98 @@ class _EmployeeTeamAnnouncementsTabState
     );
   }
 
-  Widget _buildAnnouncementCard(Map<String, dynamic> data) {
+  Widget _buildAnnouncementsList() {
+    // If we can't get departmentId easily from AppSession, we will just query for 'team' audience.
+    // In a full implementation, you'd add departmentId to AppSession and filter by it.
+    Query query = FirestoreService.announcementsCol
+        .where('audience', isEqualTo: 'team')
+        .where('status', isEqualTo: 'published')
+        .orderBy('timestamp', descending: true);
+        
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots() as Stream<QuerySnapshot<Object?>>,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasError) {
+          return Padding(
+            padding: const EdgeInsets.all(40),
+            child: Center(child: Text('Error: ${snapshot.error}')),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        
+        List<DocumentSnapshot> filteredDocs = docs;
+        if (_selectedFilter != 0) { // 0 is 'All'
+          final filterText = _filters[_selectedFilter].toLowerCase();
+          filteredDocs = docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final tag = (data['category'] ?? '').toString().toLowerCase();
+            return tag == filterText;
+          }).toList();
+        }
+
+        if (filteredDocs.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(40),
+            child: Center(
+              child: Text(
+                'No team announcements available',
+                style: TextStyle(color: Color(0xFF6B7280)),
+              ),
+            ),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: filteredDocs.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 16),
+          itemBuilder: (context, index) {
+            return _buildAnnouncementCard(filteredDocs[index]);
+          },
+        );
+      },
+    );
+  }
+
+  void _toggleLike(DocumentReference ref) {
+    FirestoreService.announcementsCol.firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+      if (!snapshot.exists) return;
+      
+      final data = snapshot.data() as Map<String, dynamic>?;
+      final currentLikes = data?['likes'] ?? 0;
+      transaction.update(ref, {'likes': currentLikes + 1});
+    }).catchError((error) => debugPrint("Failed to update likes: $error"));
+  }
+
+  Widget _buildAnnouncementCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final tag = (data['category'] ?? 'General').toString();
+    final lowerTag = tag.toLowerCase();
+    
+    DateTime timestamp = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+    String timeStr = _formatTimestamp(timestamp);
+
+    Color tagColor = const Color(0xFF5C5CFF);
+    Color tagBgColor = const Color(0xFFEEF2FF);
+
+    if (lowerTag == 'hr' || lowerTag == 'policy' || lowerTag == 'manager update') {
+      tagColor = const Color(0xFF6366F1); // Indigo
+      tagBgColor = const Color(0xFFEEF2FF);
+    } else if (lowerTag == 'events') {
+      tagColor = const Color(0xFF3B82F6); // Blue
+      tagBgColor = const Color(0xFFEFF6FF);
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -141,20 +191,20 @@ class _EmployeeTeamAnnouncementsTabState
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: data['tagBg'],
+                  color: tagBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  data['tag'],
+                  tag,
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: data['tagColor'],
+                    color: tagColor,
                   ),
                 ),
               ),
               Text(
-                data['time'],
+                timeStr,
                 style: const TextStyle(
                   fontSize: 12,
                   color: Color(0xFF6B7280),
@@ -165,7 +215,7 @@ class _EmployeeTeamAnnouncementsTabState
           ),
           const SizedBox(height: 12),
           Text(
-            data['title'],
+            data['title'] ?? 'No Title',
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
@@ -174,16 +224,16 @@ class _EmployeeTeamAnnouncementsTabState
           ),
           const SizedBox(height: 4),
           Text(
-            data['subtitle'],
-            style: TextStyle(
+            'Likes: ${data['likes'] ?? 0}  Â·  Comments: ${data['commentsCount'] ?? 0}',
+            style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: data['subtitleColor'],
+              color: Color(0xFF5C5CFF),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            data['body'],
+            data['message'] ?? '',
             style: const TextStyle(
               fontSize: 13,
               color: Color(0xFF6B7280),
@@ -194,25 +244,62 @@ class _EmployeeTeamAnnouncementsTabState
           const Divider(height: 1, thickness: 1, color: Color(0xFFF3F4F6)),
           const SizedBox(height: 12),
           Row(
-            children: const [
-              Text(
-                'View Details',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF5C5CFF),
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GestureDetector(
+                onTap: () => _toggleLike(doc.reference),
+                child: Row(
+                  children: const [
+                    Icon(Icons.thumb_up_alt_outlined, size: 16, color: Color(0xFF5C5CFF)),
+                    SizedBox(width: 4),
+                    Text(
+                      'Like',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF5C5CFF),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(width: 4),
-              Icon(
-                Icons.chevron_right_rounded,
-                size: 16,
-                color: Color(0xFF5C5CFF),
+              Row(
+                children: const [
+                  Text(
+                    'View Details',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                  SizedBox(width: 4),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 16,
+                    color: Color(0xFF6B7280),
+                  ),
+                ],
               ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  String _formatTimestamp(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+    
+    if (difference.inDays == 0) {
+      return DateFormat('hh:mm a').format(time);
+    } else if (difference.inDays == 1) {
+      return 'Yesterday';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} days ago';
+    } else {
+      return DateFormat('MMM d, yyyy').format(time);
+    }
   }
 }

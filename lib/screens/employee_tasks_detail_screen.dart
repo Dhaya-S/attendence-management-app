@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:intl/intl.dart';
@@ -218,7 +218,7 @@ class _EmployeeTasksDetailScreenState extends State<EmployeeTasksDetailScreen> {
               children: [
                 Text(widget.employeeName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                 const SizedBox(height: 4),
-                Text('${widget.employeeRole} · ${widget.employeeDepartment}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
+                Text('${widget.employeeRole} Â· ${widget.employeeDepartment}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
               ],
             ),
           ),

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -194,7 +194,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
 
               return Column(
                 children: [
-                  // ── Overview Header (white card, like EmployeesOnLeave) ──
+                  // â”€â”€ Overview Header (white card, like EmployeesOnLeave) â”€â”€
                   Container(
                     color: Colors.white,
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -274,7 +274,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '📊 Overall attendance rate: ${overallRate.toStringAsFixed(1)}%',
+                          'ðŸ“Š Overall attendance rate: ${overallRate.toStringAsFixed(1)}%',
                           style: TextStyle(
                               fontSize: 11,
                               color: Colors.grey[500],
@@ -319,7 +319,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
                     ),
                   ),
 
-                  // ── Employee List ──────────────────────────────────────
+                  // â”€â”€ Employee List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                   Expanded(
                     child: displayList.isEmpty
                         ? _buildEmptyState()
@@ -341,7 +341,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
     );
   }
 
-  // ── Segment Bar ─────────────────────────────────────────────────────────
+  // â”€â”€ Segment Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSegmentBar(int total, int onTrack, int highAbsence) {
     if (total == 0) return const SizedBox.shrink();
     double onTrackFrac = onTrack / total;
@@ -391,7 +391,7 @@ class _MonthlyAbsenceScreenState extends State<MonthlyAbsenceScreen> {
     );
   }
 
-  // ── Employee Absence Card (mirrors EmployeesOnLeave style) ───────────────
+  // â”€â”€ Employee Absence Card (mirrors EmployeesOnLeave style) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _absenceCard(Map<String, dynamic> e) {
     final int absent = e['absent'];
     final int present = e['present'];

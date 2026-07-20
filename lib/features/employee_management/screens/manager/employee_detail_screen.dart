@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -295,7 +295,7 @@ class EmployeeDetailScreen extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '• $empId',
+                            'â€¢ $empId',
                             style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
                           ),
                         ],

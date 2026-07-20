@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
 class EmployeeAttendanceCorrectionScreen extends StatefulWidget {
@@ -112,8 +113,10 @@ class _EmployeeAttendanceCorrectionScreenState
         return DateFormat('HH:mm').format(dt);
       }
 
+      final senderRole = (AppSession().role ?? 'employee').toLowerCase();
+      
       await FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('attendance_corrections')
           .add({
@@ -124,7 +127,22 @@ class _EmployeeAttendanceCorrectionScreenState
         'reason': _reasonController.text.trim(),
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
+        'senderRole': senderRole,
       });
+
+      // Send notifications based on senderRole
+      final title = 'Attendance Correction Request';
+      final body = '${AppSession().userName ?? "Employee"} requested attendance correction for ${DateFormat('MMM dd').format(_selectedDate)}.';
+      final extraData = {'employeeEmail': user.email};
+
+      if (senderRole == 'admin') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'attendance_correction', extraData: extraData);
+      } else if (senderRole == 'manager') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'attendance_correction', extraData: extraData);
+      } else {
+        await NotificationHelper.notifyManager(title: title, body: body, type: 'attendance_correction', extraData: extraData);
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'attendance_correction', extraData: extraData);
+      }
 
       setState(() => _isSubmitted = true);
     } catch (e) {

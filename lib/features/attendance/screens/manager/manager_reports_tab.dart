@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'dart:convert';
@@ -398,7 +398,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => const TopEmployeesScreen()));
               },
-              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
+              child: const Text('View All â†’', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -577,7 +577,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const LateEarlyExitScreen()));
               },
-              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
+              child: const Text('See All â†’', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -607,7 +607,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const MonthlyAbsenceScreen()));
               },
-              child: const Text('See All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
+              child: const Text('See All â†’', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),
@@ -707,7 +707,7 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
               onTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const OvertimeReportScreen()));
               },
-              child: const Text('View All →', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
+              child: const Text('View All â†’', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _indigo)),
             ),
           ],
         ),

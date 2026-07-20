@@ -1,10 +1,10 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/app_session.dart';
 
-// ─── Brand colours (mirrored from home_tab) ───────────────────────────────
+// â”€â”€â”€ Brand colours (mirrored from home_tab) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const _kPrimary    = Color(0xFF5C5CFF);
 const _kBg         = Color(0xFFF6F7FB);
 const _kCard       = Colors.white;
@@ -48,7 +48,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
     super.dispose();
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────
+  // â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String _fmt12(Timestamp? ts) {
     if (ts == null) return '--:-- --';
     return DateFormat('hh:mm a').format(ts.toDate());
@@ -144,7 +144,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   children: [
-                    // ── Dark Header Card ───────────────────────────────────
+                    // â”€â”€ Dark Header Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(24),
@@ -157,7 +157,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
                         children: [
                           // Date label
                           Text(
-                            'Daily Summary · $dateLabel',
+                            'Daily Summary Â· $dateLabel',
                             style: const TextStyle(
                               fontSize: 12,
                               color: Color(0xFF9CA3AF),
@@ -215,7 +215,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // ── Work Breakdown Card ────────────────────────────────
+                    // â”€â”€ Work Breakdown Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -255,7 +255,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
                     ),
                     const SizedBox(height: 24),
 
-                    // ── Bottom Buttons ─────────────────────────────────────────────
+                    // â”€â”€ Bottom Buttons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                     Row(
                       children: [
                         Expanded(
@@ -315,7 +315,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
     );
   }
 
-  // ── Dark pill widget (inside the dark header) ────────────────────────────
+  // â”€â”€ Dark pill widget (inside the dark header) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _darkPill({
     required String value,
     required String label,
@@ -353,7 +353,7 @@ class _DailySummaryScreenState extends State<DailySummaryScreen> {
     );
   }
 
-  // ── Single breakdown row ─────────────────────────────────────────────────
+  // â”€â”€ Single breakdown row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _breakdownRow({
     required String label,
     required String value,

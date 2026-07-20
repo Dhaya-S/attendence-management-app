@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -8,7 +8,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/message_helper.dart';
 
-// ── Employee Model ────────────────────────────────────────────────────────────
+// â”€â”€ Employee Model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _EmpModel {
   final String id;
@@ -69,7 +69,7 @@ class _EmpModel {
   }
 }
 
-// ── Supporting Models ─────────────────────────────────────────────────────────
+// â”€â”€ Supporting Models â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DeptInfo {
   final String id, name;
@@ -81,7 +81,7 @@ class _ManagerInfo {
   const _ManagerInfo(this.id, this.name, this.role);
 }
 
-// ── Screen ────────────────────────────────────────────────────────────────────
+// â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class EmployeeSetupScreen extends StatefulWidget {
   final String orgId;
@@ -98,7 +98,7 @@ class EmployeeSetupScreen extends StatefulWidget {
 }
 
 class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
-  // ─── Navigation state ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Navigation state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // 0=intro, 1=list, 2=form, 3=review, 4=success, 5=invite, 6=complete
   int _step = 0;
   int _formStep = 1; // 1=basic, 2=work, 3=personal
@@ -106,24 +106,24 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
   bool _isSubmitting = false;
   bool _isSendingInvitations = false;
 
-  // ─── Loaded data ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Loaded data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   List<_DeptInfo> _departments = [];
   List<_ManagerInfo> _managers = [];
   bool _loadingData = true;
 
-  // ─── Session employees ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Session employees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final List<_EmpModel> _employees = [];
   _EmpModel? _editingEmp;
   _EmpModel? _lastAddedEmp;
 
-  // ─── Invite ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Invite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final Set<String> _selectedForInvite = {};
 
-  // ─── Search ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
 
-  // ─── Form step 1: Basic Info ────────────────────────────────────────────────
+  // â”€â”€â”€ Form step 1: Basic Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -131,7 +131,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
   final _altPhoneCtrl = TextEditingController();
   DateTime? _joiningDate;
 
-  // ─── Form step 2: Work Info ─────────────────────────────────────────────────
+  // â”€â”€â”€ Form step 2: Work Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String _empIdValue = '';
   String _selectedDeptId = '';
   String _selectedDeptName = '';
@@ -142,7 +142,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
   String? _selectedManagerId;
   String? _selectedManagerName;
 
-  // ─── Form step 3: Personal Info ─────────────────────────────────────────────
+  // â”€â”€â”€ Form step 3: Personal Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   DateTime? _dob;
   String? _selectedGender;
   String? _selectedMarital;
@@ -153,7 +153,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
   final _govtIdNumberCtrl = TextEditingController();
   final _homeAddressCtrl = TextEditingController();
 
-  // ─── Constants ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const _roles = ['Employee', 'Manager', 'Team Lead', 'Intern'];
   static const _empTypes = ['Permanent', 'Contract', 'Part-time', 'Intern'];
   static const _genders = ['Male', 'Female', 'Other', 'Prefer not to say'];
@@ -174,7 +174,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
 
   Color _nextColor() => _avatarColors[_employees.length % _avatarColors.length];
 
-  // ─── Lifecycle ───────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   void initState() {
@@ -232,7 +232,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     super.dispose();
   }
 
-  // ─── Navigation helpers ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Navigation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _goBack() {
     switch (_step) {
@@ -374,7 +374,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     }
   }
 
-  // ─── Firestore writes ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Firestore writes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _createEmployee() async {
     if (_isSubmitting) return;
@@ -584,7 +584,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     }
   }
 
-  // ─── Computed ────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Computed â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   List<_EmpModel> get _filtered {
     if (_searchQuery.isEmpty) return _employees;
@@ -607,7 +607,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     return '${f.isNotEmpty ? f[0].toUpperCase() : ''}${l.isNotEmpty ? l[0].toUpperCase() : ''}';
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ BUILD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   @override
   Widget build(BuildContext context) {
@@ -695,7 +695,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     }
   }
 
-  // ── Step 0: Intro ─────────────────────────────────────────────────────────────
+  // â”€â”€ Step 0: Intro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildIntroStep() {
     return Column(
@@ -964,7 +964,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ── Step 1: Employee List ─────────────────────────────────────────────────────
+  // â”€â”€ Step 1: Employee List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildListStep() {
     return Column(
@@ -1098,7 +1098,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
                         fontWeight: FontWeight.w600,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 2),
-                Text('${emp.designation} · ${emp.deptName}',
+                Text('${emp.designation} Â· ${emp.deptName}',
                     style: const TextStyle(
                         fontSize: 11, color: AppTheme.textHint)),
                 const SizedBox(height: 4),
@@ -1131,7 +1131,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ── Step 2: Add / Edit Employee Form ──────────────────────────────────────────
+  // â”€â”€ Step 2: Add / Edit Employee Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildFormStep() {
     final title = _formStep == 1
@@ -1267,7 +1267,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
             color: active ? const Color(0xFF5C5CFF) : const Color(0xFFF3F4F6)),
       );
 
-  // ─── Basic Info Form ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Basic Info Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildBasicInfoForm() {
     return Column(
@@ -1347,7 +1347,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ─── Work Info Form ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Work Info Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildWorkInfoForm() {
     return Column(
@@ -1535,7 +1535,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ─── Personal Info Form ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Personal Info Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildPersonalInfoForm() {
     return Column(
@@ -1638,7 +1638,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ── Step 3: Review ────────────────────────────────────────────────────────────
+  // â”€â”€ Step 3: Review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildReviewStep() {
     final isEdit = _editingEmp != null;
@@ -1721,16 +1721,16 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         _reviewRow('Gender', _selectedGender ?? '-'),
         _reviewRow('Blood Group', _selectedBloodGroup ?? '-'),
         _reviewRow('Emergency Contact', _emergencyNameCtrl.text.trim().isNotEmpty
-            ? '${_emergencyNameCtrl.text.trim()} · ${_emergencyPhoneCtrl.text.trim()}'
+            ? '${_emergencyNameCtrl.text.trim()} Â· ${_emergencyPhoneCtrl.text.trim()}'
             : '-'),
         _reviewRow('Govt ID', _govtIdNumberCtrl.text.trim().isNotEmpty
-            ? '${_selectedGovtIdType ?? '-'} · ${_govtIdNumberCtrl.text.trim()}'
+            ? '${_selectedGovtIdType ?? '-'} Â· ${_govtIdNumberCtrl.text.trim()}'
             : '-'),
       ]),
       const Spacer(),
       _primaryBtn(
         _isSubmitting
-            ? (isEdit ? 'Updating…' : 'Creating…')
+            ? (isEdit ? 'Updatingâ€¦' : 'Creatingâ€¦')
             : (isEdit ? 'Update Employee' : 'Create Employee'),
         _isSubmitting ? null : (isEdit ? _updateEmployee : _createEmployee),
       ),
@@ -1739,7 +1739,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     ]));
   }
 
-  // ── Step 4: Employee Added Successfully ───────────────────────────────────────
+  // â”€â”€ Step 4: Employee Added Successfully â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSuccessStep() {
     final emp = _lastAddedEmp;
@@ -1889,7 +1889,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     ]));
   }
 
-  // ── Step 5: Invite Employees ──────────────────────────────────────────────────
+  // â”€â”€ Step 5: Invite Employees â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildInviteStep() {
     final selected = _selectedForInvite.length;
@@ -1995,7 +1995,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: AppTheme.textPrimary)),
-                          Text('${emp.designation} · ${emp.deptName}',
+                          Text('${emp.designation} Â· ${emp.deptName}',
                               style: const TextStyle(
                                   fontSize: 11, color: AppTheme.textHint)),
                         ],
@@ -2031,7 +2031,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
           child: _primaryBtn(
             _isSendingInvitations
-                ? 'Sending…'
+                ? 'Sendingâ€¦'
                 : 'Send Invitations ($selected)',
             (_isSendingInvitations || selected == 0)
                 ? null
@@ -2042,7 +2042,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ── Step 6: Workforce Setup Complete ──────────────────────────────────────────
+  // â”€â”€ Step 6: Workforce Setup Complete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildCompleteStep() {
     return _padded(_scrollable(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -2204,7 +2204,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     ]));
   }
 
-  // ─── Shared Helpers ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Shared Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _padded(Widget child) =>
       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), child: child);
@@ -2390,7 +2390,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
             child: CircularProgressIndicator(
                 strokeWidth: 2, color: AppTheme.primary)),
         const SizedBox(width: 10),
-        Text('Loading $label…',
+        Text('Loading $labelâ€¦',
             style: const TextStyle(fontSize: 13, color: AppTheme.textHint)),
       ]),
     );
@@ -2525,7 +2525,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: Text(
-            value.isEmpty ? '—' : value,
+            value.isEmpty ? 'â€”' : value,
             textAlign: TextAlign.right,
             style: const TextStyle(
                 fontSize: 12,
@@ -2647,7 +2647,7 @@ class _EmployeeSetupScreenState extends State<EmployeeSetupScreen> {
     );
   }
 
-  // ─── Date pickers ─────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Date pickers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _pickJoiningDate() async {
     final picked = await showDatePicker(

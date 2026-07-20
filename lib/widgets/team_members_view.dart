@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
@@ -247,7 +247,7 @@ class _TeamMembersViewState extends State<TeamMembersView> {
                       children: [
                         Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                         const SizedBox(height: 4),
-                        Text('$role · $department', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
+                        Text('$role Â· $department', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
                       ],
                     ),
                   ),

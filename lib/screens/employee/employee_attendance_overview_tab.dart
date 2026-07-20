@@ -1,4 +1,4 @@
-import 'package:attendance_app/screens/employee/employee_attendance_detail_screen.dart';
+﻿import 'package:attendance_app/screens/employee/employee_attendance_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -69,7 +69,7 @@ class _EmployeeAttendanceOverviewTabState
 
       await NotificationHelper.notifyEmployee(
         employeeEmail: userEmail,
-        title: isCheckIn ? 'Check-In Successful ✅' : 'Check-Out Successful 👋',
+        title: isCheckIn ? 'Check-In Successful âœ…' : 'Check-Out Successful ðŸ‘‹',
         body:
             'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',
@@ -287,7 +287,7 @@ class _EmployeeAttendanceOverviewTabState
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ – Prestige Tech Park',
+                    AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ â€“ Prestige Tech Park',
                     style: const TextStyle(
                       color: Color(0xFF5C5CFF),
                       fontSize: 12,
@@ -656,7 +656,7 @@ class _EmployeeAttendanceOverviewTabState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '$monthStr – MONTHLY',
+            '$monthStr â€“ MONTHLY',
             style: const TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -798,7 +798,7 @@ class _EmployeeAttendanceOverviewTabState
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${AppSession().shiftStartTime} – ${AppSession().shiftEndTime} · Office',
+                      '${AppSession().shiftStartTime} â€“ ${AppSession().shiftEndTime} Â· Office',
                       style: const TextStyle(
                         color: Color(0xFF9CA3AF),
                         fontSize: 11,

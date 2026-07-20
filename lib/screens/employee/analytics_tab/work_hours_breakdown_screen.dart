@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
-/// Screen 3 — Work Hours Breakdown (matches right panel in mockup)
+/// Screen 3 â€” Work Hours Breakdown (matches right panel in mockup)
 class WorkHoursBreakdownScreen extends StatefulWidget {
   const WorkHoursBreakdownScreen({super.key});
 
@@ -131,12 +131,12 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     );
   }
 
-  // ─── Week Header ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Week Header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildWeekHeader() {
     final endDate = _weekStart.add(const Duration(days: 4));
     final label =
-        '${_weekStart.day}–${endDate.day} ${DateFormat('MMM yyyy').format(_weekStart)} · Daily Work Hours';
+        '${_weekStart.day}â€“${endDate.day} ${DateFormat('MMM yyyy').format(_weekStart)} Â· Daily Work Hours';
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
@@ -162,7 +162,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     ]);
   }
 
-  // ─── Bar Chart ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Bar Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildBarChart(List<_DayData> weekData) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
@@ -177,7 +177,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
         border: Border.all(color: AppTheme.divider),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Daily Work Hours — This Week',
+        const Text('Daily Work Hours â€” This Week',
             style: TextStyle(
                 fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
         const SizedBox(height: 16),
@@ -277,7 +277,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     );
   }
 
-  // ─── Summary Box ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Summary Box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildSummaryBox(String value, String label, Color color,
       {bool isHighlight = true}) {
@@ -304,7 +304,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     );
   }
 
-  // ─── Day-by-Day List ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Day-by-Day List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDayByDayList(List<_DayData> weekData) {
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
@@ -385,7 +385,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     );
   }
 
-  // ─── Download Button ──────────────────────────────────────────────────────
+  // â”€â”€â”€ Download Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildDownloadButton(List<_DayData> weekData) {
     return SizedBox(
@@ -406,7 +406,7 @@ class _WorkHoursBreakdownScreenState extends State<WorkHoursBreakdownScreen> {
     );
   }
 
-  // ─── Data helpers ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   List<_DayData> _buildWeekData(List<QueryDocumentSnapshot> allDocs) {
     final result = List.generate(5, (i) {

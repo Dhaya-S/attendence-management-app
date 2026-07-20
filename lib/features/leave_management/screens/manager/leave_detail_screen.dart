@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -103,7 +103,7 @@ class LeaveDetailScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
-                      '● Active',
+                      'â— Active',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -298,7 +298,7 @@ class LeaveDetailScreen extends StatelessWidget {
       // Notify Employee
       String employeeEmail = leaveData['userEmail'] ?? '';
       if (employeeEmail.isEmpty) {
-        // Robust fallback: extract email from path approved_companies/{cid}/users/{email}/leave_requests/{id}
+        // Robust fallback: extract email from path organizations/{cid}/users/{email}/leave_requests/{id}
         final parts = leaveRef.path.split('/');
         final usersIdx = parts.indexOf('users');
         if (usersIdx != -1 && usersIdx + 1 < parts.length) {
@@ -309,7 +309,7 @@ class LeaveDetailScreen extends StatelessWidget {
       if (employeeEmail.isNotEmpty) {
         await NotificationHelper.notifyEmployee(
           employeeEmail: employeeEmail,
-          title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
+          title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
           body: 'Your ${leaveData['leaveType']} request from ${DateFormat('MMM dd').format((leaveData['fromDate'] as Timestamp).toDate())} has been $newStatus.',
           type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
           extraData: {

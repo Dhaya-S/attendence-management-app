@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -11,20 +11,20 @@ class LocationService {
   factory LocationService() => _instance;
   LocationService._internal();
 
-  // ── Fallback office location constants (used only before session loads) ──
+  // â”€â”€ Fallback office location constants (used only before session loads) â”€â”€
   static const double _fallbackLat = 12.9571241;
   static const double _fallbackLng = 80.2452581;
   static const double _fallbackRadius = 500;
 
-  /// Dynamic office latitude — reads from AppSession, falls back to constant.
+  /// Dynamic office latitude â€” reads from AppSession, falls back to constant.
   static double get officeLat =>
       AppSession().officeLat ?? _fallbackLat;
 
-  /// Dynamic office longitude — reads from AppSession, falls back to constant.
+  /// Dynamic office longitude â€” reads from AppSession, falls back to constant.
   static double get officeLng =>
       AppSession().officeLng ?? _fallbackLng;
 
-  /// Dynamic allowed radius in metres — reads from AppSession, falls back to constant.
+  /// Dynamic allowed radius in metres â€” reads from AppSession, falls back to constant.
   static double get allowedRadius =>
       AppSession().allowedRadius;
 
@@ -42,7 +42,7 @@ class LocationService {
         }
       }
     } catch (e) {
-      print("⚠️ Static getAddress failed: $e");
+      print("âš ï¸ Static getAddress failed: $e");
     }
     return null;
   }
@@ -83,7 +83,7 @@ class LocationService {
       }
     }
 
-    print("📍 Initializing Location Service...");
+    print("ðŸ“ Initializing Location Service...");
     _isInitialized = true; // Mark as initialized to prevent concurrent calls
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -109,7 +109,7 @@ class LocationService {
     }
 
     _isInitialized = true;
-    print("✅ Location Service Initialized");
+    print("âœ… Location Service Initialized");
   }
 
   // No changes needed here, just context for previous replace
@@ -133,7 +133,7 @@ class LocationService {
     if (_isFetching) {
       if (forceRefresh) {
         // Wait for ongoing fetch to complete, then retry
-        print("⏳ Refresh requested but fetch in progress. Waiting...");
+        print("â³ Refresh requested but fetch in progress. Waiting...");
         await Future.delayed(const Duration(milliseconds: 500));
         return getLocation(forceRefresh: true); // Retry
       } else {
@@ -209,7 +209,7 @@ class LocationService {
       // Strategy: Try last known position first (instant, no timeout), then current position
       Position? position;
 
-      // 1️⃣ Try to get last known position first (much faster)
+      // 1ï¸âƒ£ Try to get last known position first (much faster)
       // BUT: Only use if it's recent (< 30 seconds old) AND accurate enough
       if (!kIsWeb) {
         try {
@@ -222,33 +222,33 @@ class LocationService {
 
             if (isRecent && isAccurate) {
               print(
-                  "📍 Using fresh+accurate last known position (${difference.inSeconds}s old, ±${lastKnown.accuracy.toInt()}m)");
+                  "ðŸ“ Using fresh+accurate last known position (${difference.inSeconds}s old, Â±${lastKnown.accuracy.toInt()}m)");
               position = lastKnown;
             } else {
               print(
-                  "⚠️ Last known position rejected: age=${difference.inSeconds}s, accuracy=±${lastKnown.accuracy.toInt()}m (threshold: ${_maxAcceptableAccuracy.toInt()}m). Fetching fresh.");
+                  "âš ï¸ Last known position rejected: age=${difference.inSeconds}s, accuracy=Â±${lastKnown.accuracy.toInt()}m (threshold: ${_maxAcceptableAccuracy.toInt()}m). Fetching fresh.");
             }
           }
         } catch (e) {
-          print("⚠️ No last known position available: $e");
+          print("âš ï¸ No last known position available: $e");
         }
       }
 
-      // 2️⃣ If no accurate last known position, fetch current position
+      // 2ï¸âƒ£ If no accurate last known position, fetch current position
       if (position == null) {
         try {
-          print("📍 Fetching current position with HIGH accuracy...");
+          print("ðŸ“ Fetching current position with HIGH accuracy...");
           position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
             timeLimit: _locationTimeout,
           );
           print(
-              "✅ Got current position: ${position.latitude}, ${position.longitude} ±${position.accuracy.toInt()}m");
+              "âœ… Got current position: ${position.latitude}, ${position.longitude} Â±${position.accuracy.toInt()}m");
 
-          // 3️⃣ If accuracy is poor, wait briefly to get a better GPS fix
+          // 3ï¸âƒ£ If accuracy is poor, wait briefly to get a better GPS fix
           if (position.accuracy > _maxAcceptableAccuracy) {
             print(
-                "⚠️ Accuracy poor (±${position.accuracy.toInt()}m). Waiting for a better fix...");
+                "âš ï¸ Accuracy poor (Â±${position.accuracy.toInt()}m). Waiting for a better fix...");
             await Future.delayed(const Duration(seconds: 3));
             try {
               final betterPosition = await Geolocator.getCurrentPosition(
@@ -257,29 +257,29 @@ class LocationService {
               );
               if (betterPosition.accuracy < position.accuracy) {
                 print(
-                    "✅ Got a better position: ±${betterPosition.accuracy.toInt()}m (was ±${position.accuracy.toInt()}m)");
+                    "âœ… Got a better position: Â±${betterPosition.accuracy.toInt()}m (was Â±${position.accuracy.toInt()}m)");
                 position = betterPosition;
               }
             } catch (_) {
-              print("⚠️ Second attempt failed. Using first position.");
+              print("âš ï¸ Second attempt failed. Using first position.");
             }
           }
         } catch (e) {
-          print("❌ Current position failed: $e");
+          print("âŒ Current position failed: $e");
 
-          // 4️⃣ If timeout, try one more time with MEDIUM accuracy
+          // 4ï¸âƒ£ If timeout, try one more time with MEDIUM accuracy
           if (e.toString().toLowerCase().contains("timeout")) {
             print(
-                "📍 Timeout on high accuracy. Retrying with MEDIUM accuracy...");
+                "ðŸ“ Timeout on high accuracy. Retrying with MEDIUM accuracy...");
             try {
               position = await Geolocator.getCurrentPosition(
                 desiredAccuracy: LocationAccuracy.medium,
                 timeLimit: const Duration(seconds: 10),
               );
               print(
-                  "✅ Got position on retry: ${position.latitude}, ${position.longitude} ±${position.accuracy.toInt()}m");
+                  "âœ… Got position on retry: ${position.latitude}, ${position.longitude} Â±${position.accuracy.toInt()}m");
             } catch (retryError) {
-              print("❌ Retry also failed: $retryError");
+              print("âŒ Retry also failed: $retryError");
               throw e;
             }
           } else {
@@ -316,7 +316,7 @@ class LocationService {
           }
         }
       } catch (e) {
-        print("⚠️ Address fetch failed: $e");
+        print("âš ï¸ Address fetch failed: $e");
       }
 
       // Update cache
@@ -328,7 +328,7 @@ class LocationService {
               ? "~GPS"
               : "Low Accuracy";
       _cachedDistanceInfo =
-          "${distance.toInt()}m from Office ($accuracyLabel ±${position.accuracy.toInt()}m)";
+          "${distance.toInt()}m from Office ($accuracyLabel Â±${position.accuracy.toInt()}m)";
       _cachedAddress = address;
 
       final result = LocationData(
@@ -344,11 +344,11 @@ class LocationService {
 
       return result;
     } catch (e) {
-      print("❌ Location error: $e");
+      print("âŒ Location error: $e");
 
-      // 4️⃣ Best Effort Fallback: If we have ANY cached position, use it even if expired
+      // 4ï¸âƒ£ Best Effort Fallback: If we have ANY cached position, use it even if expired
       if (_cachedPosition != null) {
-        print("⚠️ Fetch failed, using expired cache as best-effort fallback.");
+        print("âš ï¸ Fetch failed, using expired cache as best-effort fallback.");
         final fallback = LocationData(
           position: _cachedPosition,
           distanceInfo: "${_cachedDistanceInfo} (Old)",
@@ -413,7 +413,7 @@ class LocationService {
     }
 
     _isTracking = true;
-    print("📍 Starting realtime location tracking...");
+    print("ðŸ“ Starting realtime location tracking...");
 
     // Setup fast, high-performance realtime tracking settings
     late final LocationSettings locationSettings;
@@ -449,12 +449,12 @@ class LocationService {
               .listen((Position position) {
         _handlePositionUpdate(position);
       }, onError: (e) {
-        print("❌ Realtime tracking error: $e");
+        print("âŒ Realtime tracking error: $e");
         _emitError("Location error", e.toString());
         _isTracking = false;
       });
     } catch (e) {
-      print("❌ Failed to start location stream: $e");
+      print("âŒ Failed to start location stream: $e");
       _emitError("Failed to start tracking", e.toString());
       _isTracking = false;
     }
@@ -475,7 +475,7 @@ class LocationService {
     _isTracking = false;
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
-    print("📍 Stopped realtime location tracking");
+    print("ðŸ“ Stopped realtime location tracking");
   }
 
   /// Handle incoming position updates
@@ -514,7 +514,7 @@ class LocationService {
           _lastAddressFetchTime = DateTime.now();
         }
       } catch (e) {
-        print("⚠️ Realtime address fetch failed: $e");
+        print("âš ï¸ Realtime address fetch failed: $e");
       }
     }
 
@@ -552,7 +552,7 @@ class LocationService {
 
       return distance <= allowedRadius;
     } catch (e) {
-      print("⚠️ Office location check failed: $e");
+      print("âš ï¸ Office location check failed: $e");
       return false;
     }
   }

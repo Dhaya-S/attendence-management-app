@@ -104,14 +104,14 @@ class _RequestCorrectionFormState extends State<RequestCorrectionForm> {
 
       if (widget.editItem != null) {
         await FirebaseFirestore.instance
-            .collection('approved_companies')
+            .collection('organizations')
             .doc(FirestoreService.companyId)
             .collection('attendance_corrections')
             .doc(widget.editItem!['id'])
             .update({...data, 'createdAt': widget.editItem!['submittedAt']});
       } else {
         await FirebaseFirestore.instance
-            .collection('approved_companies')
+            .collection('organizations')
             .doc(FirestoreService.companyId)
             .collection('attendance_corrections')
             .add(data);

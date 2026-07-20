@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/register_screen.dart';
 import 'package:attendance_app/theme/app_theme.dart';

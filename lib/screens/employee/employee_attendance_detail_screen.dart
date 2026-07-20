@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -274,7 +274,7 @@ class _EmployeeAttendanceDetailScreenState
                           _buildDetailRow(
                               'Attendance Method', 'Biometric + GPS'),
                           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-                          _buildDetailRow('GPS Accuracy', 'High (±3m)'),
+                          _buildDetailRow('GPS Accuracy', 'High (Â±3m)'),
                         ],
                       ),
                     ),
@@ -320,8 +320,8 @@ class _EmployeeAttendanceDetailScreenState
                                   children: [
                                     Text(
                                       AppSession().companyName != null
-                                          ? '${AppSession().companyName} HQ – Prestige Tech Park'
-                                          : 'Bengaluru HQ – Prestige Tech Park',
+                                          ? '${AppSession().companyName} HQ â€“ Prestige Tech Park'
+                                          : 'Bengaluru HQ â€“ Prestige Tech Park',
                                       style: const TextStyle(
                                         color: Color(0xFF111827),
                                         fontSize: 13,
@@ -330,7 +330,7 @@ class _EmployeeAttendanceDetailScreenState
                                     ),
                                     const SizedBox(height: 2),
                                     const Text(
-                                      'GPS Verified · Inside office range',
+                                      'GPS Verified Â· Inside office range',
                                       style: TextStyle(
                                         color: Color(0xFF9CA3AF),
                                         fontSize: 11,
@@ -373,8 +373,8 @@ class _EmployeeAttendanceDetailScreenState
                             isLast: false,
                             title: 'Check In',
                             subtitle: AppSession().companyName != null
-                                ? '${AppSession().companyName} HQ – Prestige Tech Park'
-                                : 'Bengaluru HQ – Prestige Tech Park',
+                                ? '${AppSession().companyName} HQ â€“ Prestige Tech Park'
+                                : 'Bengaluru HQ â€“ Prestige Tech Park',
                             time: checkInStr,
                             color: const Color(0xFF5C5CFF),
                             isCompleted: hasCheckedIn,

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -228,7 +228,7 @@ class NotificationService {
     
     await _localNotifications.zonedSchedule(
       id: 999,
-      title: 'Shift Ending Soon ⏰',
+      title: 'Shift Ending Soon â°',
       body: 'Don\'t forget to check out! Your shift ends at ${DateFormat('hh:mm a').format(shiftEndTime)}.',
       scheduledDate: tz.TZDateTime.from(shiftEndTime, tz.local),
       notificationDetails: NotificationDetails(android: androidDetails),

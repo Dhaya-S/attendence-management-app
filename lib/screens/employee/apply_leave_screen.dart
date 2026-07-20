@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -60,6 +60,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       final userName = userData['name'] ?? user?.email?.split('@')[0] ?? 'Employee';
       final department = userData['department'] ?? 'General';
       final diff = toDate!.difference(fromDate!).inDays + 1;
+      final senderRole = (userData['role'] as String?)?.toLowerCase() ?? 'employee';
 
       await FirestoreService.userLeaveRequestsCol(user!.email ?? '').add({
         'companyId': FirestoreService.companyId,
@@ -74,20 +75,25 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
         'reason': reasonController.text.trim(),
         'status': 'pending',
         'requestDate': FieldValue.serverTimestamp(),
+        'senderRole': senderRole,
       });
 
-      // 2. Notify the manager
+      // 2. Notify the manager and/or admin based on role
       final dateRangeStr = diff == 1
           ? 'on ${DateFormat('MMM dd, yyyy').format(fromDate!)}'
           : 'from ${DateFormat('MMM dd').format(fromDate!)} to ${DateFormat('MMM dd').format(toDate!)} ($diff days)';
-      await NotificationHelper.notifyManager(
-        title: 'New Leave Request 📝',
-        body: '$userName applied for $selectedType $dateRangeStr.',
-        type: 'new_leave_request',
-        extraData: {
-          'employeeEmail': user.email,
-        },
-      );
+      final title = 'New Leave Request ðŸ“';
+      final body = '$userName applied for $selectedType $dateRangeStr.';
+      final extraData = {'employeeEmail': user.email};
+
+      if (senderRole == 'admin') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      } else if (senderRole == 'manager') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      } else {
+        await NotificationHelper.notifyManager(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      }
 
       if (mounted) {
         Future.delayed(Duration.zero, () {

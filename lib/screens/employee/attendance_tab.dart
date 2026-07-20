@@ -1,4 +1,4 @@
-import 'package:attendance_app/screens/employee/employee_attendance_overview_tab.dart';
+﻿import 'package:attendance_app/screens/employee/employee_attendance_overview_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -79,7 +79,7 @@ class _EmployeeAttendanceTabState extends State<EmployeeAttendanceTab>
       await NotificationHelper.notifyEmployee(
         employeeEmail: userEmail,
         title:
-            isCheckIn ? 'Check-In Successful âœ…' : 'Check-Out Successful ðŸ‘‹',
+            isCheckIn ? 'Check-In Successful Ã¢Å“â€¦' : 'Check-Out Successful Ã°Å¸â€˜â€¹',
         body:
             'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',

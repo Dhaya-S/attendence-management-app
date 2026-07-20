@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:intl/intl.dart';
@@ -22,7 +22,7 @@ class _EmployeeTeamMembersTabState extends State<EmployeeTeamMembersTab> {
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('users')
           .snapshots(),

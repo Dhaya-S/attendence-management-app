@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Central design system — Premium SaaS aesthetic
+/// Central design system â€” Premium SaaS aesthetic
 class AppTheme {
   AppTheme._();
 
-  // ─── Colors (Purple/Indigo primary — matching mockups) ────────────────
+  // â”€â”€â”€ Colors (Purple/Indigo primary â€” matching mockups) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const Color primary = Color(0xFF5C5CFF);
   static const Color primaryLight = Color(0xFF8B8BFF);
   static const Color primaryDark = Color(0xFF3A3AE5);
@@ -43,7 +43,7 @@ class AppTheme {
   static const Color leaveStatus = Color(0xFFEF4444);
   static const Color absentStatus = Color(0xFF6B7280);
 
-  // ─── Border Radius (Clean, professional) ──────────────────────────────
+  // â”€â”€â”€ Border Radius (Clean, professional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const double radiusXL = 16.0;
   static const double radiusLG = 14.0;
   static const double radiusMD = 12.0;
@@ -62,7 +62,7 @@ class AppTheme {
   static BorderRadius get smallRadius => BorderRadius.circular(radiusSmall);
   static BorderRadius get xlRadius => BorderRadius.circular(radiusXL);
 
-  // ─── Padding ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Padding â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const double paddingScreen = 16;
   static const double paddingCard = 14;
   static const double paddingCardLarge = 16;
@@ -71,7 +71,7 @@ class AppTheme {
   static const EdgeInsets cardPadding = EdgeInsets.all(paddingCard);
   static const EdgeInsets cardPaddingLarge = EdgeInsets.all(paddingCardLarge);
 
-  // ─── Card style ───────────────────────────────────────────────────────
+  // â”€â”€â”€ Card style â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static ShapeBorder get cardShape => RoundedRectangleBorder(
         borderRadius: cardRadius,
       );
@@ -87,18 +87,18 @@ class AppTheme {
     );
   }
 
-  // ─── Gradients ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Gradients â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primary, primaryDark],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // ─── Shadows (disabled for clean flat look) ──────────────────────────
+  // â”€â”€â”€ Shadows (disabled for clean flat look) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static List<BoxShadow> get softShadow => [];
   static List<BoxShadow> get mediumShadow => [];
 
-  // ─── Typography (Clean, mobile-optimized) ─────────────────────────────
+  // â”€â”€â”€ Typography (Clean, mobile-optimized) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static TextStyle get h1 => GoogleFonts.inter(
         fontSize: 22,
         fontWeight: FontWeight.w700,

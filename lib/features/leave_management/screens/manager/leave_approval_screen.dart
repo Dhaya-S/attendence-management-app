@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -373,7 +373,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
       try {
         String employeeEmail = data['userEmail'] ?? '';
         if (employeeEmail.isEmpty) {
-          // Robust fallback: extract email from path approved_companies/{cid}/users/{email}/leave_requests/{id}
+          // Robust fallback: extract email from path organizations/{cid}/users/{email}/leave_requests/{id}
           final parts = docRef.path.split('/');
           final usersIdx = parts.indexOf('users');
           if (usersIdx != -1 && usersIdx + 1 < parts.length) {
@@ -384,7 +384,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
         if (employeeEmail.isNotEmpty) {
           await NotificationHelper.notifyEmployee(
             employeeEmail: employeeEmail,
-            title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
+            title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
             body: 'Your ${data['leaveType']} request for ${DateFormat('MMM dd').format((data['fromDate'] as Timestamp).toDate())} has been $newStatus.',
             type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
             extraData: {

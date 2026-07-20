@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -27,9 +27,10 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   int _createCategoryIndex = 0; // 0: Manager Update, 1: Policy, 2: Events, 3: Reminders
+  int _createAudienceIndex = 0;
 
-  final _categories = ['All', 'HR', 'Policy', 'Events', 'Manager Update'];
-  final _createCategories = ['Manager Update', 'Policy', 'Events', 'Reminders'];
+  final _categories = ['All', 'HR', 'Policy', 'Events', 'Manager Update', 'Birthdays', 'New Hires'];
+  final _createCategories = ['Manager Update', 'Policy', 'Events', 'Reminders', 'Birthdays', 'New Hires'];
 
   @override
   void dispose() {
@@ -49,11 +50,11 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
     final user = FirebaseAuth.instance.currentUser;
     final category = _createCategories[_createCategoryIndex];
 
-    String audience = 'company';
-    if (category == 'Manager Update') {
-      audience = 'managers';
-    } else if (!widget.isAdmin) {
-      audience = 'department';
+    String audience = 'all';
+    if (widget.isAdmin) {
+      audience = _createAudienceIndex == 0 ? 'all' : 'managers';
+    } else {
+      audience = _createAudienceIndex == 0 ? 'team' : 'admins';
     }
 
     try {
@@ -76,6 +77,7 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
         _titleController.clear();
         _messageController.clear();
         _createCategoryIndex = 0;
+        _createAudienceIndex = 0;
       });
       
       if (mounted) {
@@ -307,6 +309,37 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                const Text('Audience', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(2, (index) {
+                    final isActive = _createAudienceIndex == index;
+                    final text = widget.isAdmin 
+                        ? (index == 0 ? 'All Staff' : 'Managers Only')
+                        : (index == 0 ? 'My Team' : 'Admins Only');
+                    return GestureDetector(
+                      onTap: () => setState(() => _createAudienceIndex = index),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isActive ? const Color(0xFF5C5CFF) : const Color(0xFFF3F4F6),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          text,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                            color: isActive ? Colors.white : const Color(0xFF6B7280),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+                const SizedBox(height: 24),
                 const Text('Category', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                 const SizedBox(height: 12),
                 Wrap(
@@ -471,12 +504,12 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
                 
                 // Audience filtering locally to avoid composite index requirements initially
                 if (!widget.isAdmin) {
-                  final aud = data['audience'] ?? 'company';
-                  // Managers can see 'company', 'managers', or their own 'department'
-                  if (aud != 'company' && aud != 'managers' && aud != 'department') {
+                  final aud = data['audience'] ?? 'all';
+                  // Managers can see 'all', 'managers', 'admins', or their own 'team'
+                  if (aud != 'all' && aud != 'managers' && aud != 'admins' && aud != 'team') {
                      return false;
                   }
-                  if (aud == 'department' && data['departmentId'] != widget.departmentId) {
+                  if (aud == 'team' && data['departmentId'] != widget.departmentId) {
                      return false;
                   }
                 }
@@ -487,6 +520,8 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
                 if (_selectedCategoryTab == 2) return cat == 'Policy';
                 if (_selectedCategoryTab == 3) return cat == 'Events';
                 if (_selectedCategoryTab == 4) return cat == 'Manager Update';
+                if (_selectedCategoryTab == 5) return cat == 'Birthdays';
+                if (_selectedCategoryTab == 6) return cat == 'New Hires';
                 return true; // 0 is All
               }).toList();
 

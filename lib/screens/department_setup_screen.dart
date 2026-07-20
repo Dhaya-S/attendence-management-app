@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import 'package:attendance_app/screens/employee_setup_screen.dart';
@@ -7,7 +7,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/message_helper.dart';
 
-// ── Department Data Model ────────────────────────────────────────────────────
+// â”€â”€ Department Data Model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class _DeptModel {
   final String id;
@@ -38,7 +38,7 @@ class _DeptModel {
   }
 }
 
-// ── Screen ───────────────────────────────────────────────────────────────────
+// â”€â”€ Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class DepartmentSetupScreen extends StatefulWidget {
   final String orgId;
@@ -113,7 +113,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
       return;
     }
     if (_step == 2) {
-      // Cancel form → back to list
+      // Cancel form â†’ back to list
       setState(() => _step = 1);
       return;
     }
@@ -317,7 +317,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     }
   }
 
-  // ── Step 0: Intro ────────────────────────────────────────────────────────
+  // â”€â”€ Step 0: Intro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildIntroStep() {
     return _padded(_scrollable(children: [
       Row(
@@ -471,7 +471,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
         width: double.infinity,
         child: TextButton(
           onPressed: () {
-            // Skip → navigate to main app directly
+            // Skip â†’ navigate to main app directly
             Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (_) => OrganizationConfigurationScreen(
@@ -492,7 +492,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     ]));
   }
 
-  // ── Step 1: Department List ───────────────────────────────────────────────
+  // â”€â”€ Step 1: Department List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildListStep() {
     return Column(
       children: [
@@ -676,7 +676,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 2),
                 Text(
-                  '0 Employees · No Head',
+                  '0 Employees Â· No Head',
                   style: const TextStyle(fontSize: 12, color: AppTheme.textHint),
                 ),
               ],
@@ -713,7 +713,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     );
   }
 
-  // ── Step 2: Add / Edit Department ────────────────────────────────────────
+  // â”€â”€ Step 2: Add / Edit Department â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildAddEditStep() {
     final isEdit = _editingDept != null;
     return _padded(_scrollable(children: [
@@ -904,7 +904,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     ]));
   }
 
-  // ── Step 3: Review ───────────────────────────────────────────────────────
+  // â”€â”€ Step 3: Review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildReviewStep() {
     return Column(
       children: [
@@ -961,7 +961,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
               ),
               const SizedBox(height: 10),
               _primaryBtn(
-                _isFinalizing ? 'Saving…' : 'Finalize Structure',
+                _isFinalizing ? 'Savingâ€¦' : 'Finalize Structure',
                 _isFinalizing ? null : _finalizeDepartments,
               ),
               const SizedBox(height: 10),
@@ -1082,7 +1082,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     );
   }
 
-  // ── Step 4: Success ──────────────────────────────────────────────────────
+  // â”€â”€ Step 4: Success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSuccessStep() {
     return _padded(_scrollable(crossAxisAlignment: CrossAxisAlignment.center, children: [
       const Spacer(),
@@ -1267,7 +1267,7 @@ class _DepartmentSetupScreenState extends State<DepartmentSetupScreen> {
     ]));
   }
 
-  // ── Shared Helpers ───────────────────────────────────────────────────────
+  // â”€â”€ Shared Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _padded(Widget child) =>
       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 20), child: child);

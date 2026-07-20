@@ -1,4 +1,4 @@
-import 'package:attendance_app/screens/employee/employee_team_tasks_tab.dart';
+﻿import 'package:attendance_app/screens/employee/employee_team_tasks_tab.dart';
 import 'package:attendance_app/screens/employee/employee_team_announcements_tab.dart';
 import 'package:attendance_app/screens/employee/employee_feed_tab.dart';
 import 'package:attendance_app/screens/employee/employee_team_members_tab.dart';
@@ -16,6 +16,7 @@ import 'package:attendance_app/utils/location_service.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/widgets/location_map_card.dart';
+import 'package:attendance_app/widgets/full_map_screen.dart';
 import 'package:attendance_app/screens/employee/attendance_tab.dart';
 import 'package:attendance_app/utils/notification_helper.dart';
 import 'package:attendance_app/screens/employee/employee_leave_summary_screen.dart';
@@ -1095,7 +1096,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => _FullMapScreen(
+                      builder: (_) => FullMapScreen(
                           officeLat: LocationService.officeLat,
                           officeLng: LocationService.officeLng,
                           allowedRadius: LocationService.allowedRadius,
@@ -1544,7 +1545,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   Widget _buildActiveTasksCard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('tasks')
           .where('assignedTo', isEqualTo: user?.email)
@@ -1663,7 +1664,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     final userEmail = user?.email ?? '';
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('leave_requests')
           .where('userId', isEqualTo: AppSession().uid)
@@ -1673,7 +1674,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
       builder: (context, leaveSnap) {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
-              .collection('approved_companies')
+              .collection('organizations')
               .doc(FirestoreService.companyId)
               .collection('attendance_corrections')
               .where('userId', isEqualTo: AppSession().uid)
@@ -1790,7 +1791,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   Widget _buildRecentAnnouncementsCard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('announcements')
           .orderBy('createdAt', descending: true)
@@ -1931,7 +1932,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   Widget _buildUpcomingHolidaysCard() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('company_calendar')
           .snapshots(),
@@ -2115,88 +2116,6 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         ]),
         const SizedBox(height: 14),
         child,
-      ]),
-    );
-  }
-}
-
-class _FullMapScreen extends StatelessWidget {
-  final double officeLat, officeLng, allowedRadius;
-  final LatLng? userLocation;
-  final String? userAddress;
-  const _FullMapScreen(
-      {required this.officeLat,
-      required this.officeLng,
-      required this.allowedRadius,
-      this.userLocation,
-      this.userAddress});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Container(
-            margin: const EdgeInsets.only(left: 16, top: 12),
-            decoration: const BoxDecoration(
-                color: Colors.white, shape: BoxShape.circle),
-            child: IconButton(
-                icon: const Icon(Icons.arrow_back,
-                    color: Color(0xFF111827), size: 20),
-                onPressed: () => Navigator.pop(context))),
-      ),
-      body: Stack(children: [
-        LocationMapCard(
-            officeLat: officeLat,
-            officeLng: officeLng,
-            allowedRadius: allowedRadius,
-            userLocation: userLocation,
-            userAddress: userAddress),
-        Positioned(
-            bottom: 32,
-            left: 24,
-            right: 24,
-            child: FadeInUp(
-                child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4))
-                  ]),
-              child: Row(children: [
-                Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                        color: _kPrimaryLight, shape: BoxShape.circle),
-                    child: const Icon(Icons.location_on,
-                        color: _kPrimary, size: 24)),
-                const SizedBox(width: 16),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      const Text('Office Range Area',
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF111827))),
-                      const SizedBox(height: 4),
-                      Text(
-                          'Allowed geofence radius: ${allowedRadius.toInt()} meters.',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF6B7280),
-                              fontWeight: FontWeight.w500)),
-                    ])),
-              ]),
-            ))),
       ]),
     );
   }

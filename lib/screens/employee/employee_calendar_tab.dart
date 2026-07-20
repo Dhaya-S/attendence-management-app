@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
@@ -41,7 +41,7 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
       // Let's listen to holidays for the calendar as an example of real data.
       // We'll also use dummy data to match the UI perfectly if there's no data.
       stream: FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(FirestoreService.companyId)
           .collection('holidays')
           .snapshots(),
@@ -347,7 +347,7 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${DateFormat('MMMM d').format(entry.key)} · ${event['type'] == 'event' ? 'Event' : event['type'] == 'holiday' ? 'Holiday' : 'Leave'}',
+                        '${DateFormat('MMMM d').format(entry.key)} Â· ${event['type'] == 'event' ? 'Event' : event['type'] == 'holiday' ? 'Holiday' : 'Leave'}',
                         style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -513,7 +513,7 @@ class _EmployeeCalendarTabState extends State<EmployeeCalendarTab> {
           ),
           const SizedBox(height: 4),
           const Text(
-            '09:00 AM – 06:00 PM · Office',
+            '09:00 AM â€“ 06:00 PM Â· Office',
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,

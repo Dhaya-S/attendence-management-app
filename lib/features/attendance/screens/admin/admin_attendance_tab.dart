@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -295,7 +295,7 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
                         (() {
                           final loc = data?['checkInLocation'] as String?;
                           if (loc != null && loc != 'Unknown') return loc;
-                          return _currentLocationData?.address ?? (AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ – Prestige Tech Park');
+                          return _currentLocationData?.address ?? (AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ â€“ Prestige Tech Park');
                         })(),
                         style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563)),
                       ),
@@ -452,7 +452,7 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('JULY 2026 – MONTHLY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
+          const Text('JULY 2026 â€“ MONTHLY', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF9CA3AF), letterSpacing: 0.5)),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -523,7 +523,7 @@ class _AdminAttendanceTabState extends State<AdminAttendanceTab> {
                   children: const [
                     Text('General Shift', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                     SizedBox(height: 2),
-                    Text('09:00 AM – 06:00 PM · Office', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                    Text('09:00 AM â€“ 06:00 PM Â· Office', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
                   ],
                 ),
               ),

@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -14,7 +14,8 @@ import 'package:attendance_app/utils/notification_service.dart';
 import 'package:attendance_app/widgets/live_attendance_builder.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
 import 'package:attendance_app/widgets/announcements_tab_view.dart';
-
+import 'package:attendance_app/widgets/location_map_card.dart';
+import 'package:attendance_app/widgets/full_map_screen.dart';
 class ManagerHomeTab extends StatefulWidget {
   final Function(int)? onTabChange;
   const ManagerHomeTab({super.key, this.onTabChange});
@@ -430,6 +431,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildOfficeLocationCard(),
+          const SizedBox(height: 16),
           _buildAttendanceTodayCard(),
           const SizedBox(height: 16),
           _buildPendingApprovalsCard(),
@@ -503,6 +506,87 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
     );
   }
 
+  Widget _buildOfficeLocationCard() {
+    final isInside = _currentLocationData?.isWithinRadius ?? false;
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF3F4F6))),
+      child: Column(children: [
+        SizedBox(
+            height: 130,
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
+              child: LocationMapCard(
+                  officeLat: LocationService.officeLat,
+                  officeLng: LocationService.officeLng,
+                  allowedRadius: LocationService.allowedRadius,
+                  userLocation: _currentLocationData?.latLng,
+                  userAddress: _currentLocationData?.address,
+                  height: 130),
+            )),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Office Location',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827))),
+              const SizedBox(height: 4),
+              Row(children: [
+                Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                        color: isInside ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        shape: BoxShape.circle)),
+                const SizedBox(width: 5),
+                Text(isInside ? 'INSIDE OFFICE RANGE' : 'OUTSIDE OFFICE RANGE',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: isInside ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3)),
+              ]),
+            ]),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => FullMapScreen(
+                          officeLat: LocationService.officeLat,
+                          officeLng: LocationService.officeLng,
+                          allowedRadius: LocationService.allowedRadius,
+                          userLocation: _currentLocationData?.latLng,
+                          userAddress: _currentLocationData?.address))),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(10)),
+                child: Row(children: const [
+                  Icon(Icons.location_on_outlined, color: Color(0xFF5C5CFF), size: 14),
+                  SizedBox(width: 4),
+                  Text('View Map',
+                      style: TextStyle(
+                          color: Color(0xFF5C5CFF),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildAttendanceTodayCard() {
     return StreamBuilder<DocumentSnapshot>(
       stream: _todayAttendanceStream,
@@ -510,111 +594,166 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final checkIn = data?['checkIn'] as Timestamp?;
         final checkOut = data?['checkOut'] as Timestamp?;
+        final status = data?['status'] as String?;
         final isCheckedIn = checkIn != null && checkOut == null;
         final isCheckedOut = checkIn != null && checkOut != null;
+        final isPresent = isCheckedIn || isCheckedOut;
+        final checkInStr = checkIn != null
+            ? DateFormat('hh:mm a').format(checkIn.toDate())
+            : '--:-- --';
+        final workingStr = _getWorkingDuration(checkIn, checkOut);
+        final overtimeStr = _getOvertimeDuration(checkIn, checkOut);
 
-        return _buildCardContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'ATTENDANCE — TODAY',
+        return Container(
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFF3F4F6))),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('ATTENDANCE TODAY',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B7280),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  if (checkIn != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.4)),
+                if (isPresent)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
                         color: const Color(0xFFECFDF5),
-                        border: Border.all(color: const Color(0xFF10B981)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.check_circle_outline, color: Color(0xFF10B981), size: 12),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Present',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF10B981)),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (checkIn != null) ...[
-                Text(
-                  isCheckedOut ? 'Checked Out' : 'Checked In',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${DateFormat('hh:mm a').format(checkIn.toDate())} · General Shift',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF6B7280)),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(child: _buildTimeBox(DateFormat('hh:mm a').format(checkIn.toDate()), 'Check In')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildTimeBox(_getWorkingDuration(checkIn, checkOut), 'Working')),
-                    const SizedBox(width: 8),
-                    Expanded(child: _buildTimeBox(_getOvertimeDuration(checkIn, checkOut), 'Overtime')),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (!isCheckedOut)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', false),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFEF4444), // Red for checkout
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        elevation: 0,
-                      ),
-                      child: _isCheckingInOut
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Text('Check Out', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
-                    ),
-                  )
-              ] else ...[
-                 Text(
-                  'Not Checked In',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1F2937)),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5C5CFF),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: _isCheckingInOut
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Check In', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white)),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                      Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 13),
+                      SizedBox(width: 4),
+                      Text('Present',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.w700)),
+                    ]),
                   ),
-                )
-              ],
-            ],
-          ),
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(
+                    isCheckedOut
+                        ? 'Checked Out'
+                        : isCheckedIn
+                            ? 'Checked In'
+                            : 'Not Checked In',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+                const SizedBox(height: 2),
+                Text('$checkInStr  -  General Shift',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _statPill(checkInStr, 'Check In')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statPill(workingStr, 'Working')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statPill(overtimeStr, 'Overtime')),
+                ]),
+                const SizedBox(height: 14),
+                if (isCheckedOut)
+                  _outlinedActionBtn(
+                      icon: Icons.check_circle_outline_rounded,
+                      label: 'Shift Complete',
+                      color: const Color(0xFF10B981),
+                      onTap: null)
+                else if (isCheckedIn)
+                  _outlinedActionBtn(
+                      icon: Icons.logout_rounded,
+                      label: _isCheckingInOut ? 'Processing...' : 'Check Out',
+                      color: const Color(0xFFEF4444),
+                      onTap: _isCheckingInOut ? null : () => _handleCheckInOut('present', false))
+                else
+                  SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', true),
+                        icon: _isCheckingInOut ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.login_rounded, size: 18),
+                        label: Text(_isCheckingInOut ? 'Checking In...' : 'Check In Now',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF5C5CFF),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12))),
+                      )),
+              ]),
+            ),
+          ]),
         );
       },
+    );
+  }
+
+  Widget _statPill(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      decoration: BoxDecoration(
+          color: const Color(0xFFF6F7FB),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFF3F4F6))),
+      child: Column(children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(value,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+              textAlign: TextAlign.center),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center),
+        ),
+      ]),
+    );
+  }
+
+  Widget _outlinedActionBtn(
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 48,
+        decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: color.withOpacity(0.4), width: 1.5)),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 14, color: color, fontWeight: FontWeight.w700)),
+        ]),
+      ),
     );
   }
 
@@ -907,9 +1046,9 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
         children: [
           _buildSectionHeader('RECENT ANNOUNCEMENTS', onAction: () {}),
           const SizedBox(height: 16),
-          _buildAnnouncementItem('Policy', 'Updated Leave Policy FY 2025–26', '2 days ago', const Color(0xFFEEF2FF), const Color(0xFF8B5CF6)),
+          _buildAnnouncementItem('Policy', 'Updated Leave Policy FY 2025â€“26', '2 days ago', const Color(0xFFEEF2FF), const Color(0xFF8B5CF6)),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildAnnouncementItem('HR', 'WFO Reminder — Mon to Thu', 'Yesterday', const Color(0xFFEFF6FF), const Color(0xFF3B82F6)),
+          _buildAnnouncementItem('HR', 'WFO Reminder â€” Mon to Thu', 'Yesterday', const Color(0xFFEFF6FF), const Color(0xFF3B82F6)),
         ],
       ),
     );
@@ -1169,7 +1308,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
-                    Text('$dept · Applied $reqDateStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                    Text('$dept Â· Applied $reqDateStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                   ],
                 ),
               ),
@@ -1196,7 +1335,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
               children: [
                 Text(leaveType, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                 const SizedBox(height: 4),
-                Text('$datesStr · $days day${days > 1 ? "s" : ""}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                Text('$datesStr Â· $days day${days > 1 ? "s" : ""}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
                 const SizedBox(height: 8),
                 Text(reason, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                 if (status == 'rejected' && data['comment'] != null) ...[
@@ -1432,7 +1571,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                 const SizedBox(height: 8),
                 Text(companyName, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white)),
                 const SizedBox(height: 4),
-                const Text('Established 2015 · Bangalore, India', style: TextStyle(fontSize: 12, color: Colors.white70)),
+                const Text('Established 2015 Â· Bangalore, India', style: TextStyle(fontSize: 12, color: Colors.white70)),
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1471,11 +1610,11 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
           _buildCardContainer(
             child: Column(
               children: [
-                _buildLocationItem('Bangalore HQ', 'Plot 14, Whitefield · 180 employees'),
+                _buildLocationItem('Bangalore HQ', 'Plot 14, Whitefield Â· 180 employees'),
                 const Divider(height: 24, color: Color(0xFFF3F4F6)),
-                _buildLocationItem('Chennai', 'Anna Nagar · 32 employees'),
+                _buildLocationItem('Chennai', 'Anna Nagar Â· 32 employees'),
                 const Divider(height: 24, color: Color(0xFFF3F4F6)),
-                _buildLocationItem('Hyderabad', 'Hitech City · 22 employees'),
+                _buildLocationItem('Hyderabad', 'Hitech City Â· 22 employees'),
               ],
             ),
           ),
@@ -1764,7 +1903,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
               children: [
                 Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                 const SizedBox(height: 2),
-                Text('$role · $dept', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                Text('$role Â· $dept', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
               ],
             ),
           ),

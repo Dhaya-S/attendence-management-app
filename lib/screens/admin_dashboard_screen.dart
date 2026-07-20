@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -18,6 +18,8 @@ import 'package:attendance_app/widgets/live_attendance_builder.dart';
 import 'package:attendance_app/widgets/announcements_tab_view.dart';
 import 'package:attendance_app/widgets/calendar_tab_view.dart';
 import 'package:attendance_app/widgets/tasks_tab_view.dart';
+import 'package:attendance_app/widgets/location_map_card.dart';
+import 'package:attendance_app/widgets/full_map_screen.dart';
 import 'package:attendance_app/widgets/team_members_view.dart';
 import 'package:attendance_app/widgets/team_feed_view.dart';
 import 'package:attendance_app/widgets/team_tasks_view.dart';
@@ -25,8 +27,9 @@ import 'package:attendance_app/widgets/team_departments_view.dart';
 import 'package:attendance_app/widgets/org_overview_tab.dart';
 import 'package:attendance_app/widgets/org_policies_tab.dart';
 import 'package:attendance_app/widgets/org_reports_tab.dart';
-import 'package:attendance_app/features/attendance/screens/admin/admin_attendance_tab.dart';
+import 'package:attendance_app/screens/attendance/attendance_screen.dart';
 import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
+import 'package:attendance_app/screens/more/universal_more_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -336,9 +339,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-          const SafeArea(child: AdminAttendanceTab()),
+          const SafeArea(child: AttendanceScreen()),
           const SafeArea(child: UniversalLeaveTab()),
-          const SafeArea(child: Center(child: Text('More View Under Construction'))),
+          const UniversalMoreTab(),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(),
@@ -622,6 +625,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _buildOfficeLocationCard(),
+          const SizedBox(height: 16),
           _buildAttendanceTodayCard(),
           const SizedBox(height: 16),
           _buildMonthlyAttendanceCard(),
@@ -677,13 +682,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               // Inject mock data to match the UI if real data is missing for specific tabs
               if (filteredDocs.isEmpty) {
                 if (_selectedApprovalTab == 1) { // Shift Mock
-                  listItems.add(_buildMockCard('KR', 'Kavya Reddy', 'Engineering · Applied Jul 26', 'Shift Change', 'General -> Night Shift · Jul 29', 'Shift', const Color(0xFF10B981), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                  listItems.add(_buildMockCard('KR', 'Kavya Reddy', 'Engineering Â· Applied Jul 26', 'Shift Change', 'General -> Night Shift Â· Jul 29', 'Shift', const Color(0xFF10B981), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
                 } else if (_selectedApprovalTab == 2) { // Department Mock
-                  listItems.add(_buildMockCard('SP', 'Sneha Patel', 'HR · Applied Jul 26', 'Department Transfer', 'HR -> Operations', 'Department', const Color(0xFF5C5CFF), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                  listItems.add(_buildMockCard('SP', 'Sneha Patel', 'HR Â· Applied Jul 26', 'Department Transfer', 'HR -> Operations', 'Department', const Color(0xFF5C5CFF), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
                 } else if (_selectedApprovalTab == 3) { // Task Mock
-                  listItems.add(_buildMockCard('DJ', 'Deepak Joshi', 'Operations · Applied Jul 27', 'Task Extension', 'Q3 Audit - Extend to Aug 5', 'Task', const Color(0xFFF59E0B), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                  listItems.add(_buildMockCard('DJ', 'Deepak Joshi', 'Operations Â· Applied Jul 27', 'Task Extension', 'Q3 Audit - Extend to Aug 5', 'Task', const Color(0xFFF59E0B), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
                 } else if (_selectedApprovalTab == 5) { // Attendance Mock
-                  listItems.add(_buildMockCard('RK', 'Rohit Kumar', 'Sales · Applied Jul 25', 'Attendance Correction', 'Jul 24 · Missing check-out', 'Attendance', const Color(0xFFEF4444), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                  listItems.add(_buildMockCard('RK', 'Rohit Kumar', 'Sales Â· Applied Jul 25', 'Attendance Correction', 'Jul 24 Â· Missing check-out', 'Attendance', const Color(0xFFEF4444), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
                 }
               }
 
@@ -693,7 +698,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (pendingDocs.isNotEmpty || (_selectedApprovalTab == 0 && listItems.isEmpty)) {
                 listItems.add(Padding(
                   padding: const EdgeInsets.only(bottom: 16, top: 0),
-                  child: Text('PENDING · ${pendingDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                  child: Text('PENDING Â· ${pendingDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
                 ));
                 for (var doc in pendingDocs) {
                   listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
@@ -703,7 +708,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               if (processedDocs.isNotEmpty) {
                 listItems.add(Padding(
                   padding: const EdgeInsets.only(bottom: 16, top: 24),
-                  child: Text('PROCESSED · ${processedDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                  child: Text('PROCESSED Â· ${processedDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
                 ));
                 for (var doc in processedDocs) {
                   listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
@@ -733,7 +738,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       'appliedOn': subtitle.contains('Applied') ? subtitle.split('Applied')[1].trim() : 'Jul 26',
       'status': 'Pending',
       'empName': name,
-      'empDept': subtitle.split('·')[0].trim(),
+      'empDept': subtitle.split('Â·')[0].trim(),
       'initials': initials,
       'avatarColor': avatarColor.value,
     };
@@ -890,9 +895,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     
     String dateRange = '';
     if (type == 'attendance' && data['recordDate'] != null) {
-       dateRange = '${data['recordDate']} · Missing check-out';
+       dateRange = '${data['recordDate']} Â· Missing check-out';
     } else {
-       dateRange = '${DateFormat('MMM d').format(fromDate)}–${DateFormat('d').format(toDate)} · ${toDate.difference(fromDate).inDays + 1} days';
+       dateRange = '${DateFormat('MMM d').format(fromDate)}â€“${DateFormat('d').format(toDate)} Â· ${toDate.difference(fromDate).inDays + 1} days';
     }
     
     String empId = data['userId'] ?? data['employeeId'] ?? 'Unknown';
@@ -957,7 +962,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(empName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
-                    Text('Engineering · Applied $appliedStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                    Text('Engineering Â· Applied $appliedStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                   ],
                 ),
               ),
@@ -1220,6 +1225,87 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
+  Widget _buildOfficeLocationCard() {
+    final isInside = _currentLocationData?.isWithinRadius ?? false;
+    return Container(
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF3F4F6))),
+      child: Column(children: [
+        SizedBox(
+            height: 130,
+            child: ClipRRect(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(15)),
+              child: LocationMapCard(
+                  officeLat: LocationService.officeLat,
+                  officeLng: LocationService.officeLng,
+                  allowedRadius: LocationService.allowedRadius,
+                  userLocation: _currentLocationData?.latLng,
+                  userAddress: _currentLocationData?.address,
+                  height: 130),
+            )),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child:
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Office Location',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827))),
+              const SizedBox(height: 4),
+              Row(children: [
+                Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                        color: isInside ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        shape: BoxShape.circle)),
+                const SizedBox(width: 5),
+                Text(isInside ? 'INSIDE OFFICE RANGE' : 'OUTSIDE OFFICE RANGE',
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: isInside ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3)),
+              ]),
+            ]),
+            GestureDetector(
+              onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => FullMapScreen(
+                          officeLat: LocationService.officeLat,
+                          officeLng: LocationService.officeLng,
+                          allowedRadius: LocationService.allowedRadius,
+                          userLocation: _currentLocationData?.latLng,
+                          userAddress: _currentLocationData?.address))),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFEEF2FF),
+                    borderRadius: BorderRadius.circular(10)),
+                child: Row(children: const [
+                  Icon(Icons.location_on_outlined, color: Color(0xFF5C5CFF), size: 14),
+                  SizedBox(width: 4),
+                  Text('View Map',
+                      style: TextStyle(
+                          color: Color(0xFF5C5CFF),
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12)),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
   Widget _buildAttendanceTodayCard() {
     return StreamBuilder<DocumentSnapshot>(
       stream: _todayAttendanceStream,
@@ -1227,141 +1313,184 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         final data = snapshot.data?.data() as Map<String, dynamic>?;
         final checkIn = data?['checkIn'] as Timestamp?;
         final checkOut = data?['checkOut'] as Timestamp?;
+        final status = data?['status'] as String?;
         final isCheckedIn = checkIn != null && checkOut == null;
         final isCheckedOut = checkIn != null && checkOut != null;
+        final isPresent = isCheckedIn || isCheckedOut;
+        final checkInStr = checkIn != null
+            ? DateFormat('hh:mm a').format(checkIn.toDate())
+            : '--:-- --';
+        
+        String workingStr = "0h 0m";
+        String overtimeStr = "0h 0m";
 
-        String elapsed = "00:00:00";
-        if (isCheckedIn) {
-          final diff = DateTime.now().difference(checkIn.toDate());
-          final h = diff.inHours.toString().padLeft(2, '0');
-          final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
-          final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
-          elapsed = "$h:$m:$s";
-        } else if (isCheckedOut) {
-          final diff = checkOut.toDate().difference(checkIn.toDate());
-          final h = diff.inHours.toString().padLeft(2, '0');
-          final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
-          final s = (diff.inSeconds % 60).toString().padLeft(2, '0');
-          elapsed = "$h:$m:$s";
+        if (checkIn != null) {
+          final diff = (checkOut?.toDate() ?? DateTime.now()).difference(checkIn.toDate());
+          final h = diff.inHours;
+          final m = diff.inMinutes % 60;
+          workingStr = '${h}h ${m}m';
+          
+          if (h > 9 || (h == 9 && m > 0)) {
+            final otMin = diff.inMinutes - (9 * 60);
+            final oth = otMin ~/ 60;
+            final otm = otMin % 60;
+            overtimeStr = '${oth}h ${otm}m';
+          }
         }
 
-        return _buildCardContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'ATTENDANCE — TODAY',
-                    style: TextStyle(fontSize: 10, fontWeight: 
-FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
-                  ),
+        return Container(
+          decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFF3F4F6))),
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+              child:
+                  Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                const Text('ATTENDANCE TODAY',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.4)),
+                if (isPresent)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: checkIn != null ? const Color(0xFFECFDF5) : const Color(0xFFF3F4F6),
-                      border: Border.all(color: checkIn != null ? const Color(0xFF10B981).withOpacity(0.3) : const Color(0xFFD1D5DB)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(checkIn != null ? Icons.check_circle_outline : Icons.cancel_outlined, 
-                          color: checkIn != null ? const Color(0xFF10B981) : const Color(0xFF9CA3AF), size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          checkIn != null ? 'Present' : 'Absent',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, 
-                            color: checkIn != null ? const Color(0xFF10B981) : const Color(0xFF9CA3AF)),
-                        ),
-                      ],
-                    ),
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3))),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: const [
+                      Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 13),
+                      SizedBox(width: 4),
+                      Text('Present',
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.w700)),
+                    ]),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              if (checkIn != null) ...[
+              ]),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
-                  isCheckedOut ? 'Checked Out' : 'Checked In',
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${DateFormat('hh:mm a').format(checkIn.toDate())} - General Shift',
-                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF9CA3AF)),
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEEF2FF),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.access_time, color: Color(0xFF5C5CFF), size: 16),
-                          const SizedBox(width: 8),
-                          Text(
-                            elapsed, // Mocking the large negative time style in image but with real positive time
-                            style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Color(0xFF5C5CFF), letterSpacing: -0.5),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text('Time Worked Today', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF6B7280))),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (!isCheckedOut)
+                    isCheckedOut
+                        ? 'Checked Out'
+                        : isCheckedIn
+                            ? 'Checked In'
+                            : 'Not Checked In',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF111827))),
+                const SizedBox(height: 2),
+                Text('$checkInStr  -  General Shift',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _statPill(checkInStr, 'Check In')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statPill(workingStr, 'Working')),
+                  const SizedBox(width: 8),
+                  Expanded(child: _statPill(overtimeStr, 'Overtime')),
+                ]),
+                const SizedBox(height: 14),
+                if (isCheckedOut)
+                  _outlinedActionBtn(
+                      icon: Icons.check_circle_outline_rounded,
+                      label: 'Shift Complete',
+                      color: const Color(0xFF10B981),
+                      onTap: null)
+                else if (isCheckedIn)
+                  _outlinedActionBtn(
+                      icon: Icons.logout_rounded,
+                      label: _isCheckingInOut ? 'Processing...' : 'Check Out',
+                      color: const Color(0xFFEF4444),
+                      onTap: _isCheckingInOut ? null : () => _handleCheckInOut('present', false))
+                else
                   SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', false),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFFCA5A5)),
-                        backgroundColor: const Color(0xFFFEF2F2), // Light Red
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                      child: _isCheckingInOut
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Color(0xFFEF4444), strokeWidth: 2))
-                          : const Text('Check Out', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFFEF4444))),
-                    ),
-                  )
-              ] else ...[
-                const Text(
-                  'Not Checked In',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', true),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF5C5CFF),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    child: _isCheckingInOut
-                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : const Text('Check In', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white)),
-                  ),
-                )
-              ],
-            ],
-          ),
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton.icon(
+                        onPressed: _isCheckingInOut ? null : () => _handleCheckInOut('present', true),
+                        icon: _isCheckingInOut ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Icon(Icons.login_rounded, size: 18),
+                        label: Text(_isCheckingInOut ? 'Checking In...' : 'Check In Now',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF5C5CFF),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12))),
+                      )),
+              ]),
+            ),
+          ]),
         );
       },
     );
   }
+
+  Widget _statPill(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      decoration: BoxDecoration(
+          color: const Color(0xFFF6F7FB),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFF3F4F6))),
+      child: Column(children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(value,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w800, color: Color(0xFF111827)),
+              textAlign: TextAlign.center),
+        ),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: Color(0xFF6B7280), fontWeight: FontWeight.w500),
+              textAlign: TextAlign.center),
+        ),
+      ]),
+    );
+  }
+
+  Widget _outlinedActionBtn(
+      {required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 48,
+        decoration: BoxDecoration(
+            color: color.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: color.withOpacity(0.4), width: 1.5)),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 8),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 14, color: color, fontWeight: FontWeight.w700)),
+        ]),
+      ),
+    );
+  }
+
 
   Widget _buildMonthlyAttendanceCard() {
     return _buildCardContainer(
@@ -1369,13 +1498,13 @@ FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'MONTHLY ATTENDANCE — ${DateFormat('MMMM yyyy').format(DateTime.now()).toUpperCase()}',
+            'MONTHLY ATTENDANCE â€” ${DateFormat('MMMM yyyy').format(DateTime.now()).toUpperCase()}',
             style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildLegendItem(const Color(0xFF1D4ED8), '≥9 hrs'), // Dark Blue
+              _buildLegendItem(const Color(0xFF1D4ED8), 'â‰¥9 hrs'), // Dark Blue
               const SizedBox(width: 16),
               _buildLegendItem(const Color(0xFFF59E0B), 'Late (<9 hrs)'), // Orange
               const SizedBox(width: 16),
@@ -1546,7 +1675,7 @@ FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'ATTENDANCE — TODAY (ORG-WIDE)',
+                    'ATTENDANCE â€” TODAY (ORG-WIDE)',
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 20),

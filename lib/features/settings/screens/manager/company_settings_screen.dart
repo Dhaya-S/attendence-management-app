@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -217,7 +217,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Shift Timing ─────────────────────────────────────────
+              // â”€â”€ Shift Timing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               _buildSectionHeader('Shift Timing'),
               const SizedBox(height: 16),
               _buildSettingCard(
@@ -319,7 +319,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
               const SizedBox(height: 28),
 
-              // ── Leave Policy ──────────────────────────────────────────
+              // â”€â”€ Leave Policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               _buildSectionHeader('Leave Policy'),
               const SizedBox(height: 16),
               _buildSettingCard(
@@ -439,7 +439,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
               const SizedBox(height: 40),
 
-              // ── Save Button ───────────────────────────────────────────
+              // â”€â”€ Save Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               SizedBox(
                 width: double.infinity,
                 height: 56,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -180,7 +180,7 @@ class OrgOverviewTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 const Text('Sunrise Tech', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF5C5CFF))),
                 const SizedBox(height: 4),
-                const Text('Est. 2013 · Bangalore', style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+                const Text('Est. 2013 Â· Bangalore', style: TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
               ],
             ),
           ),

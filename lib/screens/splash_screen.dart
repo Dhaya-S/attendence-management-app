@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/auth_wrapper.dart';
@@ -48,7 +48,7 @@ class _SplashScreenState extends State<SplashScreen>
   Future<void> _checkAuthAndNavigate() async {
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    // No logged-in user → show login
+    // No logged-in user â†’ show login
     if (currentUser == null) {
       if (mounted) {
         Navigator.pushReplacement(
@@ -63,7 +63,7 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       await currentUser.reload();
     } catch (_) {
-      // Token invalid / user deleted → go to login
+      // Token invalid / user deleted â†’ go to login
       await FirebaseAuth.instance.signOut();
       if (mounted) {
         Navigator.pushReplacement(
@@ -190,7 +190,7 @@ class _SplashScreenState extends State<SplashScreen>
       );
     } catch (e) {
       debugPrint('Auto-login failed: $e');
-      // Session restore failed — sign out and show login
+      // Session restore failed â€” sign out and show login
       await FirebaseAuth.instance.signOut();
       AppSession().clear();
       if (mounted) {
@@ -268,7 +268,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const SizedBox(height: 12),
 
-                  // 📝 Corporate Tagline
+                  // ðŸ“ Corporate Tagline
                   const Text(
                     "Enterprise Presence System",
                     textAlign: TextAlign.center,
@@ -293,9 +293,9 @@ class _SplashScreenState extends State<SplashScreen>
 
                   const SizedBox(height: 32),
 
-                  // 🧾 Footer
+                  // ðŸ§¾ Footer
                   const Text(
-                    "SECURE • RELIABLE • ENTERPRISE",
+                    "SECURE â€¢ RELIABLE â€¢ ENTERPRISE",
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,

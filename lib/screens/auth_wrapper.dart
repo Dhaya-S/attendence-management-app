@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/screens/pre_login_screen.dart';
@@ -206,7 +206,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     try {
       final email = user.email?.toLowerCase() ?? '';
 
-      // ── Fast path: session already populated during registration ────────────
+      // â”€â”€ Fast path: session already populated during registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // This happens when a new admin just created their account via the setup
       // flow. AppSession is already populated; no Firestore read needed.
       if (AppSession().isReady) {
@@ -214,7 +214,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         return;
       }
 
-      // ── Look up approved_users global mapping ────────────────────────────────
+      // â”€â”€ Look up approved_users global mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       String? role;
       String? companyId;
 
@@ -227,7 +227,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final orgId = d['orgId'] as String?;
         companyId = d['companyId'] as String? ?? orgId ?? '';
 
-        // ── NEW: Load from `organizations` collection ──────────────────────
+        // â”€â”€ NEW: Load from `organizations` collection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if (orgId != null && orgId.isNotEmpty) {
           await _loadSessionFromOrganizations(user, email, role, orgId);
           return;
@@ -267,7 +267,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         return;
       }
 
-      // ── LEGACY: Load from `approved_companies` collection ────────────────
+      // â”€â”€ Load from `organizations` collection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       final companyDoc = await FirestoreService.companyDoc(companyId).get();
       if (!companyDoc.exists || companyDoc.data() == null) {
         throw Exception('Company record not found.');

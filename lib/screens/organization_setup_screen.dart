@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -43,7 +43,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
   String? _createdRequestId;
   DateTime? _createdAt;
 
-  // ── Address / Geocoding state ──────────────────────────────────────────────
+  // â”€â”€ Address / Geocoding state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   double? _latitude;
   double? _longitude;
   bool _isFetchingLocation = false;
@@ -101,7 +101,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     super.dispose();
   }
 
-  // ── Places Autocomplete ───────────────────────────────────────────────────
+  // â”€â”€ Places Autocomplete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _onAddressSearchChanged(String query) {
     _debounce?.cancel();
@@ -202,7 +202,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     }
   }
 
-  // ── Live Location ──────────────────────────────────────────────────────────
+  // â”€â”€ Live Location â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _fetchLiveLocation() async {
     setState(() => _isFetchingLocation = true);
@@ -287,7 +287,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
     await Future.delayed(const Duration(milliseconds: 600));
 
     final createdAt = DateTime.now();
-    final newCompanyId = FirebaseFirestore.instance.collection('approved_companies').doc().id;
+    final newCompanyId = FirebaseFirestore.instance.collection('organizations').doc().id;
 
     if (!mounted) return;
     setState(() {
@@ -608,7 +608,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         _buildProgressIndicator(2),
         const SizedBox(height: 32),
 
-        // ── Address Line 1 with Places Autocomplete ───────────────────────
+        // â”€â”€ Address Line 1 with Places Autocomplete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -668,7 +668,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
                 ),
               ),
             ),
-            // ── Autocomplete suggestions dropdown ─────────────────────────
+            // â”€â”€ Autocomplete suggestions dropdown â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if (_addressSuggestions.isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(top: 2),
@@ -725,7 +725,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── City & State ──────────────────────────────────────────────────
+        // â”€â”€ City & State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Row(
           children: [
             Expanded(
@@ -745,7 +745,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── Country & Postal Code ─────────────────────────────────────────
+        // â”€â”€ Country & Postal Code â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         Row(
           children: [
             Expanded(
@@ -770,7 +770,7 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
         ),
         const SizedBox(height: 16),
 
-        // ── Time Zone ─────────────────────────────────────────────────────
+        // â”€â”€ Time Zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         _dropdownField(
           label: 'Time Zone *',
           icon: Icons.schedule_rounded,
@@ -1584,7 +1584,7 @@ class _MiniStatBox extends StatelessWidget {
       child: Column(
         children: [
           const Text(
-            '—',
+            'â€”',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w700,

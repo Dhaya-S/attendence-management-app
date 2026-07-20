@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class EmployeeFeedTab extends StatefulWidget {
   const EmployeeFeedTab({super.key});
@@ -138,7 +138,7 @@ class _EmployeeFeedTabState extends State<EmployeeFeedTab> {
               Row(
                 children: const [
                   Text(
-                    '5 members · ',
+                    '5 members Â· ',
                     style: TextStyle(
                       fontSize: 12,
                       color: Color(0xFF10B981),

@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -23,20 +23,20 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   int _step = 0;
   bool _isSubmitting = false;
 
-  // ── Step 1: Basic Info ──────────────────────────────────────────────────
+  // â”€â”€ Step 1: Basic Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   final _firstNameCtrl = TextEditingController();
   final _lastNameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
 
-  // ── Step 2: Work Info ───────────────────────────────────────────────────
+  // â”€â”€ Step 2: Work Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String _employeeId = '';
   String? _department;
   final _locationCtrl = TextEditingController();
   String? _employeeType;
 
-  // ── Step 3: Personal Info (optional) ────────────────────────────────────
+  // â”€â”€ Step 3: Personal Info (optional) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   DateTime? _dob;
   String? _gender;
   String? _maritalStatus;
@@ -46,10 +46,10 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
   final _govtIdNumberCtrl = TextEditingController();
   final _personalAddressCtrl = TextEditingController();
 
-  // ── Results ─────────────────────────────────────────────────────────────
+  // â”€â”€ Results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String? _createdOrgId;
 
-  // ── Dropdown Options ────────────────────────────────────────────────────
+  // â”€â”€ Dropdown Options â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const _departments = [
     'Engineering',
     'Human Resources',
@@ -122,7 +122,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     super.dispose();
   }
 
-  // ── Validation ───────────────────────────────────────────────────────────
+  // â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   bool _validateStep() {
     switch (_step) {
       case 1:
@@ -163,7 +163,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     setState(() => _step--);
   }
 
-  // ── Create Admin Account ─────────────────────────────────────────────────
+  // â”€â”€ Create Admin Account â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Future<void> _createAdminAccount() async {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
@@ -255,7 +255,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     }
   }
 
-  // ── Computed Getters ─────────────────────────────────────────────────────
+  // â”€â”€ Computed Getters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String get _fullName =>
       '${_firstNameCtrl.text.trim()} ${_lastNameCtrl.text.trim()}'.trim();
 
@@ -268,7 +268,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     return res.isEmpty ? '?' : res;
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -340,7 +340,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 0: Intro ────────────────────────────────────────────────────────
+  // â”€â”€ Step 0: Intro â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildIntroStep() {
     return _buildScrollableStep(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -461,7 +461,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 1: Basic Information ────────────────────────────────────────────
+  // â”€â”€ Step 1: Basic Information â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildBasicInfoStep() {
     return _buildScrollableStep(
       children: [
@@ -498,7 +498,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
                   ),
                   const SizedBox(height: 4),
-                  const Text('JPG, PNG up to 5MB\nRecommended: 400×400px', style: TextStyle(fontSize: 11, color: AppTheme.textHint, height: 1.4)),
+                  const Text('JPG, PNG up to 5MB\nRecommended: 400Ã—400px', style: TextStyle(fontSize: 11, color: AppTheme.textHint, height: 1.4)),
                   const SizedBox(height: 4),
                   const Text('+ Remove photo', style: TextStyle(fontSize: 11, color: AppTheme.danger, fontWeight: FontWeight.w500)),
                 ],
@@ -559,7 +559,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 2: Work Information ─────────────────────────────────────────────
+  // â”€â”€ Step 2: Work Information â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildWorkInfoStep() {
     return _buildScrollableStep(
       children: [
@@ -656,7 +656,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
                   children: [
                     Text('Reporting Manager', style: TextStyle(fontSize: 12, color: AppTheme.textHint)),
                     SizedBox(height: 2),
-                    Text('—', style: TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500)),
+                    Text('â€”', style: TextStyle(fontSize: 14, color: AppTheme.textPrimary, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ),
@@ -669,7 +669,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
           children: const [
             Icon(Icons.check_rounded, size: 14, color: AppTheme.textHint),
             SizedBox(width: 6),
-            Text('No reporting manager — this is a top-level account', style: TextStyle(fontSize: 11, color: AppTheme.textHint)),
+            Text('No reporting manager â€” this is a top-level account', style: TextStyle(fontSize: 11, color: AppTheme.textHint)),
           ],
         ),
         const Spacer(),
@@ -681,7 +681,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 3: Personal Information ─────────────────────────────────────────
+  // â”€â”€ Step 3: Personal Information â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildPersonalInfoStep() {
     return _buildScrollableStep(
       children: [
@@ -780,7 +780,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 4: Review ───────────────────────────────────────────────────────
+  // â”€â”€ Step 4: Review â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildReviewStep() {
     return _buildScrollableStep(
       children: [
@@ -820,7 +820,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
                             const SizedBox(width: 4),
                             const Text('Administrator', style: TextStyle(fontSize: 11, color: AppTheme.primary, fontWeight: FontWeight.w600)),
                             const SizedBox(width: 6),
-                            Text('·  $_employeeId', style: const TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500)),
+                            Text('Â·  $_employeeId', style: const TextStyle(fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w500)),
                           ],
                         ),
                       ],
@@ -850,8 +850,8 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
               _reviewSection('Personal Information', () => setState(() => _step = 3), [
                 _reviewRow('Date of Birth', _dob != null ? DateFormat('dd MMMM yyyy').format(_dob!) : '-', Icons.calendar_today_outlined),
                 _reviewRow('Gender', _gender ?? '-', Icons.person_outline_rounded),
-                _reviewRow('Emergency Contact', _emergencyNameCtrl.text.trim().isNotEmpty ? '${_emergencyNameCtrl.text.trim()} · ${_emergencyPhoneCtrl.text.trim()}' : '-', Icons.phone_outlined),
-                _reviewRow('Government ID', _govtIdNumberCtrl.text.trim().isNotEmpty ? '${_govtIdType ?? '-'} · ${_govtIdNumberCtrl.text.trim()}' : '-', Icons.badge_outlined),
+                _reviewRow('Emergency Contact', _emergencyNameCtrl.text.trim().isNotEmpty ? '${_emergencyNameCtrl.text.trim()} Â· ${_emergencyPhoneCtrl.text.trim()}' : '-', Icons.phone_outlined),
+                _reviewRow('Government ID', _govtIdNumberCtrl.text.trim().isNotEmpty ? '${_govtIdType ?? '-'} Â· ${_govtIdNumberCtrl.text.trim()}' : '-', Icons.badge_outlined),
               ]),
             ],
           ),
@@ -865,7 +865,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Step 5: Success ──────────────────────────────────────────────────────
+  // â”€â”€ Step 5: Success â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSuccessStep() {
     return _buildScrollableStep(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1042,7 +1042,7 @@ class _AdminSetupScreenState extends State<AdminSetupScreen> {
     );
   }
 
-  // ── Helper Widgets ───────────────────────────────────────────────────────
+  // â”€â”€ Helper Widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _stepHeader(String title, int step) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

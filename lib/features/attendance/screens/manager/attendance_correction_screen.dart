@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -116,7 +116,7 @@ class _AttendanceCorrectionScreenState
       // Notify the employee about manual adjustment
       await NotificationHelper.notifyEmployee(
         employeeEmail: _selectedEmployeeId!,
-        title: 'Attendance Corrected 📝',
+        title: 'Attendance Corrected ðŸ“',
         body: 'Hi $_selectedEmployeeName, a manager has manually corrected your attendance for ${DateFormat('dd MMM yyyy').format(date)}.',
         type: 'attendance_corrected',
         extraData: {

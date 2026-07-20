@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -320,7 +320,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
                   keyboardType: TextInputType.phone),
               const SizedBox(height: 16),
               if (!isEditing) ...[
-                _buildField('PASSWORD', _passwordController, '••••••••',
+                _buildField('PASSWORD', _passwordController, 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
                     keyboardType: TextInputType.visiblePassword),
                 const SizedBox(height: 16),
               ],

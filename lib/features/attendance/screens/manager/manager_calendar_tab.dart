@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import 'package:intl/intl.dart';
@@ -36,7 +36,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
   static const String _calendarId =
       'en.indian%23holiday%40group.v.calendar.google.com';
 
-  // ── Colours ─────────────────────────────────────────────────────────────
+  // â”€â”€ Colours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static const Color _green = Color(0xFF10B981);
   static const Color _blue  = Color(0xFF3B82F6);
   static const Color _red   = Color(0xFFEF4444);
@@ -87,7 +87,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       final cid = FirestoreService.companyId;
       _holidaySubscription?.cancel();
       _holidaySubscription = FirebaseFirestore.instance
-          .collection('approved_companies')
+          .collection('organizations')
           .doc(cid)
           .collection('company_calendar')
           .snapshots()
@@ -189,7 +189,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       for (var date in dates) {
         final dateStr = DateFormat('yyyy-MM-dd').format(date);
         final docRef = FirebaseFirestore.instance
-            .collection('approved_companies')
+            .collection('organizations')
             .doc(cid)
             .collection('company_calendar')
             .doc(dateStr);
@@ -205,7 +205,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
 
         // Also add a notification for all employees
         final notifRef = FirebaseFirestore.instance
-            .collection('approved_companies')
+            .collection('organizations')
             .doc(cid)
             .collection('global_notifications')
             .doc();
@@ -226,8 +226,8 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
       // Notify all employees in real-time about the Holiday or WFH day
       if (dates.isNotEmpty) {
         final notifTitle = type == 'leave'
-            ? (dates.length == 1 ? 'Company Holiday 🏖️' : 'Company Holidays 🏖️')
-            : (dates.length == 1 ? 'Work From Home 🏡' : 'Work From Home Days 🏡');
+            ? (dates.length == 1 ? 'Company Holiday ðŸ–ï¸' : 'Company Holidays ðŸ–ï¸')
+            : (dates.length == 1 ? 'Work From Home ðŸ¡' : 'Work From Home Days ðŸ¡');
 
         final dateStr = dates.length == 1
             ? DateFormat('MMM dd, yyyy').format(dates.first)
@@ -278,7 +278,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
               .isBefore(DateTime.now().subtract(const Duration(days: 1))))
       .toList();
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -337,7 +337,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
     );
   }
 
-  // ── Calendar Card ─────────────────────────────────────────────────────────
+  // â”€â”€ Calendar Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildCalendarCard() {
     final now = DateTime.now();
     final firstDay = DateTime(now.year - 1, now.month, now.day);
@@ -471,7 +471,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
         child: Icon(icon, size: 20, color: Colors.black),
       );
 
-  // ── Legend ────────────────────────────────────────────────────────────────
+  // â”€â”€ Legend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildLegend() => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Wrap(
@@ -501,7 +501,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
         ],
       );
 
-  // ── Selected Day ──────────────────────────────────────────────────────────
+  // â”€â”€ Selected Day â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildSelectedDayInfo() {
     if (_selectedDay == null) return const SizedBox();
     final evts = _eventsFor(_selectedDay!);
@@ -549,7 +549,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
   }
 
 
-  // ── Next Holiday Banner ───────────────────────────────────────────────────
+  // â”€â”€ Next Holiday Banner â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildNextHolidayBanner(Map<String, dynamic> h) {
     final date = h['date'] as DateTime;
     final type = h['type'] as String? ?? 'public';
@@ -605,7 +605,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
     );
   }
 
-  // ── Upcoming Holidays ─────────────────────────────────────────────────────
+  // â”€â”€ Upcoming Holidays â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildUpcomingSection() {
     final list = _upcoming;
     if (list.isEmpty) return const SizedBox();
@@ -689,7 +689,7 @@ class _ManagerCalendarTabState extends State<ManagerCalendarTab> {
                         color: Color(0xFF1A1A2E))),
                 const SizedBox(height: 4),
                 Text(
-                  '${_labelOf(type)} • ${DateFormat('EEEE').format(date)}',
+                  '${_labelOf(type)} â€¢ ${DateFormat('EEEE').format(date)}',
                   style: const TextStyle(
                       fontSize: 12, color: Color(0xFF6B7280)),
                 ),

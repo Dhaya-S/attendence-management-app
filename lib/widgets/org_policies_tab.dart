@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 class OrgPoliciesTab extends StatelessWidget {
   const OrgPoliciesTab({super.key});
@@ -17,7 +17,7 @@ class OrgPoliciesTab extends StatelessWidget {
               iconBgColor: const Color(0xFFEEF2FF),
               iconColor: const Color(0xFF5C5CFF),
               bullets: [
-                'Standard shift: 9AM–6PM',
+                'Standard shift: 9AMâ€“6PM',
                 'Grace period: 15 minutes',
                 'Minimum hours: 8.5 hrs/day',
                 'Overtime: Pre-approved only',

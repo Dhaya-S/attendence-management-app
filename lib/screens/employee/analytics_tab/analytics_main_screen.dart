@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -9,7 +9,7 @@ import 'package:attendance_app/utils/firestore_service.dart';
 import 'monthly_summary_screen.dart';
 import 'work_hours_breakdown_screen.dart';
 
-/// Screen 1 of the Analytics tab — matches the left panel in the mockup
+/// Screen 1 of the Analytics tab â€” matches the left panel in the mockup
 class AnalyticsMainScreen extends StatefulWidget {
   const AnalyticsMainScreen({super.key});
 
@@ -137,7 +137,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Period Selector ─────────────────────────────────────────────────────
+  // â”€â”€â”€ Period Selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildPeriodSelector() {
     return SizedBox(
@@ -175,7 +175,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Rate Card ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Rate Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildRateCard(Map<String, String> metrics, DateTimeRange range) {
     return Container(
@@ -195,7 +195,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Attendance Rate · ${_periodLabel(range)}',
+            'Attendance Rate Â· ${_periodLabel(range)}',
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.85),
               fontSize: 13,
@@ -258,7 +258,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Stat Card ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildStatCard(String title, String value, String? delta,
       {bool isPositive = true, bool isStable = false}) {
@@ -297,7 +297,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Weekly Chart ────────────────────────────────────────────────────────
+  // â”€â”€â”€ Weekly Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildWeeklyChart(List<FlSpot> spots) {
     return Container(
@@ -395,7 +395,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Action Tile ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Action Tile â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildActionTile({
     required IconData icon,
@@ -439,7 +439,7 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     );
   }
 
-  // ─── Data helpers ─────────────────────────────────────────────────────────
+  // â”€â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Map<String, String> _computeMetrics(List<QueryDocumentSnapshot> docs, DateTimeRange range) {
     int present = 0;

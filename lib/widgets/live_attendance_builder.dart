@@ -1,11 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 
 /// Efficiently fetches attendance records for all company employees for a
 /// specific date by listening to each employee's attendance document directly.
 ///
-/// Path: approved_companies/{companyId}/users/{email}/attendance/{yyyy-MM-dd}
+/// Path: organizations/{companyId}/users/{email}/attendance/{yyyy-MM-dd}
 ///
 /// This approach requires NO Firestore indexes and provides real-time updates.
 class LiveAttendanceBuilder extends StatefulWidget {
@@ -69,7 +69,7 @@ class _LiveAttendanceBuilderState extends State<LiveAttendanceBuilder> {
   }
 
   void _initStreams() {
-    // Only listen to email-based IDs (skip UIDs — emails contain '@')
+    // Only listen to email-based IDs (skip UIDs â€” emails contain '@')
     final emails = widget.userIds
         .map((id) => id.toLowerCase())
         .where((id) => id.contains('@'))

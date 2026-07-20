@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +7,7 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/notification_helper.dart';
 
 class UniversalLeaveTab extends StatefulWidget {
   const UniversalLeaveTab({super.key});
@@ -82,10 +83,29 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
         'requiresManagerApproval': reqManager,
         'requiresAdminApproval': reqAdmin,
         'approverRemarks': '',
+        'senderRole': (role ?? 'employee').toLowerCase(),
       };
 
       await FirestoreService.userLeaveRequestsCol(email ?? '').add(data);
       
+      // Notify based on sender role
+      final senderRole = (role ?? 'employee').toLowerCase();
+      final dateRangeStr = durationInDays == 1
+          ? 'on ${DateFormat('MMM dd, yyyy').format(_fromDate)}'
+          : 'from ${DateFormat('MMM dd').format(_fromDate)} to ${DateFormat('MMM dd').format(_toDate)}';
+      final title = 'New Leave Request ðŸ“';
+      final body = '${AppSession().userName ?? "Employee"} applied for $_selectedLeaveType $dateRangeStr.';
+      final extraData = {'employeeEmail': email};
+
+      if (senderRole == 'admin') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      } else if (senderRole == 'manager') {
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      } else {
+        await NotificationHelper.notifyManager(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+        await NotificationHelper.notifyAdmin(title: title, body: body, type: 'new_leave_request', extraData: extraData);
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Leave applied successfully!'), backgroundColor: Color(0xFF10B981)));
         setState(() {
@@ -852,7 +872,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
     final requestDate = (data['requestDate'] as Timestamp?)?.toDate();
     
     final dateRangeStr = (fromDate != null && toDate != null)
-        ? '${DateFormat('MMM d').format(fromDate)} – ${DateFormat('MMM d').format(toDate)}'
+        ? '${DateFormat('MMM d').format(fromDate)} â€“ ${DateFormat('MMM d').format(toDate)}'
         : 'Unknown Dates';
     
     final days = data['durationInDays'] ?? 1;
@@ -882,7 +902,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
                       Text(data['leaveType'] ?? 'Leave', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
                       const SizedBox(height: 2),
                       if (isCompact)
-                        Text('$dateRangeStr · $days${days > 1 ? 'd' : 'd'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)))
+                        Text('$dateRangeStr Â· $days${days > 1 ? 'd' : 'd'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)))
                       else
                         Text('Applied ${requestDate != null ? DateFormat('MMM d').format(requestDate) : ''}', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                     ],
@@ -909,7 +929,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
               children: [
                 const Icon(Icons.event_outlined, color: Color(0xFF9CA3AF), size: 14),
                 const SizedBox(width: 6),
-                Text('$dateRangeStr  ·  $days days', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+                Text('$dateRangeStr  Â·  $days days', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 16),
@@ -1094,7 +1114,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
     final days = data['durationInDays'] ?? 1;
 
     final dateRangeStr = (fromDate != null && toDate != null)
-        ? '${DateFormat('MMM d').format(fromDate)} – ${DateFormat('MMM d').format(toDate)}'
+        ? '${DateFormat('MMM d').format(fromDate)} â€“ ${DateFormat('MMM d').format(toDate)}'
         : 'Unknown Dates';
 
     return ListTile(
@@ -1104,7 +1124,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
       title: Text(data['leaveType'] ?? 'Leave', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-      subtitle: Text('$dateRangeStr · ${days}d · ${status == 'approved' ? 'Approved' : 'Pending'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+      subtitle: Text('$dateRangeStr Â· ${days}d Â· ${status == 'approved' ? 'Approved' : 'Pending'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB)),
     );
   }
@@ -1130,7 +1150,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
                 children: [
                   _buildPolicyListItem('Leave Types', true),
                   const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                  _buildPolicyListItem('Leave Allocation — FY 2025–26', true),
+                  _buildPolicyListItem('Leave Allocation â€” FY 2025â€“26', true),
                   const Divider(height: 1, color: Color(0xFFF3F4F6)),
                   _buildPolicyListItem('Company Leave Rules', true),
                 ],

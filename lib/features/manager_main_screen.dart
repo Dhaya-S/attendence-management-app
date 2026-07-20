@@ -1,11 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/features/attendance/screens/manager/manager_home_tab.dart';
-import 'package:attendance_app/features/attendance/screens/manager/manager_attendance_tab.dart';
+import 'package:attendance_app/screens/attendance/attendance_screen.dart';
 import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
 import 'package:attendance_app/features/settings/screens/manager/manager_profile_tab.dart';
 import 'package:attendance_app/features/employee_management/screens/manager/add_employee_screen.dart';
 import 'package:attendance_app/features/attendance/screens/manager/attendance_correction_screen.dart';
+import 'package:attendance_app/screens/more/universal_more_tab.dart';
 
 class ManagerMainScreen extends StatefulWidget {
   const ManagerMainScreen({super.key});
@@ -19,10 +20,10 @@ class _ManagerMainScreenState extends State<ManagerMainScreen> {
 
   List<Widget> get _pages => [
     ManagerHomeTab(onTabChange: (index) => setState(() => _currentIndex = index)),
-    ManagerAttendanceTab(onTabChange: (index) => setState(() => _currentIndex = index)),
+    const AttendanceScreen(),
     const UniversalLeaveTab(),
     // More tab
-    ManagerProfileTab(onTabChange: (index) => setState(() => _currentIndex = index)),
+    const UniversalMoreTab(),
   ];
 
   @override

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -72,7 +72,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
               final allDocs = recordsSnap.data?.docs ?? [];
 
-              // ── Month filter ──────────────────────────────────
+              // â”€â”€ Month filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               final monthRecords = allDocs.where((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final dateTs = data['date'] as Timestamp?;
@@ -83,7 +83,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
               }).toList();
 
 
-              // ── Build month log lists ─────────────────────────
+              // â”€â”€ Build month log lists â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               final List<Map<String, dynamic>> lateLogs = [];
               final List<Map<String, dynamic>> earlyLogs = [];
 
@@ -159,7 +159,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
                 return _isAscending ? dateA.compareTo(dateB) : dateB.compareTo(dateA);
               });
 
-              // ── UI ────────────────────────────────────────────
+              // â”€â”€ UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
               return SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 padding: const EdgeInsets.all(20),
@@ -244,7 +244,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
     );
   }
 
-  // ── Month Selector ────────────────────────────────────────────────────────
+  // â”€â”€ Month Selector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildMonthSelector() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -280,7 +280,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
     );
   }
 
-  // ── Stat Card ─────────────────────────────────────────────────────────────
+  // â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _statCard(
       String label, String value, IconData icon, Color color, {bool isSelected = false, VoidCallback? onTap}) {
     return GestureDetector(
@@ -336,7 +336,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
   );
 }
 
-  // ── Log Card ──────────────────────────────────────────────────────────────
+  // â”€â”€ Log Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _logCard(Map<String, dynamic> log) {
     final bool isLate = log['type'] == 'LATE ARRIVAL';
     final String name = log['name'] ?? 'Employee';
@@ -468,7 +468,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
     );
   }
 
-  // ── Shift Time Formatter ──────────────────────────────────────────────────
+  // â”€â”€ Shift Time Formatter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   String _formatShiftTime(String hhmm) {
     final parts = hhmm.split(':');
     final hour = int.tryParse(parts[0]) ?? 0;
@@ -477,7 +477,7 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
     return DateFormat('hh:mm a').format(dt);
   }
 
-  // ── Empty State ───────────────────────────────────────────────────────────
+  // â”€â”€ Empty State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Widget _buildEmpty() {
     return Center(
       child: Padding(

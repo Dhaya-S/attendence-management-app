@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -142,7 +142,7 @@ class _ManagerAttendanceDetailScreenState extends State<ManagerAttendanceDetailS
           final loc = data?['checkInLocation'] as String?;
           final checkInLoc = (loc != null && loc != 'Unknown') 
               ? loc 
-              : (_currentLocationData?.address ?? (AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ – Prestige Tech Park'));
+              : (_currentLocationData?.address ?? (AppSession().companyName != null ? '${AppSession().companyName} HQ' : 'Bengaluru HQ â€“ Prestige Tech Park'));
           final workMode = data?['workMode'] as String? ?? 'office';
           
           final inStr = checkIn != null ? DateFormat('hh:mm a').format(checkIn.toDate()) : '--:--';
@@ -203,7 +203,7 @@ class _ManagerAttendanceDetailScreenState extends State<ManagerAttendanceDetailS
                       _buildDivider(),
                       _buildDetailRow('Attendance Method', 'Biometric + GPS'),
                       _buildDivider(),
-                      _buildDetailRow('GPS Accuracy', 'High (±3m)'),
+                      _buildDetailRow('GPS Accuracy', 'High (Â±3m)'),
                     ],
                   ),
                 ),

@@ -1,73 +1,73 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'app_session.dart';
 
-/// FirestoreService — Single source of truth for all Firestore collection
+/// FirestoreService â€” Single source of truth for all Firestore collection
 /// and document references.
 ///
 /// **Company-Centric Model:**
 /// All operational data (employees, attendance, leave requests, etc.) is stored
-/// as subcollections under `approved_companies/{companyId}/...`.
+/// as subcollections under `organizations/{companyId}/...`.
 /// This ensures that when you view a company in the Firestore console, you can
 /// see all related employees, attendance, and leave data nested under it.
 ///
 /// Never call `FirebaseFirestore.instance.collection(...)` directly in UI code
-/// — use the static helpers here instead.
+/// â€” use the static helpers here instead.
 class FirestoreService {
-  FirestoreService._(); // No instances needed — all members are static.
+  FirestoreService._(); // No instances needed â€” all members are static.
 
   static final _db = FirebaseFirestore.instance;
 
-  // ── Convenience accessor ─────────────────────────────────────────────────
+  // â”€â”€ Convenience accessor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   static String get _cid {
     final id = AppSession().companyId;
-    assert(id != null, 'AppSession.companyId is null — was login completed?');
+    assert(id != null, 'AppSession.companyId is null â€” was login completed?');
     return id!;
   }
 
   /// Public getter for the current tenant's companyId
   static String get companyId => _cid;
 
-  // ── Global (cross-company) refs ──────────────────────────────────────────
+  // â”€â”€ Global (cross-company) refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  /// `approved_users/{email}` — global login / company mapping.
+  /// `approved_users/{email}` â€” global login / company mapping.
   static DocumentReference<Map<String, dynamic>> approvedUserDoc(
           String email) =>
       _db.collection('approved_users').doc(email.toLowerCase());
 
-  /// `approved_companies/{companyId}` — company master document.
+  /// `organizations/{companyId}` â€” company master document.
   static DocumentReference<Map<String, dynamic>> companyDoc(
           [String? companyId]) =>
-      _db.collection('approved_companies').doc(companyId ?? _cid);
+      _db.collection('organizations').doc(companyId ?? _cid);
 
-  /// `organization_setup_requests/{requestId}` — pre-login organization setup submissions.
+  /// `organization_setup_requests/{requestId}` â€” pre-login organization setup submissions.
   static CollectionReference<Map<String, dynamic>> get organizationSetupRequestsCol =>
       _db.collection('organization_setup_requests');
 
-  // ── New: Organizations (self-registration flow) ──────────────────────────
+  // â”€â”€ New: Organizations (self-registration flow) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Used when a company admin registers directly via the app.
   // Structure: organizations/{orgId}/members/{uid}
   //                                /departments/{deptId}
 
-  /// `organizations` — top-level collection for self-registered companies.
+  /// `organizations` â€” top-level collection for self-registered companies.
   static CollectionReference<Map<String, dynamic>> get orgCol =>
       _db.collection('organizations');
 
-  /// `organizations/{orgId}` — company master document.
+  /// `organizations/{orgId}` â€” company master document.
   static DocumentReference<Map<String, dynamic>> orgDoc(String orgId) =>
       orgCol.doc(orgId);
 
-  /// `organizations/{orgId}/members` — all admin/employee profiles for this org.
+  /// `organizations/{orgId}/members` â€” all admin/employee profiles for this org.
   static CollectionReference<Map<String, dynamic>> orgMembersCol(String orgId) =>
       orgDoc(orgId).collection('members');
 
-  /// `organizations/{orgId}/members/{uid}` — a single member's profile.
+  /// `organizations/{orgId}/members/{uid}` â€” a single member's profile.
   static DocumentReference<Map<String, dynamic>> orgMemberDoc(
           String orgId, String uid) =>
       orgMembersCol(orgId).doc(uid);
 
-  /// `organizations/{orgId}/departments` — department list for this org.
+  /// `organizations/{orgId}/departments` â€” department list for this org.
   static CollectionReference<Map<String, dynamic>> orgDepartmentsCol(
           String orgId) =>
       orgDoc(orgId).collection('departments');
@@ -97,11 +97,11 @@ class FirestoreService {
           String orgId, String policyId) =>
       orgPoliciesCol(orgId).doc(policyId);
 
-  // ── Company-Scoped Subcollections ────────────────────────────────────────
+  // â”€â”€ Company-Scoped Subcollections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // All operational data lives UNDER the company document so that
   // Firestore console shows everything nested per company.
 
-  /// `/approved_companies/{companyId}/users` — user profiles
+  /// `/organizations/{companyId}/users` â€” user profiles
   static CollectionReference<Map<String, dynamic>> get employeesCol =>
       companyDoc().collection('users');
 
@@ -109,7 +109,7 @@ class FirestoreService {
   static Query<Map<String, dynamic>> get companyUsersQuery =>
       employeesCol.where('status', isEqualTo: 'approved');
 
-  /// `/approved_companies/{companyId}/employees/{email}`
+  /// `/organizations/{companyId}/employees/{email}`
   static DocumentReference<Map<String, dynamic>> employeeDoc(String email) =>
       employeesCol.doc(email.toLowerCase());
 
@@ -131,23 +131,23 @@ class FirestoreService {
     });
   }
 
-  /// `/approved_companies/{companyId}/users/{email}/attendance`
+  /// `/organizations/{companyId}/users/{email}/attendance`
   static CollectionReference<Map<String, dynamic>> userAttendanceCol(String email) =>
       employeeDoc(email).collection('attendance');
 
-  /// `/approved_companies/{companyId}/users/{email}/leave_requests`
+  /// `/organizations/{companyId}/users/{email}/leave_requests`
   static CollectionReference<Map<String, dynamic>> userLeaveRequestsCol(String email) =>
       employeeDoc(email).collection('leave_requests');
 
-  /// `/approved_companies/{companyId}/users/{email}/notifications`
+  /// `/organizations/{companyId}/users/{email}/notifications`
   static CollectionReference<Map<String, dynamic>> userNotificationsCol(String email) =>
       employeeDoc(email).collection('notifications');
 
-  /// `/approved_companies/{companyId}/users/{email}/overtime_requests`
+  /// `/organizations/{companyId}/users/{email}/overtime_requests`
   static CollectionReference<Map<String, dynamic>> userOvertimeRequestsCol(String email) =>
       employeeDoc(email).collection('overtime_requests');
 
-  // ── Collection Group Queries (Manager Access) ──────────────────────────────
+  // â”€â”€ Collection Group Queries (Manager Access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These allow managers to query all records across all employees in the company.
 
   /// All attendance records for the current company via collection group query.
@@ -178,30 +178,30 @@ class FirestoreService {
   /// Alias for backward compatibility
   static Query<Map<String, dynamic>> get companyLeaveRequestsQuery => allLeaveRequestsQuery;
 
-  // ── Global Company Notifications ──────────────────────────────────────────
+  // â”€â”€ Global Company Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These are notifications meant for the entire company, not a specific user.
   
-  /// `/approved_companies/{companyId}/global_notifications`
+  /// `/organizations/{companyId}/global_notifications`
   static CollectionReference<Map<String, dynamic>> get globalNotificationsCol =>
       companyDoc().collection('global_notifications');
 
-  /// `/approved_companies/{companyId}/announcements`
+  /// `/organizations/{companyId}/announcements`
   static CollectionReference<Map<String, dynamic>> get announcementsCol =>
-      companyDoc().collection('announcements');
+      orgDoc(_cid).collection('announcements');
 
-  /// `/approved_companies/{companyId}/company_calendar`
+  /// `/organizations/{companyId}/company_calendar`
   static CollectionReference<Map<String, dynamic>> get companyCalendarCol =>
       companyDoc().collection('company_calendar');
 
-  /// `/approved_companies/{companyId}/tasks`
+  /// `/organizations/{companyId}/tasks`
   static CollectionReference<Map<String, dynamic>> get tasksCol =>
       companyDoc().collection('tasks');
 
-  /// `/approved_companies/{companyId}/feed_posts`
+  /// `/organizations/{companyId}/feed_posts`
   static CollectionReference<Map<String, dynamic>> get feedPostsCol =>
       companyDoc().collection('feed_posts');
 
-  // ── Legacy / Flat Collections (To be removed after migration) ───────────
+  // â”€â”€ Legacy / Flat Collections (To be removed after migration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /// @deprecated Use [userAttendanceCol]
   static CollectionReference<Map<String, dynamic>> get attendanceCol =>
@@ -226,17 +226,17 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get overtimeRequestsCol =>
       companyDoc().collection('overtime_requests');
 
-  // ── Legacy Compatibility Aliases ─────────────────────────────────────────
+  // â”€â”€ Legacy Compatibility Aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These aliases keep existing UI code working without mass renames.
 
-  /// Alias for `employeesCol` — backward compatible with old `usersCol` calls
+  /// Alias for `employeesCol` â€” backward compatible with old `usersCol` calls
   static CollectionReference<Map<String, dynamic>> get usersCol => employeesCol;
 
-  /// Alias for `employeeDoc(uid)` — backward compatible
+  /// Alias for `employeeDoc(uid)` â€” backward compatible
   static DocumentReference<Map<String, dynamic>> userDoc(String uid) =>
       employeesCol.doc(uid);
 
-  /// Alias for `employeeDoc(email)` — backward compatible
+  /// Alias for `employeeDoc(email)` â€” backward compatible
   static DocumentReference<Map<String, dynamic>> userDocByEmail(
           String email) =>
       employeesCol.doc(email.toLowerCase());
@@ -246,7 +246,7 @@ class FirestoreService {
   static Future<QuerySnapshot<Map<String, dynamic>>> findCompanyByManagerEmail(
           String email) =>
       _db
-          .collection('approved_companies')
+          .collection('organizations')
           .where('managerEmail', isEqualTo: email.toLowerCase())
           .limit(1)
           .get();

@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/screens/employee/home_tab.dart';
-import 'package:attendance_app/screens/employee/attendance_tab.dart';
+import 'package:attendance_app/screens/attendance/attendance_screen.dart';
 import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
 import 'package:attendance_app/screens/employee/employee_attendance_correction_screen.dart';
+import 'package:attendance_app/screens/more/universal_more_tab.dart';
 
 class EmployeeMainScreen extends StatefulWidget {
   const EmployeeMainScreen({super.key});
@@ -21,14 +22,13 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
 
   final List<Widget> _tabs = const [
     EmployeeHomeTab(),
-    EmployeeAttendanceTab(),
-    const UniversalLeaveTab(),
+    AttendanceScreen(),
+    UniversalLeaveTab(),
+    UniversalMoreTab(),
   ];
 
   void _onItemTapped(int index) {
-    if (index == 3) {
-      _showMoreBottomSheet();
-    } else if (index < 3) {
+    if (index < 4) {
       setState(() {
         _currentIndex = index;
       });
@@ -125,7 +125,7 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            'Product Designer · EMP-2024-0142',
+                            'Product Designer Â· EMP-2024-0142',
                             style: TextStyle(
                                 color: AppTheme.textMuted, fontSize: 13),
                           ),
