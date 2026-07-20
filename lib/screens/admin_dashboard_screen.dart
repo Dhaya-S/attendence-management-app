@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -61,6 +61,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Timer? _timer;
 
   late final String orgId;
+  
+  // Approvals Real-time State
+  List<DocumentSnapshot>? _cachedApprovals;
+  StreamSubscription? _subLeaves, _subAtt, _subShifts, _subDepts, _subTasks;
 
   @override
   void initState() {
@@ -72,6 +76,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     _todayAttendanceStream = _todayRef.doc(_getAttendanceDocId()).snapshots();
 
     _startLocationUpdates();
+    _initApprovalsListeners();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() {});
     });
@@ -80,6 +85,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _subLeaves?.cancel();
+    _subAtt?.cancel();
+    _subShifts?.cancel();
+    _subDepts?.cancel();
+    _subTasks?.cancel();
     super.dispose();
   }
 
@@ -266,6 +276,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     };
 
     return controller.stream;
+  }
+
+  void _initApprovalsListeners() {
+    List<DocumentSnapshot> leaves = [];
+    List<DocumentSnapshot> attDocs = [];
+    List<DocumentSnapshot> shifts = [];
+    List<DocumentSnapshot> depts = [];
+    List<DocumentSnapshot> tasks = [];
+
+    void update() {
+      if (!mounted) return;
+      List<DocumentSnapshot> allDocs = [...leaves, ...attDocs, ...shifts, ...depts, ...tasks];
+      allDocs.sort((a, b) {
+        final ta = (a.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+        final tb = (b.data() as Map<String, dynamic>?)?['createdAt'] as Timestamp?;
+        if (ta == null && tb == null) return 0;
+        if (ta == null) return 1;
+        if (tb == null) return -1;
+        return tb.compareTo(ta);
+      });
+      setState(() { _cachedApprovals = allDocs; });
+    }
+
+    _subLeaves = FirestoreService.allLeaveRequestsQuery.snapshots().listen((s) { leaves = s.docs; update(); }, onError: (_) {});
+    _subAtt = FirestoreService.allAttendanceCorrectionsQuery.snapshots().listen((s) { attDocs = s.docs; update(); }, onError: (_) {});
+    _subShifts = FirestoreService.allShiftRequestsQuery.snapshots().listen((s) { shifts = s.docs; update(); }, onError: (_) {});
+    _subDepts = FirestoreService.allDepartmentRequestsQuery.snapshots().listen((s) { depts = s.docs; update(); }, onError: (_) {});
+    _subTasks = FirestoreService.allTaskRequestsQuery.snapshots().listen((s) { tasks = s.docs; update(); }, onError: (_) {});
   }
 
   String _getGreeting() {
@@ -658,91 +696,165 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _buildApprovalSecondaryTabs(),
         const Divider(height: 1, color: Color(0xFFE5E7EB)),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirestoreService.allLeaveRequestsQuery.snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
-              
-              final allDocs = snapshot.data?.docs ?? [];
-              
-              List<DocumentSnapshot> filteredDocs = allDocs.where((doc) {
-                final data = doc.data() as Map<String, dynamic>? ?? {};
-                String type = (data['leaveType'] ?? data['type'] ?? 'leave').toString().toLowerCase();
-                if (_selectedApprovalTab == 1) return type == 'shift';
-                if (_selectedApprovalTab == 2) return type == 'department';
-                if (_selectedApprovalTab == 3) return type == 'task';
-                if (_selectedApprovalTab == 4) return type == 'leave' || type == 'annual' || type == 'sick' || type == 'wfh';
-                if (_selectedApprovalTab == 5) return type == 'attendance';
-                return true;
-              }).toList();
+          child: _cachedApprovals == null
+            ? const Center(child: CircularProgressIndicator())
+            : Builder(builder: (context) {
+                final allDocs = _cachedApprovals!;
+                
+                List<DocumentSnapshot> filteredDocs = allDocs.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>? ?? {};
+                  String type = (data['leaveType'] ?? data['type'] ?? 'leave').toString().toLowerCase();
+                  
+                  if (doc.reference.parent.id == 'attendance_corrections') type = 'attendance';
+                  if (doc.reference.parent.id == 'shift_requests') type = 'shift';
+                  if (doc.reference.parent.id == 'department_requests') type = 'department';
+                  if (doc.reference.parent.id == 'task_requests') type = 'task';
 
-              List<Widget> listItems = [];
-              
-              // Inject mock data to match the UI if real data is missing for specific tabs
-              if (filteredDocs.isEmpty) {
-                if (_selectedApprovalTab == 1) { // Shift Mock
-                  listItems.add(_buildMockCard('KR', 'Kavya Reddy', 'Engineering Â· Applied Jul 26', 'Shift Change', 'General -> Night Shift Â· Jul 29', 'Shift', const Color(0xFF10B981), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
-                } else if (_selectedApprovalTab == 2) { // Department Mock
-                  listItems.add(_buildMockCard('SP', 'Sneha Patel', 'HR Â· Applied Jul 26', 'Department Transfer', 'HR -> Operations', 'Department', const Color(0xFF5C5CFF), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
-                } else if (_selectedApprovalTab == 3) { // Task Mock
-                  listItems.add(_buildMockCard('DJ', 'Deepak Joshi', 'Operations Â· Applied Jul 27', 'Task Extension', 'Q3 Audit - Extend to Aug 5', 'Task', const Color(0xFFF59E0B), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
-                } else if (_selectedApprovalTab == 5) { // Attendance Mock
-                  listItems.add(_buildMockCard('RK', 'Rohit Kumar', 'Sales Â· Applied Jul 25', 'Attendance Correction', 'Jul 24 Â· Missing check-out', 'Attendance', const Color(0xFFEF4444), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)));
+                  if (_selectedApprovalTab == 1) return type == 'shift';
+                  if (_selectedApprovalTab == 2) return type == 'department';
+                  if (_selectedApprovalTab == 3) return type == 'task';
+                  if (_selectedApprovalTab == 4) return type == 'leave' || type == 'wfh' || type == 'sick' || type == 'annual';
+                  if (_selectedApprovalTab == 5) return type == 'attendance';
+                  return true;
+                }).toList();
+
+                List<Widget> listItems = [];
+                
+                final pendingDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] == 'pending' || (d.data() as Map<String, dynamic>?)?['status'] == null).toList();
+                final processedDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] != 'pending' && (d.data() as Map<String, dynamic>?)?['status'] != null).toList();
+
+                if (pendingDocs.isNotEmpty) {
+                  listItems.add(Padding(
+                    padding: const EdgeInsets.only(bottom: 16, top: 0),
+                    child: Text('PENDING · ${pendingDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                  ));
+                  for (var doc in pendingDocs) {
+                    listItems.add(_buildDynamicApprovalCard(doc));
+                  }
                 }
-              }
 
-              final pendingDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] == 'pending' || (d.data() as Map<String, dynamic>?)?['status'] == null).toList();
-              final processedDocs = filteredDocs.where((d) => (d.data() as Map<String, dynamic>?)?['status'] != 'pending' && (d.data() as Map<String, dynamic>?)?['status'] != null).toList();
-
-              if (pendingDocs.isNotEmpty || (_selectedApprovalTab == 0 && listItems.isEmpty)) {
-                listItems.add(Padding(
-                  padding: const EdgeInsets.only(bottom: 16, top: 0),
-                  child: Text('PENDING Â· ${pendingDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
-                ));
-                for (var doc in pendingDocs) {
-                  listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
+                if (processedDocs.isNotEmpty) {
+                  listItems.add(Padding(
+                    padding: const EdgeInsets.only(bottom: 16, top: 24),
+                    child: Text('PROCESSED · ${processedDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
+                  ));
+                  for (var doc in processedDocs) {
+                    listItems.add(_buildDynamicApprovalCard(doc));
+                  }
                 }
-              }
-
-              if (processedDocs.isNotEmpty) {
-                listItems.add(Padding(
-                  padding: const EdgeInsets.only(bottom: 16, top: 24),
-                  child: Text('PROCESSED Â· ${processedDocs.length}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFF6B7280), letterSpacing: 0.5)),
-                ));
-                for (var doc in processedDocs) {
-                  listItems.add(_buildApprovalRequestCard(doc, doc.data() as Map<String, dynamic>));
+                
+                if (listItems.isEmpty) {
+                  return const Center(child: Text('No requests found', style: TextStyle(color: Colors.grey)));
                 }
-              }
-              
-              if (listItems.isEmpty) {
-                return const Center(child: Text('No requests found', style: TextStyle(color: Colors.grey)));
-              }
 
-              return ListView(
-                padding: const EdgeInsets.all(20),
-                children: listItems,
-              );
-            }
-          ),
+                return ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: listItems,
+                );
+            }),
         ),
       ],
     );
   }
 
-  Widget _buildMockCard(String initials, String name, String subtitle, String title, String details, String tag, Color avatarColor, Color tagColor, Color tagBgColor) {
+  Widget _buildDynamicApprovalCard(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+    final colName = doc.reference.parent.id;
+    
+    String title = 'Request';
+    String details = '';
+    String tag = 'Request';
+    Color tagColor = const Color(0xFF6B7280);
+    Color tagBgColor = const Color(0xFFF3F4F6);
+    Color avatarColor = const Color(0xFF6B7280);
+
+    if (colName == 'leave_requests') {
+      final leaveType = (data['leaveType'] as String? ?? 'leave').toUpperCase();
+      title = '$leaveType Request';
+      
+      String sDate = '-';
+      if (data['startDate'] is Timestamp) sDate = DateFormat('MMM d, yyyy').format((data['startDate'] as Timestamp).toDate());
+      else if (data['startDate'] != null) sDate = data['startDate'].toString();
+      
+      String eDate = '-';
+      if (data['endDate'] is Timestamp) eDate = DateFormat('MMM d, yyyy').format((data['endDate'] as Timestamp).toDate());
+      else if (data['endDate'] != null) eDate = data['endDate'].toString();
+      
+      details = '$sDate to $eDate';
+      tag = leaveType;
+      avatarColor = const Color(0xFF10B981);
+      tagColor = const Color(0xFF10B981);
+      tagBgColor = const Color(0xFFECFDF5);
+    } else if (colName == 'attendance_corrections') {
+      title = 'Attendance Correction';
+      
+      String aDate = '-';
+      if (data['attendanceDate'] is Timestamp) aDate = DateFormat('MMM d, yyyy').format((data['attendanceDate'] as Timestamp).toDate());
+      else if (data['attendanceDate'] != null) aDate = data['attendanceDate'].toString();
+      
+      final reason = data['reason']?.toString().trim() ?? '';
+      details = '$aDate${reason.isNotEmpty ? ' · Reason: $reason' : ''}';
+      tag = 'Attendance';
+      avatarColor = const Color(0xFFEF4444);
+      tagColor = const Color(0xFFEF4444);
+      tagBgColor = const Color(0xFFFEF2F2);
+    } else if (colName == 'shift_requests') {
+      title = 'Shift Change';
+      final reason = data['reason']?.toString().trim() ?? '';
+      details = reason.isNotEmpty ? 'Reason: $reason' : 'Shift update request';
+      tag = 'Shift';
+      avatarColor = const Color(0xFF10B981);
+      tagColor = const Color(0xFF10B981);
+      tagBgColor = const Color(0xFFECFDF5);
+    } else if (colName == 'department_requests') {
+      title = 'Department Transfer';
+      final reason = data['reason']?.toString().trim() ?? '';
+      details = reason.isNotEmpty ? 'Reason: $reason' : 'Transfer request';
+      tag = 'Department';
+      avatarColor = const Color(0xFF5C5CFF);
+      tagColor = const Color(0xFF5C5CFF);
+      tagBgColor = const Color(0xFFEEF2FF);
+    } else if (colName == 'task_requests') {
+      title = 'Task Update';
+      final reason = data['reason']?.toString().trim() ?? '';
+      details = reason.isNotEmpty ? 'Reason: $reason' : 'Task extension request';
+      tag = 'Task';
+      avatarColor = const Color(0xFFF59E0B);
+      tagColor = const Color(0xFFF59E0B);
+      tagBgColor = const Color(0xFFFFFBEB);
+    }
+
+    final empName = data['userName'] ?? data['empName'] ?? 'Employee';
+    final empDept = data['department'] ?? data['empDept'] ?? 'Department';
+    final initials = _getInitials(empName);
+    final status = data['status'] ?? 'pending';
+    
+    final createdTs = data['createdAt'] as Timestamp?;
+    final dateStr = createdTs != null ? DateFormat('MMM d').format(createdTs.toDate()) : 'Unknown date';
+    final subtitle = '$empDept · Applied $dateStr';
+
     Map<String, dynamic> detailData = {
       'title': title,
       'type': tag,
       'details': details,
-      'appliedOn': subtitle.contains('Applied') ? subtitle.split('Applied')[1].trim() : 'Jul 26',
-      'status': 'Pending',
-      'empName': name,
-      'empDept': subtitle.split('Â·')[0].trim(),
+      'appliedOn': dateStr,
+      'status': status.isEmpty ? '' : '${status[0].toUpperCase()}${status.substring(1).toLowerCase()}',
+      'empName': empName,
+      'empDept': empDept,
       'initials': initials,
       'avatarColor': avatarColor.value,
+      'docData': data,
     };
-    
+
+    Color statusBg; Color statusFg; String statusLabel;
+    if (status == 'approved') {
+      statusBg = const Color(0xFFECFDF5); statusFg = const Color(0xFF10B981); statusLabel = 'Approved';
+    } else if (status == 'rejected') {
+      statusBg = const Color(0xFFFEF2F2); statusFg = const Color(0xFFEF4444); statusLabel = 'Rejected';
+    } else {
+      statusBg = const Color(0xFFFFFBEB); statusFg = const Color(0xFFD97706); statusLabel = 'Pending';
+    }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -767,19 +879,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+                    Text(empName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
                     Text(subtitle, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                   ],
                 ),
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFFDE68A)),
-                ),
-                child: const Text('Pending', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFD97706))),
+                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(12), border: Border.all(color: statusFg.withOpacity(0.3))),
+                child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusFg)),
               ),
             ],
           ),
@@ -787,10 +895,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(12),
-            ),
+            decoration: BoxDecoration(color: const Color(0xFFF9FAFB), borderRadius: BorderRadius.circular(12)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -806,17 +911,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: tagBgColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: tagColor.withOpacity(0.3)),
-                ),
+                decoration: BoxDecoration(color: tagBgColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: tagColor.withOpacity(0.3))),
                 child: Text(tag, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: tagColor)),
               ),
               GestureDetector(
                 onTap: () => setState(() {
                    _selectedApprovalData = detailData;
-                   _selectedApprovalRef = null;
+                   _selectedApprovalRef = doc.reference;
                 }),
                 child: Row(
                   children: const [
@@ -872,160 +973,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildApprovalRequestCard(DocumentSnapshot doc, Map<String, dynamic> data) {
-    String rawType = (data['leaveType'] ?? data['type'] ?? 'Leave').toString();
-    String type = rawType.toLowerCase();
-    
-    String title = type == 'wfh' ? 'Work From Home' : (type == 'sick' ? 'Sick Leave' : 'Annual Leave');
-    String badgeTag = type == 'wfh' ? 'WFH' : 'Leave';
-    
-    if (type == 'attendance') {
-       title = 'Attendance Correction';
-       badgeTag = 'Attendance';
-    } else if (type == 'shift') {
-       title = 'Shift Change';
-       badgeTag = 'Shift';
-    }
-    
-    DateTime appliedDate = (data['appliedOn'] as Timestamp?)?.toDate() ?? DateTime.now();
-    String appliedStr = DateFormat('MMM d').format(appliedDate);
-    
-    DateTime fromDate = (data['fromDate'] as Timestamp?)?.toDate() ?? DateTime.now();
-    DateTime toDate = (data['toDate'] as Timestamp?)?.toDate() ?? DateTime.now();
-    
-    String dateRange = '';
-    if (type == 'attendance' && data['recordDate'] != null) {
-       dateRange = '${data['recordDate']} Â· Missing check-out';
-    } else {
-       dateRange = '${DateFormat('MMM d').format(fromDate)}â€“${DateFormat('d').format(toDate)} Â· ${toDate.difference(fromDate).inDays + 1} days';
-    }
-    
-    String empId = data['userId'] ?? data['employeeId'] ?? 'Unknown';
-    String empName = empId.split('@')[0];
-    
-    String status = (data['status'] ?? 'pending').toString().toLowerCase();
-    
-    Color statusBgColor = const Color(0xFFFFFBEB);
-    Color statusBorderColor = const Color(0xFFFDE68A);
-    Color statusTextColor = const Color(0xFFD97706);
-    String statusText = 'Pending';
-    
-    if (status == 'approved') {
-       statusBgColor = const Color(0xFFECFDF5);
-       statusBorderColor = const Color(0xFF10B981).withOpacity(0.3);
-       statusTextColor = const Color(0xFF10B981);
-       statusText = 'Approved';
-    } else if (status == 'rejected') {
-       statusBgColor = const Color(0xFFFEF2F2);
-       statusBorderColor = const Color(0xFFFCA5A5);
-       statusTextColor = const Color(0xFFEF4444);
-       statusText = 'Rejected';
-    }
-    
-    List<Color> colors = [const Color(0xFFA855F7), const Color(0xFF10B981), const Color(0xFFF59E0B), const Color(0xFFEF4444), const Color(0xFF5C5CFF)];
-    Color avatarColor = colors[empName.length % colors.length];
-    
-    Map<String, dynamic> detailData = {
-      'title': title,
-      'type': badgeTag,
-      'details': dateRange,
-      'appliedOn': appliedStr,
-      'status': statusText,
-      'empName': empName,
-      'empDept': 'Engineering',
-      'initials': _getInitials(empName),
-      'avatarColor': avatarColor.value,
-    };
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF3F4F6)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Text(_getInitials(empName), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(empName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
-                    Text('Engineering Â· Applied $appliedStr', style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusBgColor,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: statusBorderColor),
-                ),
-                child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: statusTextColor)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
-                const SizedBox(height: 4),
-                Text(dateRange, style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFC7D2FE)),
-                ),
-                child: Text(badgeTag, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
-              ),
-              GestureDetector(
-                onTap: () => setState(() {
-                   _selectedApprovalData = detailData;
-                   _selectedApprovalRef = doc.reference;
-                }),
-                child: Row(
-                  children: const [
-                    Text('Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
-                    SizedBox(width: 4),
-                    Icon(Icons.arrow_forward, size: 14, color: Color(0xFF5C5CFF)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildApprovalDetailView() {
     final data = _selectedApprovalData!;
@@ -1180,10 +1128,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Widget _buildDetailRow(String label, String value) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Text(
+            value, 
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))
+          ),
+        ),
       ],
     );
   }

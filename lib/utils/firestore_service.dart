@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'app_session.dart';
 
@@ -163,6 +163,26 @@ class FirestoreService {
   /// All overtime requests for the current company via collection group query.
   static Query<Map<String, dynamic>> get allOvertimeRequestsQuery {
     return _db.collectionGroup('overtime_requests').where('companyId', isEqualTo: _cid);
+  }
+
+  /// All attendance corrections for the current company via collection group query (if sub-collections) or flat
+  static Query<Map<String, dynamic>> get allAttendanceCorrectionsQuery {
+    return companyDoc().collection('attendance_corrections');
+  }
+
+  /// All shift requests for the current company
+  static Query<Map<String, dynamic>> get allShiftRequestsQuery {
+    return companyDoc().collection('shift_requests');
+  }
+
+  /// All department transfer requests for the current company
+  static Query<Map<String, dynamic>> get allDepartmentRequestsQuery {
+    return companyDoc().collection('department_requests');
+  }
+
+  /// All task extension/approval requests for the current company
+  static Query<Map<String, dynamic>> get allTaskRequestsQuery {
+    return companyDoc().collection('task_requests');
   }
 
   /// All notifications for the current company via collection group query.

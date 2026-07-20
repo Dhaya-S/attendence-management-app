@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -68,10 +68,20 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
 
   Future<void> _generateEmployeeId() async {
     try {
-      // Count employees inside the current company's users sub-collection.
-      final snapshot = await FirestoreService.companyUsersQuery.get();
-      final count = snapshot.docs.length + 1;
-      _employeeIdController.text = 'EMP${count.toString().padLeft(4, '0')}';
+      final snapshot = await FirestoreService.usersCol.get();
+      int maxId = 0;
+      for (var doc in snapshot.docs) {
+        final empId = doc.data()['employeeId'] as String?;
+        if (empId != null && empId.startsWith('EMP')) {
+          final numStr = empId.substring(3);
+          final num = int.tryParse(numStr);
+          if (num != null && num > maxId) {
+            maxId = num;
+          }
+        }
+      }
+      final nextId = maxId + 1;
+      _employeeIdController.text = 'EMP${nextId.toString().padLeft(3, '0')}';
     } catch (e) {
       debugPrint('Error generating employee ID: $e');
     }

@@ -1,9 +1,40 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+
+String _calculateAgeFromDOB(String dobStr) {
+  if (dobStr.isEmpty || dobStr == 'Not provided') return '';
+  try {
+    final parts = dobStr.split(' ');
+    if (parts.length != 3) return '';
+    final monthStr = parts[0];
+    final dayStr = parts[1].replaceAll(',', '');
+    final yearStr = parts[2];
+
+    final months = [
+      'January', 'February', 'March', 'April', 'May', 'June', 
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    final month = months.indexOf(monthStr) + 1;
+    if (month <= 0) return '';
+    
+    final day = int.tryParse(dayStr) ?? 1;
+    final year = int.tryParse(yearStr) ?? 1900;
+    
+    final dob = DateTime(year, month, day);
+    final now = DateTime.now();
+    int age = now.year - dob.year;
+    if (now.month < dob.month || (now.month == dob.month && now.day < dob.day)) {
+      age--;
+    }
+    return '$age years';
+  } catch (e) {
+    return '';
+  }
+}
 
 class UniversalProfileScreen extends StatefulWidget {
   const UniversalProfileScreen({super.key});
@@ -81,21 +112,22 @@ class _UniversalProfileScreenState extends State<UniversalProfileScreen> {
           // Extracted values
           final name = data['name'] ?? AppSession().userName ?? 'User';
           final email = data['email'] ?? user?.email ?? '';
-          final phone = data['phone'] ?? '+91 00000 00000'; // Default placeholder if missing
-          final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'EMP-XXXX';
+          final phone = data['phone'] ?? 'Not provided';
+          final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'Not provided';
           final designation = data['designation'] ?? AppSession().role?.toUpperCase() ?? 'Employee';
-          final department = data['department'] ?? 'General';
-          final location = data['location'] ?? 'Sunrise Tech Park, Bangalore';
-          final employeeType = data['employeeType'] ?? 'Full-Time Permanent';
+          final department = data['department'] ?? 'Not provided';
+          final location = data['location'] ?? 'Not provided';
+          final employeeType = data['employeeType'] ?? 'Not provided';
           final status = (data['status'] ?? 'Active').toString();
-          final shift = data['shift'] ?? 'General Shift Â· 09:00-18:00';
-          final managerName = data['reportingManager'] ?? data['managerName'] ?? 'Sarah Mitchell';
-          final managerEmail = data['managerEmail'] ?? 'manager@company.com';
+          final shift = data['shift'] ?? 'Not provided';
+          final managerName = data['reportingManager'] ?? data['managerName'] ?? 'Not provided';
+          final managerEmail = data['managerEmail'] ?? 'Not provided';
           
-          final dobStr = data['dob'] ?? 'March 14, 1996'; // Mock
-          final age = data['age'] ?? '30 years'; // Mock
-          final gender = data['gender'] ?? 'Male';
-          final maritalStatus = data['maritalStatus'] ?? 'Single';
+          final dobStr = data['dob'] ?? 'Not provided';
+          final calculatedAge = _calculateAgeFromDOB(dobStr);
+          final age = data['age'] ?? (calculatedAge.isNotEmpty ? calculatedAge : 'Not provided');
+          final gender = data['gender'] ?? 'Not provided';
+          final maritalStatus = data['maritalStatus'] ?? 'Not provided';
 
           final initials = name.split(' ').take(2).map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').join();
 
@@ -164,6 +196,7 @@ class _UniversalProfileScreenState extends State<UniversalProfileScreen> {
                 _buildCard(
                   title: 'WORK INFORMATION',
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       _buildInfoBlock('Department', department),
                       const Divider(height: 24, color: Color(0xFFF3F4F6)),
@@ -246,13 +279,13 @@ class _UniversalProfileScreenState extends State<UniversalProfileScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildInfoBlock('Personal Phone', data['personalPhone'] ?? '+91 98765 00001'),
+                      _buildInfoBlock('Personal Phone', data['personalPhone'] ?? 'Not provided'),
                       const Divider(height: 24, color: Color(0xFFF3F4F6)),
-                      _buildInfoBlock('Personal Email', data['personalEmail'] ?? 'rahul.personal@gmail.com'),
+                      _buildInfoBlock('Personal Email', data['personalEmail'] ?? 'Not provided'),
                       const Divider(height: 24, color: Color(0xFFF3F4F6)),
-                      _buildInfoBlock('Current Address', data['currentAddress'] ?? '42 Indiranagar, 1st Cross, Bangalore - 560038'),
+                      _buildInfoBlock('Current Address', data['currentAddress'] ?? 'Not provided'),
                       const Divider(height: 24, color: Color(0xFFF3F4F6)),
-                      _buildInfoBlock('Permanent Address', data['permanentAddress'] ?? '12 Gandhi Nagar, Patna - 800001, Bihar'),
+                      _buildInfoBlock('Permanent Address', data['permanentAddress'] ?? 'Not provided'),
                       const SizedBox(height: 24),
                       Row(
                         children: [
@@ -403,12 +436,8 @@ class _ManagerProfileSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Text(managerName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF111827))),
             const SizedBox(height: 4),
-            const Text('Design Manager Â· EMP-1102', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
+            const Text('Reporting Manager', style: TextStyle(fontSize: 13, color: Color(0xFF6B7280))),
             const SizedBox(height: 32),
-            _buildManagerInfoRow('Department', 'Design'),
-            const Divider(height: 24, color: Color(0xFFF3F4F6)),
-            _buildManagerInfoRow('Phone', '+91 98765 11111'),
-            const Divider(height: 24, color: Color(0xFFF3F4F6)),
             _buildManagerInfoRow('Email', managerEmail),
             const SizedBox(height: 32),
             SizedBox(
@@ -461,20 +490,53 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   @override
   void initState() {
     super.initState();
-    _dobController.text = widget.userData['dob'] ?? 'March 14, 1996';
+    _dobController.text = widget.userData['dob'] ?? '';
     _selectedGender = widget.userData['gender'] ?? 'Male';
     _selectedMaritalStatus = widget.userData['maritalStatus'] ?? 'Single';
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(1996, 1, 1),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF4F46E5), 
+              onPrimary: Colors.white, 
+              onSurface: Color(0xFF111827), 
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      final months = [
+        'January', 'February', 'March', 'April', 'May', 'June', 
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ];
+      setState(() {
+        _dobController.text = '${months[picked.month - 1]} ${picked.day}, ${picked.year}';
+      });
+    }
   }
 
   Future<void> _saveChanges() async {
     setState(() => _isSaving = true);
     try {
       final email = FirebaseAuth.instance.currentUser?.email ?? '';
-      await FirestoreService.employeeDoc(email).update({
+      final ageStr = _calculateAgeFromDOB(_dobController.text);
+      
+      await FirestoreService.employeeDoc(email).set({
         'dob': _dobController.text,
+        'age': ageStr,
         'gender': _selectedGender,
         'maritalStatus': _selectedMaritalStatus,
-      });
+      }, SetOptions(merge: true));
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Color(0xFF10B981)));
@@ -519,15 +581,21 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                   const SizedBox(height: 8),
                   TextField(
                     controller: _dobController,
+                    readOnly: true,
+                    onTap: () => _selectDate(context),
                     decoration: InputDecoration(
                       filled: true,
                       fillColor: Colors.white,
+                      suffixIcon: const Icon(Icons.calendar_today_outlined, color: Color(0xFF6B7280), size: 20),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
                       enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF4F46E5))),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text('March 14, 1996 Â· Age 30 years', style: TextStyle(fontSize: 12, color: Color(0xFF6B7280))), // Mock calculation
+                  if (_calculateAgeFromDOB(_dobController.text).isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('Age: ${_calculateAgeFromDOB(_dobController.text)}', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+                  ],
                   const SizedBox(height: 24),
                   
                   const Text('Gender', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
@@ -690,12 +758,12 @@ class _EditContactSheetState extends State<_EditContactSheet> {
     setState(() => _isSaving = true);
     try {
       final email = FirebaseAuth.instance.currentUser?.email ?? '';
-      await FirestoreService.employeeDoc(email).update({
+      await FirestoreService.employeeDoc(email).set({
         'personalPhone': _phoneController.text,
         'personalEmail': _emailController.text,
         'currentAddress': _currentAddressController.text,
         'permanentAddress': _permanentAddressController.text,
-      });
+      }, SetOptions(merge: true));
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Contact details updated successfully'), backgroundColor: Color(0xFF10B981)));

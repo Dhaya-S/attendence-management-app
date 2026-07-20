@@ -1,8 +1,13 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/screens/login_screen.dart';
+import 'package:attendance_app/screens/employee/notifications_screen.dart';
+import 'package:attendance_app/screens/employee/documents_screen.dart';
+import 'package:attendance_app/screens/employee/history_screen.dart';
 import 'package:attendance_app/screens/profile/universal_profile_screen.dart';
 
 class UniversalMoreTab extends StatefulWidget {
@@ -48,27 +53,34 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
 
   @override
   Widget build(BuildContext context) {
-    final userName = AppSession().userName ?? 'User';
-    final initials = userName.split(' ').take(2).map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').join();
-    final roleDisplay = AppSession().isManager ? 'Manager' : AppSession().isEmployee ? 'Employee' : 'Admin';
-    // Assume we can store/fetch department in AppSession, fallback to 'General Department'
-    final department = 'Design Department'; // Example placeholder for UI
-
+    final user = FirebaseAuth.instance.currentUser;
+    
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4F6), // Slightly off-white background matching mockup
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    // Profile Header Card
-                    _buildProfileHeader(userName, initials, roleDisplay, department),
-                    const SizedBox(height: 16),
-                    
-                    // Menu Items
+        child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: user != null ? FirestoreService.userStreamByEmail(user.email ?? '') : const Stream.empty(),
+          builder: (context, snapshot) {
+            final data = snapshot.data?.data() ?? {};
+            final userName = data['name'] ?? AppSession().userName ?? 'User';
+            final initials = userName.split(' ').take(2).map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').join();
+            
+            final roleDisplay = data['designation'] ?? (AppSession().isManager ? 'Manager' : AppSession().isEmployee ? 'Employee' : 'Admin');
+            final department = data['department'] ?? 'Not provided';
+            final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'Not provided';
+
+            return Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        // Profile Header Card
+                        _buildProfileHeader(userName, initials, roleDisplay, department, employeeId),
+                        const SizedBox(height: 16),
+                        
+                        // Menu Items
                     _buildMenuItem(
                       icon: Icons.person_outline,
                       title: 'Profile',
@@ -84,25 +96,25 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                       subtitle: 'Alerts, mentions & updates',
                       iconColor: const Color(0xFFD97706),
                       iconBgColor: const Color(0xFFFFFBEB),
-                      onTap: () => _showComingSoon('Notifications'),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeNotificationsScreen())),
                     ),
                     const SizedBox(height: 12),
                     _buildMenuItem(
                       icon: Icons.description_outlined,
                       title: 'Documents',
-                      subtitle: 'Certificates, policies & salary',
-                      iconColor: const Color(0xFF2563EB),
-                      iconBgColor: const Color(0xFFEFF6FF),
-                      onTap: () => _showComingSoon('Documents'),
+                      subtitle: 'Policies, slips & certificates',
+                      iconColor: const Color(0xFF6366F1),
+                      iconBgColor: const Color(0xFFEEF2FF),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeDocumentsScreen())),
                     ),
                     const SizedBox(height: 12),
                     _buildMenuItem(
-                      icon: Icons.assignment_outlined,
+                      icon: Icons.history_rounded,
                       title: 'History',
-                      subtitle: 'Tasks & request history',
-                      iconColor: const Color(0xFF059669),
-                      iconBgColor: const Color(0xFFECFDF5),
-                      onTap: () => _showComingSoon('History'),
+                      subtitle: 'Tasks & past requests',
+                      iconColor: const Color(0xFF8B5CF6),
+                      iconBgColor: const Color(0xFFF5F3FF),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeHistoryScreen())),
                     ),
                     const SizedBox(height: 12),
                     _buildMenuItem(
@@ -154,12 +166,14 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
               ),
             ),
           ],
-        ),
-      ),
-    );
+        );
+      },
+    ),
+  ),
+);
   }
 
-  Widget _buildProfileHeader(String name, String initials, String role, String department) {
+  Widget _buildProfileHeader(String name, String initials, String role, String department, String employeeId) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -212,7 +226,7 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$role Â· ${AppSession().uid?.substring(0, 8).toUpperCase() ?? "EMP-XXXX"}',
+                  '$role Â· $employeeId',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 13,
