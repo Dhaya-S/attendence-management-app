@@ -28,7 +28,8 @@ import 'package:attendance_app/widgets/org_overview_tab.dart';
 import 'package:attendance_app/widgets/org_policies_tab.dart';
 import 'package:attendance_app/widgets/org_reports_tab.dart';
 import 'package:attendance_app/screens/attendance/attendance_screen.dart';
-import 'package:attendance_app/features/leave_management/screens/shared/universal_leave_tab.dart';
+import 'package:attendance_app/screens/attendance/admin_attendance_screen.dart';
+import 'package:attendance_app/features/leave_management/screens/admin/admin_leave_screen.dart';
 import 'package:attendance_app/screens/more/universal_more_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -377,8 +378,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ],
             ),
           ),
-          const SafeArea(child: AttendanceScreen()),
-          const SafeArea(child: UniversalLeaveTab()),
+          const AdminAttendanceScreen(),
+          const AdminLeaveScreen(),
           const UniversalMoreTab(),
         ],
       ),
