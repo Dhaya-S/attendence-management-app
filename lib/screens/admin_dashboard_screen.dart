@@ -30,6 +30,7 @@ import 'package:attendance_app/widgets/org_reports_tab.dart';
 import 'package:attendance_app/screens/attendance/attendance_screen.dart';
 import 'package:attendance_app/screens/attendance/admin_attendance_screen.dart';
 import 'package:attendance_app/features/leave_management/screens/admin/admin_leave_screen.dart';
+import 'package:attendance_app/features/leave_management/screens/admin/admin_leave_tab.dart';
 import 'package:attendance_app/screens/more/universal_more_tab.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -343,7 +344,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           : (_selectedSubTab == 1 
                               ? _buildApprovalsView() 
                               : (_selectedSubTab == 2
-                                  ? const Center(child: Text('Leave View'))
+                                  ? const AdminLeaveTab()
                                   : (_selectedSubTab == 3 
                                       ? const AnnouncementsTabView(isAdmin: true) 
                                       : (_selectedSubTab == 4
@@ -1865,8 +1866,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         boxShadow: [BoxShadow(color: Color(0x0A000000), offset: Offset(0, -4), blurRadius: 16)],
       ),
       child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: SizedBox(
+          height: 64,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [

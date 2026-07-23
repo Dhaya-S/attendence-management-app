@@ -189,6 +189,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
               'email': email,
               'role': role,
               'companyId': currentCompanyId,
+              'orgId': currentCompanyId,
               'status': 'approved',
               'approvedAt': FieldValue.serverTimestamp(),
             });

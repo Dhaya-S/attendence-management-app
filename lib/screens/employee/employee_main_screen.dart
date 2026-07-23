@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/screens/employee/home_tab.dart';
 import 'package:attendance_app/screens/attendance/attendance_screen.dart';
@@ -331,7 +331,7 @@ class _EmployeeMainScreenState extends State<EmployeeMainScreen> {
               elevation: 0,
               padding: EdgeInsets.zero,
               child: SizedBox(
-                height: 70,
+                height: 64,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [

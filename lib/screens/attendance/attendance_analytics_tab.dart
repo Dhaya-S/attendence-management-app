@@ -1,8 +1,10 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui';
+
+import 'package:attendance_app/screens/employee/analytics_tab/monthly_summary_screen.dart';
 
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -330,7 +332,12 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
       ),
       child: InkWell(
         onTap: () {
-          // Navigate to monthly summary
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MonthlySummaryScreen(),
+            ),
+          );
         },
         child: Row(
           children: [

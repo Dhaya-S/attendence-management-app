@@ -1,8 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:attendance_app/screens/pre_login_screen.dart';
-import 'package:attendance_app/screens/organization_setup_screen.dart';
+import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/admin_dashboard_screen.dart';
 import 'package:attendance_app/screens/employee/employee_main_screen.dart';
 import 'package:attendance_app/features/manager_main_screen.dart';
@@ -21,7 +20,6 @@ class AuthWrapper extends StatefulWidget {
 
 class _AuthWrapperState extends State<AuthWrapper> {
   bool _sessionLoaded = false;
-  bool _needsSetup = false;
   String? _error;
   late Future<User?> _initialAuthFuture;
 
@@ -56,19 +54,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
             // 2. No user found -> Show pre-login landing screen
             if (user == null) {
               _sessionLoaded = false;
-              return const PreLoginScreen();
+              return const LoginScreen();
             }
 
             if (_error != null) {
               return _errorScreen(_error!);
-            }
-
-            if (_needsSetup) {
-              // The user is authenticated but not yet approved.
-              // They are likely in the middle of the setup flow.
-              // We return the OrganizationSetupScreen so they can continue,
-              // rather than signing them out which breaks the flow.
-              return const OrganizationSetupScreen();
             }
 
             // 3. User exists -> Load Session if not already loaded
@@ -224,13 +214,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
         role = (d['role'] as String? ?? 'employee').toLowerCase();
 
         // NEW: self-registered orgs use 'orgId'; legacy uses 'companyId'
-        final orgId = d['orgId'] as String?;
+        final orgId = d['orgId'] as String? ?? d['companyId'] as String?;
         companyId = d['companyId'] as String? ?? orgId ?? '';
 
-        // â”€â”€ NEW: Load from `organizations` collection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── NEW: Try to load from `organizations` collection first ────────
         if (orgId != null && orgId.isNotEmpty) {
-          await _loadSessionFromOrganizations(user, email, role, orgId);
-          return;
+          try {
+            await _loadSessionFromOrganizations(user, email, role, orgId);
+            return;
+          } catch (e) {
+            debugPrint('Failed to load from organizations, falling back to legacy: $e');
+          }
         }
       } else {
         // Fallback: find legacy company by managerEmail field
@@ -256,23 +250,23 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       if (role == null || companyId == null || companyId.isEmpty) {
-        // Brand new admins won't have a record yet; route them to the setup flow.
         if (mounted) {
           setState(() {
-            _needsSetup = true;
-            _error = null;
+            _error = 'Your account is not assigned to any organization. Please contact your administrator.';
             _sessionLoaded = true;
           });
         }
         return;
       }
 
-      // â”€â”€ Load from `organizations` collection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Load from `organizations` collection ────────────────
       final companyDoc = await FirestoreService.companyDoc(companyId).get();
       if (!companyDoc.exists || companyDoc.data() == null) {
-        throw Exception('Company record not found.');
+        // Company doc not found — could be a stale companyId or data mismatch.
+        // Proceeding anyway since we have the companyId and role.
+        debugPrint('AuthWrapper: companyDoc($companyId) not found, proceeding anyway.');
       }
-      final cd = companyDoc.data()!;
+      final cd = companyDoc.data() ?? {};
 
       // Restore user name
       String? userName;
@@ -326,7 +320,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     } catch (e) {
       debugPrint('AuthWrapper Load Error: $e');
       if (mounted) setState(() { _error = e.toString(); });
-      rethrow;
     }
   }
 

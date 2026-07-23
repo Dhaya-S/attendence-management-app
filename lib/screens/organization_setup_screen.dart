@@ -1,9 +1,10 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
@@ -358,6 +359,16 @@ class _OrganizationSetupScreenState extends State<OrganizationSetupScreen> {
                 onPressed: _step == 4 ? () => Navigator.pop(context) : _goBack,
               ),
         automaticallyImplyLeading: false,
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+            icon: const Icon(Icons.logout, size: 16, color: Colors.red),
+            label: const Text('Sign Out', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: AnimatedSwitcher(

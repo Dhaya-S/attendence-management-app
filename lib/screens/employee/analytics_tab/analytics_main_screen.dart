@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -20,7 +20,12 @@ class AnalyticsMainScreen extends StatefulWidget {
 class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
   final _user = FirebaseAuth.instance.currentUser;
   int _selectedPeriod = 0; // 0=This Month, 1=Last Month, 2=Quarterly, 3=Yearly
-  final List<String> _periods = ['This Month', 'Last Month', 'Quarterly', 'Yearly'];
+  final List<String> _periods = [
+    'This Month',
+    'Last Month',
+    'Quarterly',
+    'Yearly'
+  ];
 
   DateTimeRange _getDateRange() {
     final now = DateTime.now();
@@ -37,7 +42,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
           end: DateTime(now.year, now.month, 0),
         );
       case 2: // Quarterly
-        final quarterStart = DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1);
+        final quarterStart =
+            DateTime(now.year, ((now.month - 1) ~/ 3) * 3 + 1, 1);
         return DateTimeRange(
           start: quarterStart,
           end: now,
@@ -58,7 +64,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.userAttendanceCol(_user?.email ?? '').snapshots(),
+      stream:
+          FirestoreService.userAttendanceCol(_user?.email ?? '').snapshots(),
       builder: (context, snapshot) {
         final range = _getDateRange();
         final docs = snapshot.data?.docs ?? [];
@@ -92,15 +99,23 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
 
               // Stats grid
               Row(children: [
-                Expanded(child: _buildStatCard('Avg Daily Hours', metrics['avgHours']!, null, isPositive: true)),
+                Expanded(
+                    child: _buildStatCard(metrics['avgHours']!, 'Avg Daily Hours', '+1.3%',
+                        const Color(0xFF5C5CFF), const Color(0xFFEEF2FF))),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('Punctuality Score', metrics['punctuality']!, metrics['punctualityDelta']!, isPositive: true)),
+                Expanded(
+                    child: _buildStatCard(metrics['punctuality']!, 'Punctuality Score', '+/-2%',
+                        const Color(0xFF22C55E), const Color(0xFFF0FDF4))),
               ]),
               const SizedBox(height: 12),
               Row(children: [
-                Expanded(child: _buildStatCard('Total Overtime', metrics['overtime']!, metrics['overtimeDelta']!, isPositive: true)),
+                Expanded(
+                    child: _buildStatCard(metrics['overtime']!, 'Total Overtime', '+1h',
+                        const Color(0xFFF59E0B), const Color(0xFFFFFBEB))),
                 const SizedBox(width: 12),
-                Expanded(child: _buildStatCard('Consistency', metrics['consistency']!, null, isPositive: true, isStable: true)),
+                Expanded(
+                    child: _buildStatCard(metrics['consistency']!, 'Consistency', '+Stable',
+                        const Color(0xFF5C5CFF), const Color(0xFFEEF2FF))),
               ]),
               const SizedBox(height: 20),
 
@@ -114,9 +129,22 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
                 color: AppTheme.primary,
                 title: 'Monthly Summary',
                 subtitle: 'Full month breakdown & report',
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const MonthlySummaryScreen(),
-                )),
+                onTap: () {
+                  try {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Opening Monthly Summary...'), duration: Duration(milliseconds: 500)),
+                    );
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(
+                        builder: (_) => const MonthlySummaryScreen(),
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                },
               ),
               const SizedBox(height: 12),
 
@@ -126,9 +154,19 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
                 color: AppTheme.success,
                 title: 'Work Hours Breakdown',
                 subtitle: 'Productive hours & overtime trends',
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => const WorkHoursBreakdownScreen(),
-                )),
+                onTap: () {
+                  try {
+                    Navigator.of(context, rootNavigator: true).push(
+                      MaterialPageRoute(
+                        builder: (_) => const WorkHoursBreakdownScreen(),
+                      ),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                },
               ),
             ],
           ),
@@ -236,7 +274,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
             const SizedBox(width: 8),
             Expanded(child: _buildRateSubBox(metrics['punctual']!, 'Punctual')),
             const SizedBox(width: 8),
-            Expanded(child: _buildRateSubBox(metrics['overtimeShort']!, 'Overtime')),
+            Expanded(
+                child: _buildRateSubBox(metrics['overtimeShort']!, 'Overtime')),
           ]),
         ],
       ),
@@ -251,48 +290,48 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(children: [
-        Text(value, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+        Text(value,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700)),
         const SizedBox(height: 2),
-        Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 11, fontWeight: FontWeight.w500)),
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.8),
+                fontSize: 11,
+                fontWeight: FontWeight.w500)),
       ]),
     );
   }
 
   // â”€â”€â”€ Stat Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  Widget _buildStatCard(String title, String value, String? delta,
-      {bool isPositive = true, bool isStable = false}) {
-    final Color deltaColor = isStable
-        ? AppTheme.success
-        : (isPositive ? AppTheme.primary : AppTheme.danger);
-    final IconData deltaIcon = isStable
-        ? Icons.trending_flat
-        : (isPositive ? Icons.trending_up : Icons.trending_down);
-
+  Widget _buildStatCard(String value, String title, String delta, Color valueColor, Color bgColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(value,
+            style: TextStyle(
+                fontSize: 20,
+                color: valueColor,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 8),
         Text(title,
             style: const TextStyle(
-                fontSize: 11, color: AppTheme.textHint, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Text(value,
+                fontSize: 13,
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 4),
+        Text(delta,
             style: const TextStyle(
-                fontSize: 20, color: AppTheme.textPrimary, fontWeight: FontWeight.w800)),
-        if (delta != null) ...[
-          const SizedBox(height: 6),
-          Row(children: [
-            Icon(deltaIcon, size: 14, color: deltaColor),
-            const SizedBox(width: 4),
-            Text(delta,
-                style: TextStyle(fontSize: 11, color: deltaColor, fontWeight: FontWeight.w700)),
-          ]),
-        ],
+                fontSize: 11,
+                color: AppTheme.textHint,
+                fontWeight: FontWeight.w500)),
       ]),
     );
   }
@@ -305,13 +344,21 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.divider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Text('Weekly Working Hours',
               style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppTheme.textPrimary)),
           Icon(Icons.chevron_right, color: AppTheme.textHint, size: 20),
         ]),
         const SizedBox(height: 20),
@@ -351,7 +398,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
                     getTitlesWidget: (val, meta) {
                       const labels = ['May', 'Jun', 'Jul'];
                       final idx = val.toInt();
-                      if (idx < 0 || idx >= labels.length) return const SizedBox();
+                      if (idx < 0 || idx >= labels.length)
+                        return const SizedBox();
                       return Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text(labels[idx],
@@ -370,13 +418,17 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
                     getTitlesWidget: (val, meta) => Text(
                       val.toInt().toString(),
                       style: const TextStyle(
-                          color: AppTheme.textHint, fontSize: 10, fontWeight: FontWeight.w500),
+                          color: AppTheme.textHint,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500),
                     ),
                     interval: 1,
                   ),
                 ),
-                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
               ),
               gridData: FlGridData(
                 show: true,
@@ -404,44 +456,60 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     required String subtitle,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppTheme.divider),
-        ),
-        child: Row(children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-              const SizedBox(height: 3),
-              Text(subtitle,
-                  style: const TextStyle(fontSize: 11, color: AppTheme.textHint)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
+                  const SizedBox(height: 3),
+                  Text(subtitle,
+                      style: const TextStyle(fontSize: 11, color: AppTheme.textHint)),
+                ]),
+              ),
+              const Icon(Icons.chevron_right, color: AppTheme.textHint, size: 20),
             ]),
           ),
-          const Icon(Icons.chevron_right, color: AppTheme.textHint, size: 20),
-        ]),
+        ),
       ),
     );
   }
 
   // â”€â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  Map<String, String> _computeMetrics(List<QueryDocumentSnapshot> docs, DateTimeRange range) {
+  Map<String, String> _computeMetrics(
+      List<QueryDocumentSnapshot> docs, DateTimeRange range) {
     int present = 0;
     int late = 0;
     int totalMinutes = 0;
@@ -463,7 +531,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
         if (checkOut != null) {
           final diff = checkOut.toDate().difference(checkIn.toDate());
           totalMinutes += diff.inMinutes;
-          if (diff.inMinutes > 480) { // > 8 hours
+          if (diff.inMinutes > 480) {
+            // > 8 hours
             overtimeMinutes += diff.inMinutes - 480;
           }
         }
@@ -479,7 +548,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     final otM = overtimeMinutes % 60;
 
     String consistency = 'Low';
-    if (rate >= 95) consistency = 'High';
+    if (rate >= 95)
+      consistency = 'High';
     else if (rate >= 80) consistency = 'Medium';
 
     return {
@@ -487,10 +557,13 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
       'present': '$present',
       'punctual': '${punctuality.toStringAsFixed(0)}%',
       'overtimeShort': overtimeMinutes > 0 ? '${otH}h' : '0h',
-      'avgHours': avgMin > 0 ? '${avgH}h ${avgM.toString().padLeft(2, '0')}m' : '--',
+      'avgHours':
+          avgMin > 0 ? '${avgH}h ${avgM.toString().padLeft(2, '0')}m' : '--',
       'punctuality': '${punctuality.toStringAsFixed(0)}%',
       'punctualityDelta': late > 0 ? '-${late} late' : 'On time',
-      'overtime': overtimeMinutes > 0 ? '${otH}h ${otM.toString().padLeft(2, '0')}m' : '0h 00m',
+      'overtime': overtimeMinutes > 0
+          ? '${otH}h ${otM.toString().padLeft(2, '0')}m'
+          : '0h 00m',
       'overtimeDelta': '+${otH}h',
       'consistency': consistency,
     };
@@ -500,7 +573,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
     int count = 0;
     DateTime d = start;
     while (!d.isAfter(end)) {
-      if (d.weekday != DateTime.saturday && d.weekday != DateTime.sunday) count++;
+      if (d.weekday != DateTime.saturday && d.weekday != DateTime.sunday)
+        count++;
       d = d.add(const Duration(days: 1));
     }
     return count;
@@ -529,7 +603,8 @@ class _AnalyticsMainScreenState extends State<AnalyticsMainScreen> {
         final checkIn = data['checkIn'] as Timestamp?;
         final checkOut = data['checkOut'] as Timestamp?;
         if (checkIn != null && checkOut != null) {
-          totalHours += checkOut.toDate().difference(checkIn.toDate()).inMinutes / 60.0;
+          totalHours +=
+              checkOut.toDate().difference(checkIn.toDate()).inMinutes / 60.0;
           count++;
         }
       }

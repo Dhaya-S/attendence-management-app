@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/screens/attendance/attendance_request_detail_screen.dart';
+import 'package:attendance_app/screens/attendance/attendance_correction_form_screen.dart';
 
 /// Requests tab â€” Shows attendance correction / WFH requests with status badges.
 /// For employees: shows their own requests.
@@ -48,11 +50,9 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
     final Stream<QuerySnapshot> stream;
     if (_role == 'employee') {
       stream = FirestoreService.userLeaveRequestsCol(_user?.email ?? '')
-          .orderBy('submittedAt', descending: true)
           .snapshots();
     } else {
       stream = FirestoreService.allLeaveRequestsQuery
-          .orderBy('submittedAt', descending: true)
           .snapshots();
     }
 
@@ -60,7 +60,15 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
       stream: stream,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _buildEmptyState();
+          debugPrint('Leave Requests Stream Error: ${snapshot.error}');
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Text('Error loading requests:\n${snapshot.error}', 
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppTheme.danger)),
+            ),
+          );
         }
 
         if (!snapshot.hasData) {
@@ -87,13 +95,16 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
                 continue;
               }
 
+              final reqType = _getRequestType(data);
+
               allRequests.add(_RequestItem(
                 id: doc.id,
-                type: _getRequestType(data),
+                reference: doc.reference,
+                type: reqType,
                 status: (data['status'] ?? 'pending').toString().toLowerCase(),
-                submittedAt: data['submittedAt'] as Timestamp?,
+                submittedAt: data['submittedAt'] as Timestamp? ?? data['requestDate'] as Timestamp?,
                 requestedDate: data['requestedDate'] as Timestamp? ??
-                    data['startDate'] as Timestamp?,
+                    data['startDate'] as Timestamp? ?? data['fromDate'] as Timestamp?,
                 managerName: data['managerName'] as String? ?? data['approvedBy'] as String?,
                 data: data,
               ));
@@ -110,11 +121,12 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
 
               allRequests.add(_RequestItem(
                 id: doc.id,
+                reference: doc.reference,
                 type: 'Attendance Correction',
                 status: (data['status'] ?? 'pending').toString().toLowerCase(),
                 submittedAt: data['submittedAt'] as Timestamp? ??
-                    data['createdAt'] as Timestamp?,
-                requestedDate: data['date'] as Timestamp?,
+                    data['createdAt'] as Timestamp? ?? data['requestDate'] as Timestamp?,
+                requestedDate: data['date'] as Timestamp? ?? data['checkInTime'] as Timestamp?,
                 managerName: data['managerName'] as String?,
                 data: data,
               ));
@@ -363,55 +375,12 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
   }
 
   void _viewRequestDetail(_RequestItem req) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => Padding(
-          padding: const EdgeInsets.all(24),
-          child: ListView(
-            controller: scrollController,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppTheme.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(req.type,
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textPrimary)),
-              const SizedBox(height: 8),
-              Text('ID: ${req.id}',
-                  style: TextStyle(
-                      fontSize: 12, color: AppTheme.textMuted)),
-              const SizedBox(height: 20),
-              ...req.data.entries
-                  .where((e) => e.value != null && e.key != 'companyId')
-                  .map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _detailRow(
-                            e.key,
-                            e.value is Timestamp
-                                ? DateFormat('dd MMM yyyy hh:mm a')
-                                    .format((e.value as Timestamp).toDate())
-                                : e.value.toString()),
-                      )),
-            ],
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AttendanceRequestDetailScreen(
+          reference: req.reference,
+          title: req.type,
         ),
       ),
     );
@@ -483,7 +452,10 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
               color: AppTheme.warning,
               onTap: () {
                 Navigator.pop(context);
-                // Navigate to correction screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AttendanceCorrectionFormScreen()),
+                );
               },
             ),
             const SizedBox(height: 10),
@@ -557,6 +529,7 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
 
 class _RequestItem {
   final String id;
+  final DocumentReference reference;
   final String type;
   final String status;
   final Timestamp? submittedAt;
@@ -566,6 +539,7 @@ class _RequestItem {
 
   const _RequestItem({
     required this.id,
+    required this.reference,
     required this.type,
     required this.status,
     this.submittedAt,

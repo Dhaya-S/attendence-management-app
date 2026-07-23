@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -16,81 +16,100 @@ class RequestsMainScreen extends StatefulWidget {
 class _RequestsMainScreenState extends State<RequestsMainScreen> {
   final _user = FirebaseAuth.instance.currentUser;
 
-  Stream<List<Map<String, dynamic>>> _buildStream() {
+  @override
+  Widget build(BuildContext context) {
     final email = _user?.email ?? '';
     final correctionsStream = FirebaseFirestore.instance
         .collection('organizations')
         .doc(FirestoreService.companyId)
         .collection('attendance_corrections')
         .where('userId', isEqualTo: email)
-        .orderBy('createdAt', descending: true)
         .snapshots();
+    final leaveStream = FirestoreService.userLeaveRequestsCol(email).snapshots();
 
-    return correctionsStream.asyncMap((corrSnap) async {
-      final leaveSnap = await FirestoreService.userLeaveRequestsCol(email)
-          .orderBy('createdAt', descending: true)
-          .get();
-
-      final List<Map<String, dynamic>> items = [];
-
-      for (final doc in corrSnap.docs) {
-        final d = doc.data();
-        items.add({
-          'id': doc.id,
-          'type': 'Attendance Correction',
-          'typeCode': 'ATT',
-          'status': d['status'] ?? 'pending',
-          'submittedAt': d['createdAt'],
-          'requestedDate': d['attendanceDate'],
-          'reason': d['reason'] ?? '',
-          'correctedCheckIn': d['correctedCheckIn'],
-          'correctedCheckOut': d['correctedCheckOut'],
-          'updatedAt': d['updatedAt'] ?? d['createdAt'],
-          '_sortTs': d['createdAt'],
-        });
-      }
-
-      for (final doc in leaveSnap.docs) {
-        final d = doc.data();
-        final lType = d['leaveType'] as String? ?? '';
-        items.add({
-          'id': doc.id,
-          'type': lType == 'wfh' ? 'Work From Home' : (lType.isNotEmpty ? lType : 'Leave'),
-          'typeCode': lType == 'wfh' ? 'WFH' : 'LVE',
-          'status': d['status'] ?? 'pending',
-          'submittedAt': d['createdAt'],
-          'requestedDate': d['startDate'],
-          'reason': d['reason'] ?? '',
-          'updatedAt': d['updatedAt'] ?? d['createdAt'],
-          '_sortTs': d['createdAt'],
-        });
-      }
-
-      items.sort((a, b) {
-        final ta = a['_sortTs'] as Timestamp?;
-        final tb = b['_sortTs'] as Timestamp?;
-        if (ta == null && tb == null) return 0;
-        if (ta == null) return 1;
-        if (tb == null) return -1;
-        return tb.compareTo(ta);
-      });
-
-      return items;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
-      body: StreamBuilder<List<Map<String, dynamic>>>(
-        stream: _buildStream(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
+      body: StreamBuilder<QuerySnapshot>(
+        stream: correctionsStream,
+        builder: (context, corrSnap) {
+          if (corrSnap.hasError) return Center(child: Text('Error: ${corrSnap.error}'));
+          if (corrSnap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator(color: Color(0xFF5C5CFF)));
           }
-          final items = snap.data ?? [];
-          if (items.isEmpty) return _buildEmpty();
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: leaveStream,
+            builder: (context, leaveSnap) {
+              if (leaveSnap.hasError) return Center(child: Text('Error: ${leaveSnap.error}'));
+              if (leaveSnap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: Color(0xFF5C5CFF)));
+              }
+
+              final List<Map<String, dynamic>> items = [];
+
+              try {
+                for (final doc in corrSnap.data!.docs) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final rawCreatedAt = d['createdAt'];
+                  final rawAttDate = d['attendanceDate'];
+                  final rawUpdatedAt = d['updatedAt'] ?? d['createdAt'];
+                  
+                  final tsCreatedAt = rawCreatedAt is Timestamp ? rawCreatedAt : null;
+                  final tsAttDate = rawAttDate is Timestamp ? rawAttDate : null;
+                  final tsUpdatedAt = rawUpdatedAt is Timestamp ? rawUpdatedAt : null;
+
+                  items.add({
+                    'id': doc.id,
+                    'type': 'Attendance Correction',
+                    'typeCode': 'ATT',
+                    'status': d['status'] ?? 'pending',
+                    'submittedAt': tsCreatedAt,
+                    'requestedDate': tsAttDate,
+                    'reason': d['reason'] ?? '',
+                    'correctedCheckIn': d['correctedCheckIn'],
+                    'correctedCheckOut': d['correctedCheckOut'],
+                    'updatedAt': tsUpdatedAt,
+                    '_sortTs': tsCreatedAt,
+                  });
+                }
+
+                for (final doc in leaveSnap.data!.docs) {
+                  final d = doc.data() as Map<String, dynamic>;
+                  final lType = d['leaveType'] as String? ?? '';
+                  final rawCreatedAt = d['createdAt'] ?? d['requestDate'];
+                  final rawStartDate = d['startDate'] ?? d['fromDate'];
+                  final rawUpdatedAt = d['updatedAt'] ?? d['createdAt'] ?? d['requestDate'];
+                  
+                  final tsCreatedAt = rawCreatedAt is Timestamp ? rawCreatedAt : null;
+                  final tsStartDate = rawStartDate is Timestamp ? rawStartDate : null;
+                  final tsUpdatedAt = rawUpdatedAt is Timestamp ? rawUpdatedAt : null;
+
+                  items.add({
+                    'id': doc.id,
+                    'type': lType == 'wfh' ? 'Work From Home' : (lType.isNotEmpty ? lType : 'Leave'),
+                    'typeCode': lType == 'wfh' ? 'WFH' : 'LVE',
+                    'status': d['status'] ?? 'pending',
+                    'submittedAt': tsCreatedAt,
+                    'requestedDate': tsStartDate,
+                    'reason': d['reason'] ?? '',
+                    'updatedAt': tsUpdatedAt,
+                    '_sortTs': tsCreatedAt,
+                  });
+                }
+
+                items.sort((a, b) {
+                  final ta = a['_sortTs'] as Timestamp?;
+                  final tb = b['_sortTs'] as Timestamp?;
+                  if (ta == null && tb == null) return 0;
+                  if (ta == null) return 1;
+                  if (tb == null) return -1;
+                  return tb.compareTo(ta);
+                });
+              } catch (e) {
+                return Center(child: Text('Data error: $e'));
+              }
+
+              if (items.isEmpty) return _buildEmpty();
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             physics: const BouncingScrollPhysics(),
@@ -103,6 +122,8 @@ class _RequestsMainScreenState extends State<RequestsMainScreen> {
                 MaterialPageRoute(builder: (_) => RequestDetailScreen(item: items[i])),
               ),
             ),
+          );
+            },
           );
         },
       ),

@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,6 +33,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('======> MonthlySummaryScreen BUILD Triggered! <======');
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
@@ -136,10 +137,11 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
 
   Widget _buildRateCard(Map<String, dynamic> metrics) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A3E),
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF2E2E8C),
+        borderRadius: BorderRadius.circular(24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -166,90 +168,68 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
   // â”€â”€â”€ Stats Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Widget _buildStatsGrid(Map<String, dynamic> metrics) {
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      childAspectRatio: 1.5,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _buildStatCard(
+          metrics['present'].toString(), 'Days Present',
+          'of ${metrics['workingDays']} working days',
+          const Color(0xFF22C55E), const Color(0xFFF0FDF4),
+        ),
+        _buildStatCard(
+          metrics['late'].toString(), 'Days Late',
+          'avg 15 min late',
+          const Color(0xFFF59E0B), const Color(0xFFFFFBEB),
+        ),
+        _buildStatCard(
+          metrics['leave'].toString(), 'Leave Taken',
+          'Annual leave',
+          const Color(0xFFA855F7), const Color(0xFFFAF5FF),
+        ),
+        _buildStatCard(
+          metrics['holidays'].toString(), 'Holidays',
+          'Official holiday',
+          const Color(0xFF2563EB), const Color(0xFFEFF6FF),
+        ),
+        _buildStatCard(
+          metrics['totalHours'] as String, 'Total Off Hours',
+          'Eligible for OT pay',
+          const Color(0xFF5C5CFF), const Color(0xFFEEF2FF),
+        ),
+        _buildStatCard(
+          metrics['absent'].toString(), 'Absent Days',
+          'Perfect attendance',
+          const Color(0xFF22C55E), const Color(0xFFF0FDF4),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String value, String label, String sub, Color valueColor, Color bgColor) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.divider),
       ),
-      child: Column(children: [
-        Row(children: [
-          Expanded(
-            child: _buildStatItem(
-              metrics['present'].toString(), 'Days Present',
-              'of ${metrics['workingDays']} working days',
-              const Color(0xFF22C55E),
-            ),
-          ),
-          _verticalDivider(),
-          Expanded(
-            child: _buildStatItem(
-              metrics['late'].toString(), 'Days Late',
-              'avg 15 min late',
-              const Color(0xFFF59E0B),
-            ),
-          ),
-        ]),
-        _horizontalDivider(),
-        Row(children: [
-          Expanded(
-            child: _buildStatItem(
-              metrics['leave'].toString(), 'Leave Taken',
-              'Annual leave',
-              AppTheme.primary,
-            ),
-          ),
-          _verticalDivider(),
-          Expanded(
-            child: _buildStatItem(
-              metrics['holidays'].toString(), 'Holidays',
-              'Official holiday',
-              AppTheme.primary,
-            ),
-          ),
-        ]),
-        _horizontalDivider(),
-        Row(children: [
-          Expanded(
-            child: _buildStatItem(
-              metrics['totalHours'] as String, 'Total Off Hours',
-              'Eligible for OT pay',
-              AppTheme.primary,
-            ),
-          ),
-          _verticalDivider(),
-          Expanded(
-            child: _buildStatItem(
-              metrics['absent'].toString(), 'Absent Days',
-              'Perfect attendance',
-              AppTheme.textHint,
-            ),
-          ),
-        ]),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor)),
+          const SizedBox(height: 4),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF111827))),
+          const SizedBox(height: 2),
+          Text(sub, style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF))),
+        ],
+      ),
     );
   }
-
-  Widget _buildStatItem(String value, String label, String sub, Color valueColor) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(value,
-            style: TextStyle(
-                fontSize: 22, fontWeight: FontWeight.w800, color: valueColor)),
-        const SizedBox(height: 2),
-        Text(label,
-            style: const TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-        Text(sub,
-            style: const TextStyle(fontSize: 10, color: AppTheme.textHint)),
-      ]),
-    );
-  }
-
-  Widget _verticalDivider() => Container(width: 1, height: 64, color: AppTheme.divider);
-  Widget _horizontalDivider() => Container(height: 1, color: AppTheme.divider);
 
   // â”€â”€â”€ Day-by-Day Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -275,9 +255,9 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
           Wrap(spacing: 12, runSpacing: 6, children: [
             _legend(const Color(0xFF22C55E), 'Present'),
             _legend(const Color(0xFFF59E0B), 'Late'),
-            _legend(AppTheme.primary, 'Leave'),
-            _legend(const Color(0xFF8B8BFF), 'Holiday'),
-            _legend(AppTheme.textHint, 'Absent'),
+            _legend(const Color(0xFFA855F7), 'Leave'),
+            _legend(const Color(0xFF2563EB), 'Holiday'),
+            _legend(const Color(0xFFEF4444), 'Absent'),
           ]),
           const SizedBox(height: 12),
           GridView.builder(
@@ -327,16 +307,16 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
           textColor = Colors.white;
           break;
         case 'leave':
-          bgColor = AppTheme.primary;
+          bgColor = const Color(0xFFA855F7);
           textColor = Colors.white;
           break;
         case 'holiday':
-          bgColor = const Color(0xFF8B8BFF);
+          bgColor = const Color(0xFF2563EB);
           textColor = Colors.white;
           break;
         case 'absent':
-          bgColor = AppTheme.divider;
-          textColor = AppTheme.textHint;
+          bgColor = const Color(0xFFEF4444);
+          textColor = Colors.white;
           break;
       }
     } else if (isFuture) {
@@ -422,14 +402,14 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                   if (wfh > 0)
                     PieChartSectionData(
                       value: wfh,
-                      color: AppTheme.primary,
+                      color: const Color(0xFF5C5CFF),
                       radius: 20,
                       showTitle: false,
                     ),
                   if (leave > 0)
                     PieChartSectionData(
                       value: leave,
-                      color: const Color(0xFF8B8BFF),
+                      color: const Color(0xFFA855F7),
                       radius: 20,
                       showTitle: false,
                     ),
@@ -444,9 +424,9 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
               const SizedBox(height: 8),
               _distRow(const Color(0xFFF59E0B), 'Late', late.toInt()),
               const SizedBox(height: 8),
-              _distRow(AppTheme.primary, 'WFH', wfh.toInt()),
+              _distRow(const Color(0xFF5C5CFF), 'WFH', wfh.toInt()),
               const SizedBox(height: 8),
-              _distRow(const Color(0xFF8B8BFF), 'Leave', leave.toInt()),
+              _distRow(const Color(0xFFA855F7), 'Leave', leave.toInt()),
             ]),
           ),
         ]),
