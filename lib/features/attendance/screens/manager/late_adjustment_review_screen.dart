@@ -354,8 +354,8 @@ class _LateAdjustmentReviewScreenState
             ),
           ],
 
-          // Action Buttons (only for pending)
-          if (remarkStatus == 'pending') ...[
+          // Action Buttons (only for pending and with approval permission)
+          if (remarkStatus == 'pending' && AppSession().hasPermission('approval')) ...[
             const SizedBox(height: 16),
             Row(
               children: [

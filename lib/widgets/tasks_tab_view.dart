@@ -84,6 +84,19 @@ class _TasksTabViewState extends State<TasksTabView> {
     final userName = (AppSession().userName ?? FirebaseAuth.instance.currentUser?.displayName ?? '').trim().toLowerCase();
     final userUid = (AppSession().uid ?? FirebaseAuth.instance.currentUser?.uid ?? '').trim().toLowerCase();
 
+    // Web App Compatibility: check assignees array
+    if (data['assignees'] is List) {
+      final list = (data['assignees'] as List).map((e) => e.toString().trim().toLowerCase()).toList();
+      if (list.contains(userEmail)) return true;
+    }
+
+    // Web App Compatibility: check assignee map object
+    if (data['assignee'] is Map) {
+      final aMap = data['assignee'] as Map;
+      final aMail = (aMap['email'] ?? aMap['userEmail'] ?? '').toString().trim().toLowerCase();
+      if (aMail.isNotEmpty && (aMail == userEmail || userEmail.contains(aMail))) return true;
+    }
+
     final assigneeEmail = (data['assigneeEmail'] ?? data['assignedToEmail'] ?? data['employeeEmail'] ?? data['email'] ?? '').toString().trim().toLowerCase();
     final assignee = (data['assignee'] ?? data['assigneeName'] ?? data['assignedTo'] ?? data['userEmail'] ?? '').toString().trim().toLowerCase();
     final assigneeUid = (data['userId'] ?? data['uid'] ?? data['assignedToUid'] ?? '').toString().trim().toLowerCase();
@@ -382,7 +395,8 @@ class _TasksTabViewState extends State<TasksTabView> {
                 GestureDetector(
                   onTap: () async {
                     await FirestoreService.tasksCol.doc(id).update({
-                      'status': 'in_progress',
+                      'status': 'In Progress',
+                      'taskStatus': 'In Progress',
                       'timerStart': FieldValue.serverTimestamp(),
                       'isPaused': false,
                     });
@@ -985,7 +999,8 @@ class _TasksTabViewState extends State<TasksTabView> {
                       onTap: () async {
                         Navigator.pop(context);
                         await FirestoreService.tasksCol.doc(id).update({
-                          'status': 'completed',
+                          'status': 'Done',
+                          'taskStatus': 'Done',
                           'completedDate': DateFormat('MMM d, yyyy').format(DateTime.now()),
                           'completedAt': FieldValue.serverTimestamp(),
                         });

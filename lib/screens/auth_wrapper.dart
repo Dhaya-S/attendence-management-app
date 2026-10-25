@@ -23,10 +23,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
   String? _error;
   late Future<User?> _initialAuthFuture;
   StreamSubscription<DocumentSnapshot>? _orgSubscription;
+  StreamSubscription<DocumentSnapshot>? _legacyOrgSubscription;
 
   @override
   void dispose() {
     _orgSubscription?.cancel();
+    _legacyOrgSubscription?.cancel();
     super.dispose();
   }
 
@@ -314,6 +316,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
       int? parseInt(dynamic v) =>
           v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
 
+      // Extract isGeofencingEnabled from org doc
+      bool? geoEnabled;
+      if (cd.containsKey('isGeofencingEnabled')) {
+        final gv = cd['isGeofencingEnabled'];
+        if (gv is bool) geoEnabled = gv;
+        else if (gv is String) geoEnabled = gv.toLowerCase() == 'true';
+      }
+
       AppSession().populate(
         uid: user.uid,
         email: email,
@@ -325,6 +335,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         gracePeriod: parseInt(cd['gracePeriod']),
         paidLeavesPerYear: parseInt(cd['paidLeavesPerYear']),
         featurePermissions: cd['featurePermissions'] as Map<String, dynamic>?,
+        isGeofencingEnabled: geoEnabled,
         userName: userName,
         department: department,
       );
@@ -336,6 +347,32 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (mounted) {
         setState(() { _sessionLoaded = true; _error = null; });
       }
+
+      // ── Set up real-time listener on legacy company doc ──────────────────
+      _legacyOrgSubscription?.cancel();
+      _legacyOrgSubscription = FirestoreService.companyDoc(companyId)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists && snapshot.data() != null) {
+          final liveData = snapshot.data()!;
+          Map<String, dynamic>? newPerms;
+          bool? newGeo;
+          if (liveData.containsKey('featurePermissions')) {
+            newPerms = liveData['featurePermissions'] as Map<String, dynamic>;
+          }
+          if (liveData.containsKey('isGeofencingEnabled')) {
+            final gv = liveData['isGeofencingEnabled'];
+            if (gv is bool) newGeo = gv;
+            else if (gv is String) newGeo = gv.toLowerCase() == 'true';
+          }
+          AppSession().updatePermissions(
+            newPermissions: newPerms,
+            newGeofencingEnabled: newGeo,
+          );
+          AppSession().updateOfficeLocationFromMap(liveData);
+          if (mounted) setState(() {});
+        }
+      });
     } catch (e) {
       debugPrint('AuthWrapper Load Error: $e');
       if (mounted) setState(() { _error = e.toString(); });
@@ -366,6 +403,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
       double? parseDouble(dynamic v) =>
           v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
 
+      // Extract isGeofencingEnabled from org doc
+      bool? geoEnabled;
+      if (od.containsKey('isGeofencingEnabled')) {
+        final gv = od['isGeofencingEnabled'];
+        if (gv is bool) geoEnabled = gv;
+        else if (gv is String) geoEnabled = gv.toLowerCase() == 'true';
+      }
+
       AppSession().populate(
         uid: user.uid,
         email: email,
@@ -373,6 +418,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         companyId: orgId,
         companyName: od['companyName'] as String? ?? od['name'] as String?,
         featurePermissions: od['featurePermissions'] as Map<String, dynamic>?,
+        isGeofencingEnabled: geoEnabled,
         userName: userName,
         department: department,
       );
@@ -385,21 +431,27 @@ class _AuthWrapperState extends State<AuthWrapper> {
         setState(() { _sessionLoaded = true; _error = null; });
       }
 
-      // ── Set up real-time listener for permissions and location ──
+      // ── Set up real-time listener for permissions, geofencing & location ──
       _orgSubscription?.cancel();
       _orgSubscription = orgDocRef.snapshots().listen((snapshot) {
         if (snapshot.exists && snapshot.data() != null) {
           final liveData = snapshot.data()!;
-          bool shouldRebuild = false;
+          Map<String, dynamic>? newPerms;
+          bool? newGeo;
           if (liveData.containsKey('featurePermissions')) {
-            AppSession().featurePermissions = liveData['featurePermissions'] as Map<String, dynamic>;
-            shouldRebuild = true;
+            newPerms = liveData['featurePermissions'] as Map<String, dynamic>;
           }
+          if (liveData.containsKey('isGeofencingEnabled')) {
+            final gv = liveData['isGeofencingEnabled'];
+            if (gv is bool) newGeo = gv;
+            else if (gv is String) newGeo = gv.toLowerCase() == 'true';
+          }
+          AppSession().updatePermissions(
+            newPermissions: newPerms,
+            newGeofencingEnabled: newGeo,
+          );
           AppSession().updateOfficeLocationFromMap(liveData);
-          shouldRebuild = true;
-          if (shouldRebuild && mounted) {
-            setState(() {}); // Trigger rebuild
-          }
+          if (mounted) setState(() {});
         }
       });
     } catch (e) {

@@ -31,6 +31,9 @@ class ManagerHomeTab extends StatefulWidget {
 }
 
 class _ManagerHomeTabState extends State<ManagerHomeTab> {
+  void _onPermissionsChanged() {
+    if (mounted) setState(() {});
+  }
   final user = FirebaseAuth.instance.currentUser;
   late final Stream<DocumentSnapshot> _currentUserStream = FirestoreService.userStreamByEmail(user?.email ?? '');
   late final Stream<QuerySnapshot> _usersStream = FirestoreService.companyUsersQuery.snapshots();
@@ -53,6 +56,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
   @override
   void initState() {
     super.initState();
+    AppSession().permissionsNotifier.addListener(_onPermissionsChanged);
     final userEmail = user?.email ?? '';
     _todayRef = FirestoreService.userAttendanceCol(userEmail);
     _todayAttendanceStream = _todayRef.doc(_getAttendanceDocId()).snapshots();
@@ -65,6 +69,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
 
   @override
   void dispose() {
+    AppSession().permissionsNotifier.removeListener(_onPermissionsChanged);
     _timer?.cancel();
     super.dispose();
   }
@@ -98,7 +103,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
     try {
       final now = DateTime.now();
       final userEmail = user?.email ?? '';
-      final isInside = _currentLocationData?.isWithinRadius ?? false;
+      final isGeofenceActive = AppSession().hasPermission('geofencing');
+      final isInside = !isGeofenceActive || (_currentLocationData?.isWithinRadius ?? false);
       final data = {
         'companyId': FirestoreService.companyId,
         'userId': userEmail,
@@ -242,11 +248,15 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         ? (_selectedSubTab == 0
                             ? _buildDashboardView()
                             : _selectedSubTab == 1
-                                ? _buildApprovalsView()
+                                ? (AppSession().hasPermission('approval')
+                                    ? _buildApprovalsView()
+                                    : _buildNoPermissionView('Approvals', 'You do not have permission to view approvals.'))
                                 : _selectedSubTab == 2
                                     ? AnnouncementsTabView(
-                                        isAdmin: false,
-                                        onCreateAnnouncement: () => setState(() => _isCreatingAnnouncement = true),
+                                        isAdmin: AppSession().hasPermission('announcement_creation'),
+                                        onCreateAnnouncement: AppSession().hasPermission('announcement_creation')
+                                            ? () => setState(() => _isCreatingAnnouncement = true)
+                                            : null,
                                       )
                                     : const Center(child: Text('Coming Soon')))
                         : _selectedMainTab == 1
@@ -256,16 +266,20 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                                     ? const TeamFeedView()
                                     : _selectedSubTab == 2
                                         ? AnnouncementsTabView(
-                                            isAdmin: false,
-                                            onCreateAnnouncement: () => setState(() => _isCreatingAnnouncement = true),
+                                            isAdmin: AppSession().hasPermission('announcement_creation'),
+                                            onCreateAnnouncement: AppSession().hasPermission('announcement_creation')
+                                                ? () => setState(() => _isCreatingAnnouncement = true)
+                                                : null,
                                           )
                                         : const TeamTasksView())
                             : _selectedMainTab == 2
-                                ? (_selectedSubTab == 0
-                                    ? _buildOrgOverviewView()
-                                    : _selectedSubTab == 1
-                                        ? _buildOrgEmployeesView()
-                                        : const Center(child: Text('Coming Soon')))
+                                ? (AppSession().hasPermission('organization')
+                                    ? (_selectedSubTab == 0
+                                        ? _buildOrgOverviewView()
+                                        : _selectedSubTab == 1
+                                            ? _buildOrgEmployeesView()
+                                            : const Center(child: Text('Coming Soon')))
+                                    : _buildNoPermissionView('Organization', 'You do not have permission to view organization data.'))
                                 : const Center(child: Text('Coming Soon')),
                   ),
                 ],
@@ -360,15 +374,19 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
   }
 
   Widget _buildTopNavigation() {
+    final List<Widget> tabs = [
+      _buildTopTab('My Space', 0),
+      _buildTopTab('Team', 1),
+    ];
+    if (AppSession().hasPermission('organization')) {
+      tabs.add(_buildTopTab('Organization', 2));
+    }
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
-        children: [
-          _buildTopTab('My Space', 0),
-          _buildTopTab('Team', 1),
-          _buildTopTab('Organization', 2),
-        ],
+        children: tabs,
       ),
     );
   }
@@ -415,7 +433,8 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
           children: _selectedMainTab == 0
               ? [
                   _buildSubTab('Dashboard', 0),
-                  _buildSubTab('Approvals', 1),
+                  if (AppSession().hasPermission('approval'))
+                    _buildSubTab('Approvals', 1),
                   _buildSubTab('Announcements', 2),
                   _buildSubTab('Calendar', 3),
                 ]
@@ -1420,7 +1439,7 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
               ],
             ),
           ),
-          if (status == 'pending') ...[
+          if (status == 'pending' && AppSession().hasPermission('approval')) ...[
             const SizedBox(height: 16),
             Row(
               children: [
@@ -1998,3 +2017,47 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
     );
   }
 }
+
+
+  Widget _buildNoPermissionView(String title, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_outline_rounded,
+                size: 40,
+                color: Color(0xFFEF4444),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Access Restricted: $title',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF6B7280),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }

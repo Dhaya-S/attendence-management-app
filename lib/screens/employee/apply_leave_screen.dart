@@ -99,19 +99,24 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       final senderRole =
           (userData['role'] as String?)?.toLowerCase() ?? 'employee';
 
-      await FirestoreService.userLeaveRequestsCol(user!.email ?? '').add({
+      await FirestoreService.submitLeaveRequest(data: {
         'companyId': FirestoreService.companyId,
-        'userId': user.uid,
+        'userId': user!.uid,
         'userEmail': user.email,
+        'applicantEmail': user.email,
         'userName': userName,
+        'applicantName': userName,
         'department': department,
         'leaveType': selectedType,
+        'type': selectedType,
         'fromDate': fromDate,
         'toDate': toDate,
+        'from': DateFormat('yyyy-MM-dd').format(fromDate!),
+        'to': DateFormat('yyyy-MM-dd').format(toDate!),
         'durationInDays': diff,
+        'days': diff,
         'reason': reasonController.text.trim(),
-        'status': 'pending',
-        'requestDate': FieldValue.serverTimestamp(),
+        'status': 'Pending',
         'senderRole': senderRole,
       });
 

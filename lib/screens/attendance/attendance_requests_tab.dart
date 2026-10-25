@@ -266,8 +266,8 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
             ),
           ),
 
-          // Manager/Admin: show approve/reject buttons for pending requests
-          if (_role != 'employee' && req.status == 'pending') ...[
+          // Show approve/reject buttons only if user has approval permission
+          if (AppSession().hasPermission('approval') && req.status == 'pending') ...[
             const SizedBox(height: 12),
             const Divider(height: 1),
             const SizedBox(height: 12),

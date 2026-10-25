@@ -1,4 +1,5 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -221,8 +222,8 @@ class LeaveDetailScreen extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Actions (only for pending)
-            if (status == 'pending')
+            // Actions (only for pending and with approval permission)
+            if (status == 'pending' && AppSession().hasPermission('approval'))
               Row(
                 children: [
                   Expanded(

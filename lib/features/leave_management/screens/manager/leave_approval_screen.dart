@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -326,8 +327,8 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
               overflow: TextOverflow.ellipsis,
             ),
 
-            // Approve/Reject buttons (only for pending)
-            if (status == 'pending') ...[
+            // Approve/Reject buttons (only for pending and with approval permission)
+            if (status == 'pending' && AppSession().hasPermission('approval')) ...[
               const SizedBox(height: 14),
               Row(
                 children: [

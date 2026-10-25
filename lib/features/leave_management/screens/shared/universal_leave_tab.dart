@@ -84,26 +84,34 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
         durationInDays = 1;
       }
 
-      final data = {
+      final userMail = email ?? AppSession().email ?? '';
+      final uName = AppSession().userName ?? userMail.split('@').first;
+      await FirestoreService.submitLeaveRequest(data: {
         'companyId': FirestoreService.companyId,
         'userId': AppSession().uid,
-        'email': email ?? AppSession().email,
-        'employeeEmail': email ?? AppSession().email,
+        'email': userMail,
+        'employeeEmail': userMail,
+        'userEmail': userMail,
+        'applicantEmail': userMail,
+        'userName': uName,
+        'applicantName': uName,
         'leaveType': _selectedLeaveType,
+        'type': _selectedLeaveType,
         'duration': _leaveDuration,
         'durationInDays': durationInDays,
+        'days': durationInDays,
         'fromDate': Timestamp.fromDate(_fromDate),
         'toDate': Timestamp.fromDate(_toDate),
+        'from': DateFormat('yyyy-MM-dd').format(_fromDate),
+        'to': DateFormat('yyyy-MM-dd').format(_toDate),
         'reason': _reasonController.text.trim(),
         'requestDate': Timestamp.now(),
-        'status': 'pending',
+        'status': 'Pending',
         'requiresManagerApproval': reqManager,
         'requiresAdminApproval': reqAdmin,
         'approverRemarks': '',
         'senderRole': (role ?? 'employee').toLowerCase(),
-      };
-
-      await FirestoreService.leaveRequestsCol.add(data);
+      });
       
       // Notify based on sender role
       final senderRole = (role ?? 'employee').toLowerCase();

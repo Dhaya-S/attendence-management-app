@@ -1,3 +1,4 @@
+import 'package:attendance_app/utils/app_session.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -28,6 +29,9 @@ class AnnouncementsTabView extends StatefulWidget {
 }
 
 class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
+  void _onPermissionsChanged() {
+    if (mounted) setState(() {});
+  }
   int _selectedCategoryTab = 0; // 0: All, 1: HR, 2: Policy, 3: Events, 4: Manager Update
   bool _isCreatingAnnouncement = false;
   late final Stream<QuerySnapshot> _announcementsStream;
@@ -44,6 +48,7 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
   @override
   void initState() {
     super.initState();
+    AppSession().permissionsNotifier.addListener(_onPermissionsChanged);
     // Team announcements tab → team_announcements collection only
     // Org announcements tab → announcements collection (company-wide) only
     _announcementsStream = widget.isTeamAnnouncements
@@ -53,12 +58,25 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
 
   @override
   void dispose() {
+    AppSession().permissionsNotifier.removeListener(_onPermissionsChanged);
     _titleController.dispose();
     _messageController.dispose();
     super.dispose();
   }
 
   void _submitAnnouncement(bool isDraft) async {
+    // Permission check for announcement creation
+    if (!widget.isAdmin && !AppSession().hasPermission('announcement_creation')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You do not have permission to create announcements'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      return;
+    }
     final title = _titleController.text.trim();
     final message = _messageController.text.trim();
     if (title.isEmpty || message.isEmpty) {

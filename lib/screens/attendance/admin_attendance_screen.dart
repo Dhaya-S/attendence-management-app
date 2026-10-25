@@ -288,8 +288,9 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
                   // Filter attendance docs for today
                   final attDocs = allAttDocs.where((doc) {
                     final data = doc.data() as Map<String, dynamic>;
-                    if (doc.id == todayStr) return true;
+                    if (doc.id == todayStr || doc.id.endsWith('_$todayStr')) return true;
                     if (data['recordDate'] == todayStr) return true;
+                    if (data['date'] == todayStr) return true; // Web App string format
                     if (data['date'] is Timestamp) {
                       final d = (data['date'] as Timestamp).toDate();
                       return DateFormat('yyyy-MM-dd').format(d) == todayStr;

@@ -92,6 +92,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       _subPendingTasks;
   StreamSubscription? _subStatsAtt, _subStatsLeaves;
   StreamSubscription? _subActivityLeaves, _subActivityAtt;
+  StreamSubscription? _subOrgDoc;
 
   // Approvals Real-time State
   List<DocumentSnapshot>? _cachedApprovals = [];
@@ -102,6 +103,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    AppSession().permissionsNotifier.addListener(_onPermissionsChanged);
     orgId = AppSession().companyId ?? '';
     _orgUsersStream = FirestoreService.employeesCol.snapshots();
     final userEmail = (user?.email ??
@@ -139,7 +141,13 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     _subStatsLeaves?.cancel();
     _subActivityLeaves?.cancel();
     _subActivityAtt?.cancel();
+    _subOrgDoc?.cancel();
+    AppSession().permissionsNotifier.removeListener(_onPermissionsChanged);
     super.dispose();
+  }
+
+  void _onPermissionsChanged() {
+    if (mounted) setState(() {});
   }
 
   String _getAttendanceDocId() =>
@@ -167,35 +175,73 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
 
   Future<void> _handleCheckInOut(String status, bool isCheckIn) async {
     if (_isCheckingInOut) return;
+
     setState(() => _isCheckingInOut = true);
     try {
       final now = DateTime.now();
       final userEmail = user?.email ?? '';
-      final isInside = _currentLocationData?.isWithinRadius ?? false;
-      final data = {
-        'companyId': FirestoreService.companyId,
-        'userId': userEmail,
-        'status': status,
-        if (isCheckIn) 'workMode': isInside ? 'office' : 'wfh',
-        if (isCheckIn) 'checkIn': Timestamp.fromDate(now),
-        if (isCheckIn)
-          'checkInLocation': _currentLocationData?.address ?? 'Unknown',
-        if (!isCheckIn) 'checkOut': Timestamp.fromDate(now),
-        if (!isCheckIn)
-          'checkOutLocation': _currentLocationData?.address ?? 'Unknown',
-        'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
-        'recordDate': DateFormat('yyyy-MM-dd').format(now),
-      };
+      final isGeofenceActive = AppSession().hasPermission('geofencing');
+      final isInside = !isGeofenceActive || (_currentLocationData?.isWithinRadius ?? false);
+      final isLate = now.hour >= 9 && (now.hour > 9 || now.minute > 15);
+      final finalStatus = isCheckIn
+          ? (isInside ? (isLate ? 'Late' : 'Present') : 'WFH')
+          : (status.isNotEmpty ? status : 'Present');
+      final workMode = isInside ? 'office' : 'wfh';
+      final loc = isInside ? 'Work in Office' : 'Work from Home';
 
-      await _todayRef
-          .doc(_getAttendanceDocId())
-          .set(data, SetOptions(merge: true));
+      // Record attendance punch across both mobile user doc and web app company mirror
+      await FirestoreService.recordAttendancePunch(
+        email: userEmail,
+        isCheckIn: isCheckIn,
+        status: finalStatus,
+        location: loc,
+        address: _currentLocationData?.address,
+        additionalData: {
+          'companyId': FirestoreService.companyId,
+          'userId': userEmail,
+          'workMode': workMode,
+          'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+          'recordDate': DateFormat('yyyy-MM-dd').format(now),
+          if (isCheckIn) 'checkInLocation': _currentLocationData?.address ?? loc,
+          if (!isCheckIn) 'checkOutLocation': _currentLocationData?.address ?? loc,
+        },
+      );
 
+      // Show friendly SnackBar for check-in mode
+      if (mounted && isCheckIn) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  isInside ? Icons.check_circle_outline_rounded : Icons.home_work_outlined,
+                  color: Colors.white,
+                  size: 18,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    isInside
+                        ? 'Checked in successfully at Office'
+                        : 'Checked in successfully as Work From Home (WFH)',
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: isInside ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      final modeLabel = isInside ? 'Office' : 'Work From Home (WFH)';
       await NotificationHelper.notifyEmployee(
         employeeEmail: userEmail,
         title: isCheckIn ? 'Check-In Successful' : 'Check-Out Successful',
         body:
-            'You have successfully ${isCheckIn ? "checked in" : "checked out"} at ${DateFormat('hh:mm a').format(now)}.',
+            'You have successfully ${isCheckIn ? "checked in ($modeLabel)" : "checked out"} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',
         extraData: {'userId': user?.uid},
       );
@@ -208,7 +254,14 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         await NotificationService().cancelCheckoutReminder();
       }
 
-      if (mounted) _showSuccessModal(isCheckIn ? 'Check In' : 'Check Out', now);
+      if (mounted) {
+        _showSuccessModal(
+          isCheckIn
+              ? (isInside ? 'Check In (Office)' : 'Check In (WFH)')
+              : 'Check Out',
+          now,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -290,6 +343,35 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   }
 
   void _initDashboardStreams() {
+    // ── Real-Time Organization Doc Listener for Permission Matrix Sync ───────
+    final cid = FirestoreService.companyId.isNotEmpty
+        ? FirestoreService.companyId
+        : (AppSession().companyId ?? '');
+    if (cid.isNotEmpty) {
+      _subOrgDoc?.cancel();
+      _subOrgDoc = FirestoreService.orgDoc(cid).snapshots().listen((snap) {
+        if (snap.exists && snap.data() != null) {
+          final liveData = snap.data()!;
+          Map<String, dynamic>? newPerms;
+          bool? newGeo;
+          if (liveData.containsKey('featurePermissions')) {
+            newPerms = liveData['featurePermissions'] as Map<String, dynamic>;
+          }
+          if (liveData.containsKey('isGeofencingEnabled')) {
+            final gv = liveData['isGeofencingEnabled'];
+            if (gv is bool) newGeo = gv;
+            else if (gv is String) newGeo = gv.toLowerCase() == 'true';
+          }
+          AppSession().updatePermissions(
+            newPermissions: newPerms,
+            newGeofencingEnabled: newGeo,
+          );
+          AppSession().updateOfficeLocationFromMap(liveData);
+          if (mounted) setState(() {});
+        }
+      });
+    }
+
     // ── Pending Count Stream ─────────────────────────────────────────────────
     int leavePending = 0,
         attPending = 0,
@@ -643,15 +725,54 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   }
 
+  DateTime? _resolveDateTime(dynamic ts, dynamic isoStr, dynamic timeStr) {
+    if (ts is Timestamp) return ts.toDate();
+    if (ts is DateTime) return ts;
+    if (isoStr is String && isoStr.isNotEmpty) {
+      try {
+        return DateTime.parse(isoStr);
+      } catch (_) {}
+    }
+    if (timeStr is String &&
+        timeStr.isNotEmpty &&
+        timeStr != '-' &&
+        timeStr != '—') {
+      try {
+        final now = DateTime.now();
+        final parts = timeStr.trim().split(' ');
+        final tParts = parts[0].split(':');
+        int h = int.parse(tParts[0]);
+        int m = int.parse(tParts[1]);
+        if (parts.length > 1 && parts[1].toUpperCase() == 'PM' && h < 12) h += 12;
+        if (parts.length > 1 && parts[1].toUpperCase() == 'AM' && h == 12) h = 0;
+        return DateTime(now.year, now.month, now.day, h, m);
+      } catch (_) {}
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot>(
       stream: _todayAttendanceStream,
       builder: (context, attendanceSnap) {
         final attData = attendanceSnap.data?.data() as Map<String, dynamic>?;
-        final checkIn = attData?['checkIn'] as Timestamp?;
-        final checkOut = attData?['checkOut'] as Timestamp?;
-        final isCheckedIn = checkIn != null && checkOut == null;
+        final checkInDt = _resolveDateTime(attData?['checkIn'],
+            attData?['checkInTimestamp'], attData?['checkInTime']);
+        final checkOutDt = _resolveDateTime(attData?['checkOut'],
+            attData?['checkOutTimestamp'], attData?['checkOutTime']);
+        final attStatus =
+            (attData?['attendanceStatus'] as String? ?? '').toLowerCase();
+        final hasCheckOut = checkOutDt != null ||
+            (attData?['checkOutTime'] != null &&
+                attData?['checkOutTime'] != '-' &&
+                attData?['checkOutTime'] != '—') ||
+            attStatus == 'checked out';
+        final hasCheckIn = checkInDt != null ||
+            (attData?['checkInTime'] != null &&
+                attData?['checkInTime'] != '-' &&
+                attData?['checkInTime'] != '—');
+        final isCheckedIn = hasCheckIn && !hasCheckOut;
 
         return Scaffold(
           backgroundColor: const Color(0xFFF4F6F9),
@@ -676,19 +797,23 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                                     ? (_selectedSubTab == 0
                                         ? _buildDashboardView()
                                         : (_selectedSubTab == 1
-                                            ? _buildApprovalsView()
+                                            ? (AppSession().hasPermission('approval')
+                                                ? _buildApprovalsView()
+                                                : _buildNoPermissionView('Approvals', 'You do not have permission to view approvals.'))
                                             : (_selectedSubTab == 2
-                                                ? (AppSession().hasPermission('approve-leave')
+                                                ? (AppSession().hasPermission('approval')
                                                     ? const AdminLeaveTab()
                                                     : const UniversalLeaveTab())
                                                 : (_selectedSubTab == 3
                                                     ? AnnouncementsTabView(
-                                                        isAdmin: true,
+                                                        isAdmin: AppSession().hasPermission('announcement_creation'),
                                                         showBoth: true,
                                                         onCreateAnnouncement:
-                                                            () => setState(() =>
+                                                            AppSession().hasPermission('announcement_creation')
+                                                            ? () => setState(() =>
                                                                 _isCreatingAnnouncement =
-                                                                    true),
+                                                                    true)
+                                                            : null,
                                                       )
                                                     : (_selectedSubTab == 4
                                                         ? const CalendarTabView()
@@ -704,13 +829,15 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                                                 ? const TeamFeedView()
                                                 : (_selectedSubTab == 2
                                                     ? AnnouncementsTabView(
-                                                        isAdmin: true,
+                                                        isAdmin: AppSession().hasPermission('announcement_creation'),
                                                         isTeamAnnouncements:
                                                             true,
                                                         onCreateAnnouncement:
-                                                            () => setState(() =>
+                                                            AppSession().hasPermission('announcement_creation')
+                                                            ? () => setState(() =>
                                                                 _isCreatingAnnouncement =
-                                                                    true),
+                                                                    true)
+                                                            : null,
                                                       )
                                                     : (_selectedSubTab == 3
                                                         ? const TeamTasksView()
@@ -719,26 +846,30 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                                                             : const Center(
                                                                 child: Text(
                                                                     'Under Construction')))))))
-                                        : _selectedMainTab == 2
-                                            ? (_selectedSubTab == 0
-                                                ? const OrgOverviewTab()
-                                                : (_selectedSubTab == 1
-                                                    ? const OrgPoliciesTab()
-                                                    : (_selectedSubTab == 2
-                                                        ? AnnouncementsTabView(
-                                                            isAdmin: true,
-                                                            isTeamAnnouncements:
-                                                                false,
-                                                            onCreateAnnouncement:
-                                                                () => setState(() =>
-                                                                    _isCreatingAnnouncement =
-                                                                        true),
-                                                          )
-                                                        : (_selectedSubTab == 3
-                                                            ? const OrgReportsTab()
-                                                            : const Center(
-                                                                child: Text(
-                                                                    'Under Construction'))))))
+                                         : _selectedMainTab == 2
+                                             ? (AppSession().hasPermission('organization')
+                                                 ? (_selectedSubTab == 0
+                                                     ? const OrgOverviewTab()
+                                                     : (_selectedSubTab == 1
+                                                         ? const OrgPoliciesTab()
+                                                         : (_selectedSubTab == 2
+                                                             ? AnnouncementsTabView(
+                                                                 isAdmin: AppSession().hasPermission('announcement_creation'),
+                                                                 isTeamAnnouncements:
+                                                                     false,
+                                                                 onCreateAnnouncement:
+                                                                     AppSession().hasPermission('announcement_creation')
+                                                                     ? () => setState(() =>
+                                                                         _isCreatingAnnouncement =
+                                                                             true)
+                                                                     : null,
+                                                               )
+                                                             : (_selectedSubTab == 3
+                                                                 ? const OrgReportsTab()
+                                                                 : const Center(
+                                                                     child: Text(
+                                                                         'Under Construction'))))))
+                                                 : _buildNoPermissionView('Organization', 'You do not have permission to access the Organization module.'))
                                             : const Center(
                                                 child:
                                                     Text('Under Construction')),
@@ -746,10 +877,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             ],
                           ),
                         ),
-                        AppSession().hasPermission('approve-attendance')
+                        AppSession().hasPermission('approval')
                             ? const AdminAttendanceScreen()
                             : const AttendanceScreen(),
-                        AppSession().hasPermission('approve-leave')
+                        AppSession().hasPermission('approval')
                             ? const AdminLeaveScreen()
                             : const UniversalLeaveTab(),
                         const UniversalMoreTab(),
@@ -1026,16 +1157,12 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             ? Row(
                 children: [
                   _buildSubTab('Dashboard', 0),
-                  if (AppSession().hasPermission('approvals'))
+                  if (AppSession().hasPermission('approval'))
                     _buildSubTab('Approvals', 1),
-                  if (AppSession().hasPermission('dashboard-leave'))
-                    _buildSubTab('Leave', 2),
-                  if (AppSession().hasPermission('announcements'))
-                    _buildSubTab('Announcements', 3),
-                  if (AppSession().hasPermission('calendar'))
-                    _buildSubTab('Calendar', 4),
-                  if (AppSession().hasPermission('tasks'))
-                    _buildSubTab('Tasks', 5),
+                  _buildSubTab('Leave', 2),
+                  _buildSubTab('Announcements', 3),
+                  _buildSubTab('Calendar', 4),
+                  _buildSubTab('Tasks', 5),
                 ],
               )
             : _selectedMainTab == 1
@@ -1113,8 +1240,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           const SizedBox(height: 16),
           _buildOrgWideAttendanceCard(),
           const SizedBox(height: 16),
-          _buildPendingApprovalsCard(),
-          const SizedBox(height: 16),
+          if (AppSession().hasPermission('approval')) ...[
+            _buildPendingApprovalsCard(),
+            const SizedBox(height: 16),
+          ],
           _buildMyTasksCard(),
           const SizedBox(height: 16),
           _buildDepartmentHeadcountCard(),
@@ -1122,6 +1251,51 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           _buildRecentActivityCard(),
           const SizedBox(height: 40),
         ],
+      ),
+    );
+  }
+
+  // ── No-permission placeholder ────────────────────────────────────────────
+  Widget _buildNoPermissionView(String featureName, String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF3F4F6),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.lock_outline_rounded,
+                size: 40,
+                color: Color(0xFF9CA3AF),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              featureName,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF1F2937),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF6B7280),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2154,22 +2328,37 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       stream: _todayAttendanceStream,
       builder: (context, snapshot) {
         final data = snapshot.data?.data() as Map<String, dynamic>?;
-        final checkIn = data?['checkIn'] as Timestamp?;
-        final checkOut = data?['checkOut'] as Timestamp?;
+        final checkInDt = _resolveDateTime(
+            data?['checkIn'], data?['checkInTimestamp'], data?['checkInTime']);
+        final checkOutDt = _resolveDateTime(data?['checkOut'],
+            data?['checkOutTimestamp'], data?['checkOutTime']);
         final status = data?['status'] as String?;
-        final isCheckedIn = checkIn != null && checkOut == null;
-        final isCheckedOut = checkIn != null && checkOut != null;
-        final isPresent = isCheckedIn || isCheckedOut;
-        final checkInStr = checkIn != null
-            ? DateFormat('hh:mm a').format(checkIn.toDate())
-            : '--:-- --';
+        final attStatus =
+            (data?['attendanceStatus'] as String? ?? '').toLowerCase();
 
-        String workingStr = "0h 0m";
+        final hasCheckOut = checkOutDt != null ||
+            (data?['checkOutTime'] != null &&
+                data?['checkOutTime'] != '-' &&
+                data?['checkOutTime'] != '—') ||
+            attStatus == 'checked out';
+        final hasCheckIn = checkInDt != null ||
+            (data?['checkInTime'] != null &&
+                data?['checkInTime'] != '-' &&
+                data?['checkInTime'] != '—');
+
+        final isCheckedIn = hasCheckIn && !hasCheckOut;
+        final isCheckedOut = hasCheckIn && hasCheckOut;
+        final isPresent = isCheckedIn || isCheckedOut;
+
+        final checkInStr = checkInDt != null
+            ? DateFormat('hh:mm a').format(checkInDt)
+            : (data?['checkInTime']?.toString() ?? '--:-- --');
+
+        String workingStr = data?['hoursWorked']?.toString() ?? "0h 0m";
         String overtimeStr = "0h 0m";
 
-        if (checkIn != null) {
-          final diff = (checkOut?.toDate() ?? DateTime.now())
-              .difference(checkIn.toDate());
+        if (checkInDt != null) {
+          final diff = (checkOutDt ?? DateTime.now()).difference(checkInDt);
           final h = diff.inHours;
           final m = diff.inMinutes % 60;
           workingStr = '${h}h ${m}m';
@@ -2200,28 +2389,42 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             color: Color(0xFF6B7280),
                             letterSpacing: 0.4)),
                     if (isPresent)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: const Color(0xFFECFDF5),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                                color:
-                                    const Color(0xFF10B981).withOpacity(0.3))),
-                        child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.check_circle_rounded,
-                                  color: Color(0xFF10B981), size: 13),
-                              SizedBox(width: 4),
-                              Text('Present',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF10B981),
-                                      fontWeight: FontWeight.w700)),
-                            ]),
-                      ),
+                      Builder(builder: (context) {
+                        final workMode =
+                            (data?['workMode'] as String? ?? '').toLowerCase();
+                        final isWfh = workMode == 'wfh' ||
+                            (status?.toLowerCase() ?? '') == 'wfh';
+                        final badgeColor = isWfh
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF10B981);
+                        final badgeBg = isWfh
+                            ? const Color(0xFFEFF6FF)
+                            : const Color(0xFFECFDF5);
+                        final label = isWfh ? 'WFH' : 'Present';
+                        final icon = isWfh
+                            ? Icons.home_work_rounded
+                            : Icons.check_circle_rounded;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: badgeColor.withOpacity(0.3))),
+                          child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(icon, color: badgeColor, size: 13),
+                                const SizedBox(width: 4),
+                                Text(label,
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: badgeColor,
+                                        fontWeight: FontWeight.w700)),
+                              ]),
+                        );
+                      }),
                   ]),
             ),
             Padding(
@@ -2240,7 +2443,8 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             fontWeight: FontWeight.w800,
                             color: Color(0xFF111827))),
                     const SizedBox(height: 2),
-                    Text('$checkInStr  -  General Shift',
+                    Text(
+                        '$checkInStr  -  General Shift${(data?['workMode'] as String? ?? '').toLowerCase() == 'wfh' ? '  -  WFH' : ''}',
                         style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),
@@ -2287,7 +2491,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             label: Text(
                                 _isCheckingInOut
                                     ? 'Checking In...'
-                                    : 'Check In Now',
+                                    : ((!AppSession().hasPermission('geofencing') || (_currentLocationData?.isWithinRadius ?? false))
+                                        ? 'Check In Now'
+                                        : 'Check In (WFH)'),
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w700, fontSize: 14)),
                             style: ElevatedButton.styleFrom(
@@ -4141,7 +4347,8 @@ class _AdminApprovalReviewScreenState
                               ],
                             ),
                           ),
-                          if (status.toLowerCase() == 'pending') ...[
+                          if (status.toLowerCase() == 'pending' &&
+                              AppSession().hasPermission('approval')) ...[
                             const SizedBox(height: 24),
                             Row(
                               children: [

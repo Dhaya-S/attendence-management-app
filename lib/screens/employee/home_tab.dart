@@ -70,6 +70,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   @override
   void initState() {
     super.initState();
+    AppSession().permissionsNotifier.addListener(_onPermissionsChanged);
     final userEmail = user?.email ?? '';
     _todayRef = FirestoreService.userAttendanceCol(userEmail);
     _userStream = FirestoreService.userStreamByEmail(userEmail);
@@ -82,7 +83,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         .collection('organizations')
         .doc(FirestoreService.companyId)
         .collection('tasks')
-        .where('assignedTo', isEqualTo: userEmail)
+        .where('assignees', arrayContains: userEmail)
         .limit(5)
         .snapshots();
 
@@ -90,8 +91,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
         .collection('organizations')
         .doc(FirestoreService.companyId)
         .collection('leave_requests')
-        .where('userId', isEqualTo: AppSession().uid)
-        .where('status', isEqualTo: 'pending')
+        .where('applicantEmail', isEqualTo: userEmail)
+        .where('status', isEqualTo: 'Pending')
         .limit(5)
         .snapshots();
 
@@ -120,8 +121,13 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
 
   @override
   void dispose() {
+    AppSession().permissionsNotifier.removeListener(_onPermissionsChanged);
     _timer?.cancel();
     super.dispose();
+  }
+
+  void _onPermissionsChanged() {
+    if (mounted) setState(() {});
   }
 
   void _startLocationUpdates() {
@@ -180,6 +186,29 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     return '0 min';
   }
 
+  Timestamp? _resolveTimestamp(dynamic val, [dynamic timeStr, dynamic isoStr]) {
+    if (val is Timestamp) return val;
+    if (val is DateTime) return Timestamp.fromDate(val);
+    if (isoStr is String && isoStr.trim().isNotEmpty) {
+      try {
+        final dt = DateTime.parse(isoStr.trim());
+        return Timestamp.fromDate(dt);
+      } catch (_) {}
+    }
+    if (timeStr is String &&
+        timeStr.trim().isNotEmpty &&
+        timeStr != '—' &&
+        timeStr != '-') {
+      try {
+        final now = DateTime.now();
+        final parsed = DateFormat('hh:mm a').parse(timeStr.trim());
+        return Timestamp.fromDate(DateTime(
+            now.year, now.month, now.day, parsed.hour, parsed.minute));
+      } catch (_) {}
+    }
+    return null;
+  }
+
   String _getInitials(String name) {
     if (name.trim().isEmpty) return 'EM';
     final parts = name.trim().split(RegExp(r'\s+'));
@@ -194,24 +223,22 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
     try {
       final now = DateTime.now();
       final userEmail = user?.email ?? '';
-      final isInside = _currentLocationData?.isWithinRadius ?? false;
-      final data = {
-        'companyId': FirestoreService.companyId,
-        'userId': userEmail,
-        'status': status,
-        if (isCheckIn) 'workMode': isInside ? 'office' : 'wfh',
-        if (isCheckIn) 'checkIn': Timestamp.fromDate(now),
-        if (isCheckIn)
-          'checkInLocation': _currentLocationData?.address ?? 'Unknown',
-        if (!isCheckIn) 'checkOut': Timestamp.fromDate(now),
-        if (!isCheckIn)
-          'checkOutLocation': _currentLocationData?.address ?? 'Unknown',
-        'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
-        'recordDate': DateFormat('yyyy-MM-dd').format(now),
-      };
-      await _todayRef
-          .doc(_getAttendanceDocId())
-          .set(data, SetOptions(merge: true));
+      final isGeofenceActive = AppSession().hasPermission('geofencing');
+      final isInside = !isGeofenceActive || (_currentLocationData?.isWithinRadius ?? false);
+      final isLate = now.hour >= 9 && (now.hour > 9 || now.minute > 15);
+      final finalStatus = isCheckIn ? (isInside ? (isLate ? 'Late' : 'Present') : 'WFH') : (status.isNotEmpty ? status : 'Present');
+      final loc = isInside ? 'Work in Office' : 'Work from Home';
+
+      await FirestoreService.recordAttendancePunch(
+        email: userEmail,
+        isCheckIn: isCheckIn,
+        status: finalStatus,
+        location: loc,
+        address: _currentLocationData?.address,
+        additionalData: {
+          'workMode': isInside ? 'office' : 'wfh',
+        },
+      );
       if (!isCheckIn) {
         final doc = await _todayRef.doc(_getAttendanceDocId()).get();
         final checkInTime = (doc.data()?['checkIn'] as Timestamp?)?.toDate();
@@ -331,7 +358,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   }
 
   void _showCheckInSheet() {
-    final isInside = _currentLocationData?.isWithinRadius ?? false;
+    final isGeofenceActive = AppSession().hasPermission('geofencing');
+    final isInside = !isGeofenceActive || (_currentLocationData?.isWithinRadius ?? false);
     final shiftStart = _fmt12(AppSession().shiftStartTime);
     final shiftEnd = _fmt12(AppSession().shiftEndTime);
     final grace = AppSession().gracePeriod;
@@ -379,16 +407,22 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
               icon: Icons.access_time_rounded,
               iconColor: _kPrimary,
               label: 'Shift',
-              value: 'General Shift  -  ${AppSession().shiftStartTime} - ${AppSession().shiftEndTime}'),
+              value: 'General Shift  -  $shiftStart - $shiftEnd'),
           const SizedBox(height: 10),
           _sheetInfoRow(
-              bgColor: const Color(0xFFECFDF5),
-              icon: Icons.location_on_rounded,
-              iconColor: const Color(0xFF10B981),
-              label: 'Location',
+              bgColor: isInside
+                  ? const Color(0xFFECFDF5)
+                  : const Color(0xFFEFF6FF),
+              icon: isInside
+                  ? Icons.location_on_rounded
+                  : Icons.home_work_rounded,
+              iconColor: isInside
+                  ? const Color(0xFF10B981)
+                  : const Color(0xFF2563EB),
+              label: 'Mode & Location',
               value: isInside
-                  ? 'Headquarters  -  Verified'
-                  : 'Outside Office Range'),
+                  ? 'Headquarters  -  In Office'
+                  : 'Outside Office Range  -  WFH Mode'),
           const SizedBox(height: 10),
           _sheetInfoRow(
               bgColor: const Color(0xFFFFFBEB),
@@ -405,7 +439,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     await _handleCheckInOut('checked_in', true);
                   },
             style: ElevatedButton.styleFrom(
-                backgroundColor: _kPrimary,
+                backgroundColor:
+                    isInside ? _kPrimary : const Color(0xFF2563EB),
                 minimumSize: const Size(double.infinity, 56),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18)),
@@ -416,8 +451,8 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                     height: 22,
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5))
-                : const Text('Check In Now',
-                    style: TextStyle(
+                : Text(isInside ? 'Check In Now' : 'Check In (WFH)',
+                    style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 16)),
@@ -635,8 +670,10 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
           builder: (context, todaySnap) {
             final record = todaySnap.data?.data() as Map<String, dynamic>?;
             final status = record?['status'];
-            final checkInTime = record?['checkIn'] as Timestamp?;
-            final checkOutTime = record?['checkOut'] as Timestamp?;
+            final checkInTime = _resolveTimestamp(record?['checkIn'],
+                record?['checkInTime'], record?['checkInTimestamp']);
+            final checkOutTime = _resolveTimestamp(record?['checkOut'],
+                record?['checkOutTime'], record?['checkOutTimestamp']);
             return StreamBuilder<QuerySnapshot>(
               stream: _allAttendanceStream,
               builder: (context, allSnap) {
@@ -688,7 +725,7 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                                               _buildOfficeLocationCard(),
                                               const SizedBox(height: 12),
                                               _buildAttendanceTodayCard(status,
-                                                  checkInTime, checkOutTime),
+                                                  checkInTime, checkOutTime, record),
                                               const SizedBox(height: 12),
                                               _buildTodayShiftCard(),
                                               const SizedBox(height: 12),
@@ -1207,13 +1244,29 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
   }
 
   Widget _buildAttendanceTodayCard(
-      String? status, Timestamp? checkIn, Timestamp? checkOut) {
-    final isCheckedIn = status == 'checked_in';
-    final isCheckedOut = status == 'checked_out';
+      String? status, Timestamp? checkIn, Timestamp? checkOut,
+      [Map<String, dynamic>? record]) {
+    final rawStatus =
+        (record?['attendanceStatus'] ?? status ?? '').toString().toLowerCase();
+    final isCheckedOut = checkOut != null ||
+        rawStatus == 'checked out' ||
+        rawStatus == 'checked_out';
+    final isCheckedIn = !isCheckedOut &&
+        (checkIn != null ||
+            rawStatus == 'checked in' ||
+            rawStatus == 'checked_in' ||
+            rawStatus == 'present' ||
+            rawStatus == 'late' ||
+            rawStatus == 'wfh');
     final isPresent = isCheckedIn || isCheckedOut;
+    final isWfh = (record?['workMode']?.toString().toLowerCase() == 'wfh') ||
+        rawStatus == 'wfh' ||
+        (record?['isOutside'] == true);
     final checkInStr = checkIn != null
         ? DateFormat('hh:mm a').format(checkIn.toDate())
-        : '--:-- --';
+        : (record?['checkInTime'] is String && record?['checkInTime'] != '—'
+            ? record!['checkInTime']
+            : '--:-- --');
     final workingStr = _getWorkingDuration(checkIn, checkOut);
     final overtimeStr = _getOvertimeDuration(checkIn, checkOut);
 
@@ -1238,16 +1291,26 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                    color: const Color(0xFFECFDF5),
+                    color: isWfh
+                        ? const Color(0xFFEFF6FF)
+                        : const Color(0xFFECFDF5),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _kGreen.withValues(alpha: 0.3))),
-                child: Row(mainAxisSize: MainAxisSize.min, children: const [
-                  Icon(Icons.check_circle_rounded, color: _kGreen, size: 13),
-                  SizedBox(width: 4),
-                  Text('Present',
+                    border: Border.all(
+                        color: isWfh
+                            ? const Color(0xFF3B82F6).withValues(alpha: 0.3)
+                            : _kGreen.withValues(alpha: 0.3))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(
+                      isWfh
+                          ? Icons.home_work_rounded
+                          : Icons.check_circle_rounded,
+                      color: isWfh ? const Color(0xFF2563EB) : _kGreen,
+                      size: 13),
+                  const SizedBox(width: 4),
+                  Text(isWfh ? 'WFH' : 'Present',
                       style: TextStyle(
                           fontSize: 11,
-                          color: _kGreen,
+                          color: isWfh ? const Color(0xFF2563EB) : _kGreen,
                           fontWeight: FontWeight.w700)),
                 ]),
               ),
@@ -1261,12 +1324,13 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                 isCheckedOut
                     ? 'Checked Out'
                     : isCheckedIn
-                        ? 'Checked In'
+                        ? (isWfh ? 'Checked In (WFH)' : 'Checked In')
                         : 'Not Checked In',
                 style: const TextStyle(
                     fontSize: 20, fontWeight: FontWeight.w800, color: _kText)),
             const SizedBox(height: 2),
-            Text('$checkInStr  -  General Shift',
+            Text(
+                '$checkInStr  -  ${isWfh ? "Work From Home" : "General Shift"}',
                 style: const TextStyle(
                     fontSize: 12,
                     color: _kSubText,
@@ -1298,12 +1362,22 @@ class _EmployeeHomeTabState extends State<EmployeeHomeTab> {
                   height: 48,
                   child: ElevatedButton.icon(
                     onPressed: _showCheckInSheet,
-                    icon: const Icon(Icons.login_rounded, size: 18),
-                    label: const Text('Check In Now',
-                        style: TextStyle(
+                    icon: Icon(
+                        (!AppSession().hasPermission('geofencing') || (_currentLocationData?.isWithinRadius ?? false))
+                            ? Icons.login_rounded
+                            : Icons.home_work_rounded,
+                        size: 18),
+                    label: Text(
+                        (!AppSession().hasPermission('geofencing') || (_currentLocationData?.isWithinRadius ?? false))
+                            ? 'Check In Now'
+                            : 'Check In (WFH)',
+                        style: const TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 14)),
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: _kPrimary,
+                        backgroundColor:
+                            (!AppSession().hasPermission('geofencing') || (_currentLocationData?.isWithinRadius ?? false))
+                                ? _kPrimary
+                                : const Color(0xFF2563EB),
                         foregroundColor: Colors.white,
                         elevation: 0,
                         shape: RoundedRectangleBorder(

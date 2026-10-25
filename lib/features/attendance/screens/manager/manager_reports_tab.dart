@@ -324,8 +324,6 @@ class _ManagerReportsTabState extends State<ManagerReportsTab> {
       // doc.reference.parent.parent is the employee document {uid}
       final String? uid = doc.reference.parent.parent?.id;
       if (uid == null) continue;
-      
-      if (uid == null) continue;
 
       final data = doc.data() as Map<String, dynamic>;
       double userScore = scores[uid] ?? 0.0;

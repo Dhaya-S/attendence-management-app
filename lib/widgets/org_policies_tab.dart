@@ -445,6 +445,23 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppSession().hasPermission('organization')) {
+      return Container(
+        color: const Color(0xFFF4F6F9),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 48, color: Color(0xFF9CA3AF)),
+            SizedBox(height: 16),
+            Text('Permission Denied', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+            SizedBox(height: 8),
+            Text('You do not have permission to access Organization Policies.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+          ],
+        ),
+      );
+    }
     final isAdminOrManager = AppSession().isManager || AppSession().isSuperAdmin;
 
     return Scaffold(

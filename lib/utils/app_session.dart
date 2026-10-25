@@ -1,25 +1,32 @@
-/// AppSession â€” Global in-memory state for the authenticated user.
+import 'package:flutter/foundation.dart';
+
+/// AppSession – Global in-memory state for the authenticated user.
 ///
 /// After a successful login, [companyId], [role], and company location
 /// are stored here so every screen can access them without re-querying
 /// Firestore on every navigation push.
+///
+/// Permission Matrix (parity with Workzy web app):
+///   - featurePermissions is a Map<role, List<permissionKey>> fetched from
+///     organizations/{companyId}.featurePermissions
+///   - hasPermission(featureKey) evaluates based on the spec below.
 class AppSession {
-  // â”€â”€ Singleton â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Singleton ────────────────────────────────────────────────────────────
   static final AppSession _instance = AppSession._internal();
   factory AppSession() => _instance;
   AppSession._internal();
 
-  // â”€â”€ Authenticated User Info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Authenticated User Info ──────────────────────────────────────────────
   String? uid;
   String? email;
-  String? role; // 'manager' | 'employee'
+  String? role; // 'super_admin' | 'admin' | 'hr_admin' | 'manager' | 'employee'
   String? companyId;
   String? companyName;
   String? userName;
   String? department;
   String? get userDepartment => department;
 
-  // â”€â”€ Company Office Location (fetched from organizations doc) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Company Office Location (fetched from organizations doc) ────────────
   double? officeLat;
   double? officeLng;
 
@@ -38,58 +45,211 @@ class AppSession {
   /// Annual paid leave entitlement per employee (days)
   int paidLeavesPerYear = 12;
 
-  // ————————————————————————————————————————————————————————————————
+  /// Whether geofencing is enabled at the organization level.
+  /// This is read from organizations/{companyId}.isGeofencingEnabled.
+  /// Defaults to true (enforce geofencing when featurePermissions says so).
+  bool isGeofencingEnabled = true;
 
-  bool get isSuperAdmin => role?.toLowerCase() == 'super_admin' || role?.toLowerCase() == 'superadmin';
-  bool get isHrAdmin => role?.toLowerCase() == 'hr_admin' || role?.toLowerCase() == 'hradmin';
+  // ── Role helpers ─────────────────────────────────────────────────────────
+
+  bool get isSuperAdmin =>
+      role?.toLowerCase() == 'super_admin' ||
+      role?.toLowerCase() == 'superadmin';
+
+  bool get isAdmin => role?.toLowerCase() == 'admin';
+
+  bool get isHrAdmin =>
+      role?.toLowerCase() == 'hr_admin' || role?.toLowerCase() == 'hradmin';
+
   bool get isManager => role?.toLowerCase() == 'manager';
+
   bool get isEmployee => role?.toLowerCase() == 'employee';
 
-  /// Grouped getter for administrative dashboards (Super Admin & HR Admin)
-  bool get hasAdminAccess => isSuperAdmin || isHrAdmin;
+  /// Grouped getter for administrative dashboards (Super Admin, Admin & HR Admin)
+  bool get hasAdminAccess => isSuperAdmin || isAdmin || isHrAdmin;
 
-  /// Clean display title for the 4 webapp roles
+  /// Clean display title for the webapp roles
   String get displayRole {
     final r = (role ?? 'employee').toLowerCase().replaceAll('_', ' ');
     if (r == 'super admin' || r == 'superadmin') return 'Super Admin';
+    if (r == 'admin') return 'Admin';
     if (r == 'hr admin' || r == 'hradmin') return 'HR Admin';
     if (r == 'manager') return 'Manager';
     if (r == 'employee') return 'Employee';
-    return r.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+    return r
+        .split(' ')
+        .map((w) =>
+            w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
   }
 
-  /// Dynamic Permissions Matrix fetched from Firestore
+  // ── Dynamic Permission Matrix (from Firestore) ───────────────────────────
+
+  /// ValueNotifier to notify UI widgets when permissions change in real-time
+  final ValueNotifier<int> permissionsNotifier = ValueNotifier<int>(0);
+
+  /// Raw featurePermissions map: { roleKey: [permissionKey, ...], ... }
+  /// Example: { "manager": ["approval", "geofencing"], "employee": [] }
   Map<String, dynamic> featurePermissions = {};
 
-  bool hasPermission(String featureKey) {
-    if (isSuperAdmin) {
-      // Super Admin automatically gets full access and settings
-      return true;
-    }
+  /// Default permissions applied when featurePermissions is not configured.
+  static const Map<String, List<String>> _defaultPermissions = {
+    'admin': [
+      'approval',
+      'task_creation',
+      'announcement_creation',
+      'organization',
+      'geofencing',
+    ],
+    'hr_admin': [
+      'approval',
+      'task_creation',
+      'announcement_creation',
+      'organization',
+      'geofencing',
+    ],
+    'manager': [
+      'approval',
+      'task_creation',
+      'announcement_creation',
+      'geofencing',
+    ],
+    'employee': ['geofencing'],
+  };
 
-    final roleKey = role?.toLowerCase() ?? 'employee';
-    final List<dynamic> allowed = featurePermissions[roleKey] ?? _getDefaultPermissionsFor(roleKey);
-    return allowed.contains(featureKey);
+  /// Baseline features always accessible to every logged-in user regardless
+  /// of role or organisation permissions.
+  static const List<String> _baselineFeatures = [
+    'my-space',
+    'dashboard',
+    'attendance',
+    'leave',
+    'tasks',
+    'documents',
+    'team',
+    'calendar',
+    'announcements-view',
+    'announcements',
+    'reports',
+    'settings',
+    'support',
+    'history',
+    'notifications',
+  ];
+
+  // ── Alias resolution ──────────────────────────────────────────────────────
+
+  /// Returns the canonical permission key that corresponds to [featureKey],
+  /// or null if the featureKey is not an action-based permission.
+  String? _resolveAlias(String featureKey) {
+    final k = featureKey.toLowerCase();
+    // approval
+    if (k == 'approval' ||
+        k == 'approvals' ||
+        k == 'approve-leave' ||
+        k == 'approve-attendance' ||
+        k == 'dashboard-approval' ||
+        k == 'team-approval') {
+      return 'approval';
+    }
+    // task_creation
+    if (k == 'task_creation' ||
+        k == 'task-creation' ||
+        k == 'create-task' ||
+        k == 'task_create') {
+      return 'task_creation';
+    }
+    // announcement_creation
+    if (k == 'announcement_creation' ||
+        k == 'announcement-creation' ||
+        k == 'create-announcement') {
+      return 'announcement_creation';
+    }
+    // organization
+    if (k == 'organization' ||
+        k == 'org' ||
+        k == 'organization_management') {
+      return 'organization';
+    }
+    // geofencing
+    if (k == 'geofencing' || k == 'geofence' || k == 'geo-fencing') {
+      return 'geofencing';
+    }
+    return null;
   }
 
-  List<String> _getDefaultPermissionsFor(String roleKey) {
-    final r = roleKey.toLowerCase();
-    if (r == 'super_admin' || r == 'superadmin') {
-      return ["my-space", "dashboard-approval", "dashboard-leave", "team", "team-approval", "create-announcement", "announcements", "calendar", "organization", "attendance", "approve-attendance", "leave", "approve-leave", "tasks", "create-task", "documents", "settings", "support", "approvals", "reports"];
-    } else if (r == 'hr_admin' || r == 'hradmin') {
-      return ["my-space", "dashboard-approval", "dashboard-leave", "team", "team-approval", "create-announcement", "announcements", "calendar", "organization", "attendance", "approve-attendance", "leave", "approve-leave", "tasks", "create-task", "documents", "support", "approvals", "reports"];
-    } else if (r == 'manager') {
-      return ["my-space", "dashboard-approval", "dashboard-leave", "team", "team-approval", "create-announcement", "announcements", "calendar", "organization", "attendance", "approve-attendance", "leave", "approve-leave", "tasks", "create-task", "documents", "support", "approvals", "reports"];
-    } else {
-      return ["my-space", "dashboard-leave", "attendance", "leave", "tasks", "documents", "support", "announcements", "calendar"];
+  // ── Permission Evaluation ────────────────────────────────────────────────
+
+  /// Central permission check — mirrors the Workzy web app logic exactly.
+  ///
+  /// Parity with Web App AuthContext.tsx:
+  ///   1. GEOFENCING: Evaluated FIRST (before admin bypass).
+  ///      If org-level isGeofencingEnabled is false, returns false for all roles.
+  ///      Otherwise checks role's permission in featurePermissions (including admin).
+  ///   2. Super Admin / Admin bypass → always true for all OTHER modules & actions.
+  ///   3. Baseline features → always true for all authenticated employees.
+  ///   4. Action-based keys resolved via alias map against role's permission list.
+  bool hasPermission(String featureKey) {
+    final k = featureKey.toLowerCase().trim();
+
+    // 1. GEOFENCING: Unified permission for GPS location detection & geofence validation
+    // Checked BEFORE admin bypass (identical to Web App AuthContext.tsx)!
+    if (k == 'geofencing' ||
+        k == 'geofence' ||
+        k == 'geo-fencing' ||
+        k == 'geo_fencing') {
+      if (!isGeofencingEnabled) return false;
+
+      // If geofencing policy is ON, check if the role has it enabled in the Permission Matrix
+      if (isSuperAdmin || isAdmin) {
+        final List<dynamic> adminPerms = featurePermissions.containsKey('admin')
+            ? (featurePermissions['admin'] as List<dynamic>? ?? [])
+            : (_defaultPermissions['admin'] ?? []);
+        return adminPerms.contains('geofencing') || adminPerms.contains('geofence');
+      }
+
+      final rKey = _normaliseRoleKey(role ?? 'employee');
+      final List<dynamic> rolePerms = featurePermissions.containsKey(rKey)
+          ? (featurePermissions[rKey] as List<dynamic>? ?? [])
+          : (_defaultPermissions[rKey] ?? []);
+      return rolePerms.contains('geofencing') || rolePerms.contains('geofence');
     }
+
+    // 2. Super Admin / Admin bypass for all other modules & actions
+    if (isSuperAdmin || isAdmin) return true;
+
+    // 3. Baseline features always allowed to all authenticated employees
+    if (_baselineFeatures.contains(k)) return true;
+
+    // 4. Resolve alias → canonical key
+    final canonical = _resolveAlias(k) ?? k;
+
+    // Get this role's permission list (from Firestore or defaults)
+    final rKey = _normaliseRoleKey(role ?? 'employee');
+    final List<dynamic> rolePerms = featurePermissions.containsKey(rKey)
+        ? (featurePermissions[rKey] as List<dynamic>? ?? [])
+        : (_defaultPermissions[rKey] ?? []);
+
+    return rolePerms.contains(canonical) || rolePerms.contains(k);
+  }
+
+  /// Normalise role strings to the keys used in featurePermissions.
+  /// In Firestore featurePermissions, keys are: 'admin', 'hr_admin', 'manager', 'employee'.
+  String _normaliseRoleKey(String r) {
+    final l = r.toLowerCase();
+    if (l == 'super_admin' || l == 'superadmin' || l == 'admin') return 'admin';
+    if (l == 'hr_admin' || l == 'hradmin') return 'hr_admin';
+    if (l == 'manager') return 'manager';
+    return 'employee';
   }
 
   /// True only when the session has been fully populated after login.
-  bool get isReady =>
-      uid != null && companyId != null && role != null;
+  bool get isReady => uid != null && companyId != null && role != null;
 
-  /// Update office location from Firestore organization/company map
+  // ── Office Location Helpers ───────────────────────────────────────────────
+
+  /// Update office location from Firestore organization/company map.
+  /// Supports both the new `locations` array and legacy root-level fields.
   void updateOfficeLocationFromMap(Map<dynamic, dynamic>? data) {
     if (data == null) return;
     double? parseDouble(dynamic v) =>
@@ -137,7 +297,32 @@ class AppSession {
     if (data.containsKey('allowedRadius')) {
       allowedRadius = parseDouble(data['allowedRadius']) ?? 500;
     }
+
+    // Read org-level geofencing master switch
+    // Checks root isGeofencingEnabled, attendancePolicy.isGeofencingEnabled, and wfhPolicy.geofenceRequired
+    if (data.containsKey('isGeofencingEnabled')) {
+      final v = data['isGeofencingEnabled'];
+      if (v is bool) {
+        isGeofencingEnabled = v;
+      } else if (v is String) {
+        isGeofencingEnabled = v.toLowerCase() == 'true';
+      }
+    } else if (data['attendancePolicy'] is Map &&
+        (data['attendancePolicy'] as Map).containsKey('isGeofencingEnabled')) {
+      final v = (data['attendancePolicy'] as Map)['isGeofencingEnabled'];
+      if (v is bool) {
+        isGeofencingEnabled = v;
+      } else if (v is String) {
+        isGeofencingEnabled = v.toLowerCase() == 'true';
+      }
+    } else if (data['wfhPolicy'] is Map &&
+        (data['wfhPolicy'] as Map).containsKey('geofenceRequired')) {
+      final v = (data['wfhPolicy'] as Map)['geofenceRequired'];
+      isGeofencingEnabled = (v?.toString().toLowerCase() == 'yes');
+    }
   }
+
+  // ── Session Lifecycle ─────────────────────────────────────────────────────
 
   /// Populate the session after successful login + approved_users look-up.
   void populate({
@@ -156,6 +341,7 @@ class AppSession {
     int? gracePeriod,
     int? paidLeavesPerYear,
     Map<String, dynamic>? featurePermissions,
+    bool? isGeofencingEnabled,
   }) {
     this.uid = uid;
     this.email = email;
@@ -171,7 +357,27 @@ class AppSession {
     if (shiftEndTime != null) this.shiftEndTime = shiftEndTime;
     if (gracePeriod != null) this.gracePeriod = gracePeriod;
     if (paidLeavesPerYear != null) this.paidLeavesPerYear = paidLeavesPerYear;
-    if (featurePermissions != null) this.featurePermissions = featurePermissions;
+    if (featurePermissions != null) {
+      this.featurePermissions = featurePermissions;
+    }
+    if (isGeofencingEnabled != null) {
+      this.isGeofencingEnabled = isGeofencingEnabled;
+    }
+    permissionsNotifier.value++;
+  }
+
+  /// Live update permissions and notify listeners in real-time
+  void updatePermissions({
+    Map<String, dynamic>? newPermissions,
+    bool? newGeofencingEnabled,
+  }) {
+    if (newPermissions != null) {
+      featurePermissions = newPermissions;
+    }
+    if (newGeofencingEnabled != null) {
+      isGeofencingEnabled = newGeofencingEnabled;
+    }
+    permissionsNotifier.value++;
   }
 
   /// Clear everything on sign-out.
@@ -182,6 +388,7 @@ class AppSession {
     companyId = null;
     companyName = null;
     userName = null;
+    department = null;
     officeLat = null;
     officeLng = null;
     allowedRadius = 500;
@@ -190,5 +397,7 @@ class AppSession {
     gracePeriod = 15;
     paidLeavesPerYear = 12;
     featurePermissions = {};
+    isGeofencingEnabled = true;
+    permissionsNotifier.value++;
   }
 }

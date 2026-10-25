@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -10,6 +9,23 @@ class OrgOverviewTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppSession().hasPermission('organization')) {
+      return Container(
+        color: const Color(0xFFF4F6F9),
+        alignment: Alignment.center,
+        padding: const EdgeInsets.all(24),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.lock_outline_rounded, size: 48, color: Color(0xFF9CA3AF)),
+            SizedBox(height: 16),
+            Text('Permission Denied', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF1F2937))),
+            SizedBox(height: 8),
+            Text('You do not have permission to access Organization data.', textAlign: TextAlign.center, style: TextStyle(fontSize: 14, color: Color(0xFF6B7280))),
+          ],
+        ),
+      );
+    }
     return Container(
       color: const Color(0xFFF4F6F9),
       child: StreamBuilder<QuerySnapshot>(

@@ -318,6 +318,191 @@ class FirestoreService {
           .limit(1)
           .get();
 
+  /// Records an attendance punch with 100% web-app and mobile database compatibility.
+  /// Dual-writes to user subcollection and company-wide attendance mirror,
+  /// updating live employee status with string time and date formats.
+  static Future<void> recordAttendancePunch({
+    required String email,
+    required bool isCheckIn,
+    String? status,
+    String? location,
+    String? address,
+    Map<String, dynamic>? additionalData,
+  }) async {
+    final now = DateTime.now();
+    final cleanEmail = email.trim().toLowerCase();
+    final timeStr = DateFormat('hh:mm a').format(now);
+    final dateKey = DateFormat('yyyy-MM-dd').format(now);
+    final isLate = now.hour >= 9 && (now.hour > 9 || now.minute > 15);
+
+    String normalizedStatus = 'Present';
+    if (status != null && status.isNotEmpty) {
+      final s = status.trim().toLowerCase();
+      if (s == 'wfh' || s == 'work from home') normalizedStatus = 'WFH';
+      else if (s == 'late') normalizedStatus = 'Late';
+      else if (s == 'half day' || s == 'half_day') normalizedStatus = 'Half Day';
+      else normalizedStatus = 'Present';
+    } else if (isCheckIn && isLate) {
+      normalizedStatus = 'Late';
+    }
+
+    final String locStr = location ?? address ?? (normalizedStatus == 'WFH' ? 'Work from Home' : 'Work in Office');
+
+    final Map<String, dynamic> record = {
+      'companyId': _cid,
+      'userId': cleanEmail,
+      'email': cleanEmail,
+      'workEmail': cleanEmail,
+      'employeeId': cleanEmail,
+      'name': AppSession().userName ?? cleanEmail,
+      'status': normalizedStatus,
+      'date': dateKey, // Web app string format YYYY-MM-DD
+      'dateTimestamp': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+      'recordDate': dateKey,
+      'location': locStr,
+      'updatedAt': now.toIso8601String(),
+    };
+
+    if (isCheckIn) {
+      record['checkIn'] = Timestamp.fromDate(now);
+      record['checkInTime'] = timeStr; // Web app 12-hr string
+      record['checkInTimestamp'] = now.toIso8601String();
+      record['checkInLocation'] = locStr;
+      record['checkOutTime'] = null;
+      record['checkOutTimestamp'] = null;
+      record['hoursWorked'] = '0h 00m';
+      record['hoursNum'] = 0;
+    } else {
+      record['checkOut'] = Timestamp.fromDate(now);
+      record['checkOutTime'] = timeStr; // Web app 12-hr string
+      record['checkOutTimestamp'] = now.toIso8601String();
+      record['checkOutLocation'] = locStr;
+      record['attendanceStatus'] = 'Checked Out';
+
+      // Calculate working hours & duration if check-in time is available
+      try {
+        final existingSnap =
+            await userAttendanceCol(cleanEmail).doc(dateKey).get();
+        if (existingSnap.exists) {
+          final exData = existingSnap.data();
+          DateTime? cinDate;
+          if (exData?['checkIn'] is Timestamp) {
+            cinDate = (exData!['checkIn'] as Timestamp).toDate();
+          } else if (exData?['checkInTimestamp'] is String) {
+            cinDate = DateTime.tryParse(exData!['checkInTimestamp']);
+          }
+          if (cinDate != null) {
+            final diff = now.difference(cinDate);
+            final h = diff.inHours;
+            final m = diff.inMinutes % 60;
+            record['hoursWorked'] = '${h}h ${m}m';
+            record['hoursNum'] =
+                double.parse((diff.inMinutes / 60.0).toStringAsFixed(1));
+          }
+        }
+      } catch (e) {
+        debugPrint('Error calculating hoursWorked on checkout: $e');
+      }
+    }
+
+    if (additionalData != null) {
+      record.addAll(additionalData);
+    }
+
+    // 1. User attendance record
+    await userAttendanceCol(cleanEmail)
+        .doc(dateKey)
+        .set(record, SetOptions(merge: true));
+
+    // 2. Mirror to organizations/{companyId}/attendance/{email}_{date} (Web App company rollup!)
+    await _db
+        .collection('organizations')
+        .doc(_cid)
+        .collection('attendance')
+        .doc('${cleanEmail}_$dateKey')
+        .set(record, SetOptions(merge: true));
+
+    // 3. Update employee live card status
+    await employeeDoc(cleanEmail).set({
+      'attendanceStatus': isCheckIn ? normalizedStatus : 'Checked Out',
+      if (isCheckIn) 'lastCheckIn': timeStr,
+      if (!isCheckIn) 'lastCheckOut': timeStr,
+      'updatedAt': now.toIso8601String(),
+    }, SetOptions(merge: true));
+  }
+
+  /// Submits a leave request with 100% web-app and mobile database compatibility.
+  /// Dual-writes to organizations/{companyId}/leave_requests (Web master) and user subcollection.
+  static Future<String> submitLeaveRequest({
+    required Map<String, dynamic> data,
+  }) async {
+    final now = DateTime.now();
+    final reqId = (data['id'] as String?)?.isNotEmpty == true
+        ? data['id'] as String
+        : 'LR_${now.millisecondsSinceEpoch}';
+
+    final email = (data['applicantEmail'] ?? data['userEmail'] ?? data['email'] ?? AppSession().email ?? '').toString().trim().toLowerCase();
+    final name = (data['applicantName'] ?? data['userName'] ?? AppSession().userName ?? email).toString().trim();
+    final leaveType = (data['type'] ?? data['leaveType'] ?? 'Annual Leave').toString().trim();
+
+    DateTime? fromDt;
+    DateTime? toDt;
+    if (data['fromDate'] is DateTime) fromDt = data['fromDate'];
+    if (data['fromDate'] is Timestamp) fromDt = (data['fromDate'] as Timestamp).toDate();
+    if (data['from'] is String) fromDt = DateTime.tryParse(data['from']);
+
+    if (data['toDate'] is DateTime) toDt = data['toDate'];
+    if (data['toDate'] is Timestamp) toDt = (data['toDate'] as Timestamp).toDate();
+    if (data['to'] is String) toDt = DateTime.tryParse(data['to']);
+
+    final fromStr = fromDt != null ? DateFormat('yyyy-MM-dd').format(fromDt) : (data['from']?.toString() ?? '');
+    final toStr = toDt != null ? DateFormat('yyyy-MM-dd').format(toDt) : (data['to']?.toString() ?? '');
+
+    final dynamic rawDays = data['days'] ?? data['durationInDays'] ?? 1;
+    final int days = rawDays is int ? rawDays : (int.tryParse(rawDays.toString()) ?? 1);
+
+    final payload = {
+      ...data,
+      'id': reqId,
+      'companyId': _cid,
+      'userId': AppSession().uid ?? '',
+      'applicantEmail': email,
+      'userEmail': email,
+      'employeeEmail': email,
+      'applicantName': name,
+      'userName': name,
+      'type': leaveType,
+      'leaveType': leaveType,
+      'from': fromStr,
+      'to': toStr,
+      if (fromDt != null) 'fromDate': Timestamp.fromDate(fromDt),
+      if (toDt != null) 'toDate': Timestamp.fromDate(toDt),
+      'days': days,
+      'durationInDays': days,
+      'reason': (data['reason'] ?? '').toString().trim(),
+      'status': 'Pending', // Capitalized 'P' for web compatibility
+      'applied': DateFormat('MMM dd').format(now),
+      'createdAt': now.toIso8601String(),
+      'targetRoles': ['manager', 'hr_admin', 'super_admin'],
+    };
+
+    // 1. Web Master Queue: organizations/{companyId}/leave_requests/{reqId}
+    await _db
+        .collection('organizations')
+        .doc(_cid)
+        .collection('leave_requests')
+        .doc(reqId)
+        .set(payload, SetOptions(merge: true));
+
+    // 2. Mobile User Subcollection Queue: organizations/{companyId}/users/{email}/leave_requests/{reqId}
+    await userLeaveRequestsCol(email)
+        .doc(reqId)
+        .set(payload, SetOptions(merge: true));
+
+    return reqId;
+  }
+
+
   /// When an attendance correction request is approved, update the employee's attendance record for that day.
   static Future<void> applyAttendanceCorrectionApproval({
     required Map<String, dynamic> requestData,
@@ -369,7 +554,7 @@ class FirestoreService {
           baseDate);
 
       final Map<String, dynamic> updatePayload = {
-        'status': 'present',
+        'status': 'Present',
         'date': Timestamp.fromDate(
             DateTime(baseDate.year, baseDate.month, baseDate.day)),
         'recordDate': docId,
@@ -388,6 +573,18 @@ class FirestoreService {
       await userAttendanceCol(email)
           .doc(docId)
           .set(updatePayload, SetOptions(merge: true));
+
+      // Mirror correction to company attendance rollup
+      final compPayload = Map<String, dynamic>.from(updatePayload);
+      compPayload['date'] = docId;
+      compPayload['email'] = email;
+      compPayload['userId'] = email;
+      await _db
+          .collection('organizations')
+          .doc(_cid)
+          .collection('attendance')
+          .doc('${email}_$docId')
+          .set(compPayload, SetOptions(merge: true));
     } catch (e) {
       debugPrint('Error applying attendance correction timing: $e');
     }

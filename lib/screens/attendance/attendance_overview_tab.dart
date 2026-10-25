@@ -61,20 +61,15 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     try {
       final now = DateTime.now();
       final email = _userEmail;
-      final data = {
-        'companyId': FirestoreService.companyId,
-        'userId': email,
-        'status': status,
-        if (isCheckIn) 'workMode': 'office',
-        if (isCheckIn) 'checkIn': Timestamp.fromDate(now),
-        if (!isCheckIn) 'checkOut': Timestamp.fromDate(now),
-        'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
-        'recordDate': DateFormat('yyyy-MM-dd').format(now),
-      };
-
-      await FirestoreService.userAttendanceCol(email)
-          .doc(_getDocId())
-          .set(data, SetOptions(merge: true));
+      await FirestoreService.recordAttendancePunch(
+        email: email,
+        isCheckIn: isCheckIn,
+        status: isCheckIn ? 'Present' : status,
+        location: 'Work in Office',
+        additionalData: {
+          'workMode': 'office',
+        },
+      );
 
       await NotificationHelper.notifyEmployee(
         employeeEmail: email,
