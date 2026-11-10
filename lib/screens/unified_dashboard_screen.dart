@@ -1046,12 +1046,12 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     List<Color> gradientColors;
 
     final r = roleStr.toLowerCase();
-    if (r.contains('super admin') || r.contains('superadmin')) {
-      roleIcon = Icons.workspace_premium_rounded;
-      gradientColors = [const Color(0xFF6366F1), const Color(0xFF8B5CF6)];
-    } else if (r.contains('hr admin') || r.contains('hradmin')) {
+    if (r.contains('hr admin') ||
+        r.contains('hradmin') ||
+        r.contains('admin') ||
+        r.contains('super')) {
       roleIcon = Icons.shield_outlined;
-      gradientColors = [const Color(0xFFEC4899), const Color(0xFF8B5CF6)];
+      gradientColors = [const Color(0xFF6366F1), const Color(0xFF8B5CF6)];
     } else if (r.contains('manager')) {
       roleIcon = Icons.badge_outlined;
       gradientColors = [const Color(0xFF3B82F6), const Color(0xFF1D4ED8)];
@@ -2843,7 +2843,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             final totalEmp = usersSnap.data?.docs
                     .where((d) =>
                         FirestoreService.isDocInCurrentCompany(d) &&
-                        (d.data() as Map)['role'] != 'admin')
+                        !['admin', 'hr_admin', 'super_admin'].contains(((d.data() as Map)['role'] ?? '').toString().toLowerCase()))
                     .length ??
                 0;
             final present = stats['present'] ?? 0;
@@ -2925,7 +2925,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             stream: _orgUsersStream,
             builder: (context, usersSnap) {
               final total = usersSnap.data?.docs
-                      .where((d) => (d.data() as Map)['role'] != 'admin')
+                      .where((d) => !['admin', 'hr_admin', 'super_admin'].contains(((d.data() as Map)['role'] ?? '').toString().toLowerCase()))
                       .length ??
                   0;
               final nm = (total - p - l - w) < 0 ? 0 : (total - p - l - w);
@@ -3439,7 +3439,8 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         for (final doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
           // Skip admin accounts
-          if ((data['role'] as String?)?.toLowerCase() == 'admin') continue;
+          final r = ((data['role'] ?? '') as String).toLowerCase();
+          if (r == 'admin' || r == 'hr_admin' || r == 'super_admin') continue;
           final dept = ((data['department'] as String?)?.trim().isEmpty ?? true)
               ? 'Unknown'
               : (data['department'] as String).trim();

@@ -154,7 +154,7 @@ class _EmployeeTeamTasksTabState extends State<EmployeeTeamTasksTab> {
           final data = doc.data() as Map<String, dynamic>;
           final dept = (data['department'] ?? data['departmentName'] ?? '').toString().trim().toLowerCase();
           final assignedTo = (data['assignedTo'] ?? '').toString().trim().toLowerCase();
-          if (AppSession().isSuperAdmin) return true;
+          if (AppSession().hasAdminAccess) return true;
           if (myDept.isNotEmpty && dept == myDept) return true;
           if (assignedTo == myEmail) return true;
           return false;

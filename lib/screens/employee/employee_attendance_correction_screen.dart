@@ -113,7 +113,16 @@ class _EmployeeAttendanceCorrectionScreenState
         return DateFormat('HH:mm').format(dt);
       }
 
-      final senderRole = (AppSession().role ?? 'employee').toLowerCase();
+      final rawSenderRole = (AppSession().role ?? 'employee').toLowerCase().trim();
+      final senderRole = (rawSenderRole == 'super_admin' ||
+              rawSenderRole == 'superadmin' ||
+              rawSenderRole == 'admin' ||
+              rawSenderRole == 'hr_admin' ||
+              rawSenderRole == 'hradmin')
+          ? 'hr_admin'
+          : rawSenderRole == 'manager'
+              ? 'manager'
+              : 'employee';
       
       await FirebaseFirestore.instance
           .collection('organizations')
@@ -128,6 +137,12 @@ class _EmployeeAttendanceCorrectionScreenState
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
         'senderRole': senderRole,
+        'targetRoles': (senderRole == 'hr_admin' || senderRole == 'manager')
+            ? ['hr_admin']
+            : ['manager', 'hr_admin'],
+        'approver': (senderRole == 'hr_admin' || senderRole == 'manager')
+            ? 'HR Admin'
+            : 'Reporting Manager',
       });
 
       // Send notifications based on senderRole
@@ -135,7 +150,7 @@ class _EmployeeAttendanceCorrectionScreenState
       final body = '${AppSession().userName ?? "Employee"} requested attendance correction for ${DateFormat('MMM dd').format(_selectedDate)}.';
       final extraData = {'employeeEmail': user.email};
 
-      if (senderRole == 'admin') {
+      if (senderRole == 'hr_admin') {
         await NotificationHelper.notifyAdmin(title: title, body: body, type: 'attendance_correction', extraData: extraData);
       } else if (senderRole == 'manager') {
         await NotificationHelper.notifyAdmin(title: title, body: body, type: 'attendance_correction', extraData: extraData);

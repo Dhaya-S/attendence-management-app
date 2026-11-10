@@ -114,7 +114,7 @@ class _UniversalProfileScreenState extends State<UniversalProfileScreen> {
           final email = data['email'] ?? user?.email ?? '';
           final phone = data['phone'] ?? 'Not provided';
           final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'Not provided';
-          final designation = data['designation'] ?? AppSession().role?.toUpperCase() ?? 'Employee';
+          final designation = data['designation'] ?? AppSession().displayRole;
           final department = data['department'] ?? 'Not provided';
           final location = data['location'] ?? 'Not provided';
           final employeeType = data['employeeType'] ?? 'Not provided';

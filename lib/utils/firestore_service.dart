@@ -119,6 +119,16 @@ class FirestoreService {
           String orgId, String policyId) =>
       orgPoliciesCol(orgId).doc(policyId);
 
+  /// `organizations/{orgId}/documents`
+  static CollectionReference<Map<String, dynamic>> orgDocumentsCol(
+          String orgId) =>
+      orgDoc(orgId).collection('documents');
+
+  /// `organizations/{orgId}/documents/{docId}`
+  static DocumentReference<Map<String, dynamic>> orgDocumentDoc(
+          String orgId, String docId) =>
+      orgDocumentsCol(orgId).doc(docId);
+
   // â”€â”€ Company-Scoped Subcollections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // All operational data lives UNDER the company document so that
   // Firestore console shows everything nested per company.
@@ -176,6 +186,14 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> userOvertimeRequestsCol(
           String email) =>
       employeeDoc(email).collection('overtime_requests');
+
+  /// `/organizations/{companyId}/documents` — company documents uploaded via Web / App
+  static CollectionReference<Map<String, dynamic>> get documentsCol =>
+      companyDoc().collection('documents');
+
+  /// `/organizations/{companyId}/documents/{docId}`
+  static DocumentReference<Map<String, dynamic>> documentDoc(String docId) =>
+      documentsCol.doc(docId);
 
   // â”€â”€ Collection Group Queries (Manager Access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These allow managers to query all records across all employees in the company.
@@ -483,7 +501,12 @@ class FirestoreService {
       'status': 'Pending', // Capitalized 'P' for web compatibility
       'applied': DateFormat('MMM dd').format(now),
       'createdAt': now.toIso8601String(),
-      'targetRoles': ['manager', 'hr_admin', 'super_admin'],
+      'targetRoles': (AppSession().isHrAdmin || AppSession().isManager)
+          ? ['hr_admin']
+          : ['manager', 'hr_admin'],
+      'approver': (AppSession().isHrAdmin || AppSession().isManager)
+          ? 'HR Admin'
+          : 'Reporting Manager',
     };
 
     // 1. Web Master Queue: organizations/{companyId}/leave_requests/{reqId}

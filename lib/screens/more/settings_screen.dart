@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:attendance_app/utils/app_session.dart';
-import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/screens/more/notification_settings_screen.dart';
 import 'package:attendance_app/screens/more/change_password_screen.dart';
-import 'package:attendance_app/screens/more/privacy_settings_screen.dart';
-import 'package:attendance_app/screens/more/security_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -16,107 +11,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _isSaving = false;
-
-  void _showChangePasswordDialog() {
-    final newPassCtrl = TextEditingController();
-    final confirmPassCtrl = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Change Password', style: TextStyle(fontWeight: FontWeight.w800)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: newPassCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: confirmPassCtrl,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5C5CFF)),
-              onPressed: () async {
-                final pass = newPassCtrl.text.trim();
-                final confirm = confirmPassCtrl.text.trim();
-
-                if (pass.length < 6) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password must be at least 6 characters.')),
-                  );
-                  return;
-                }
-
-                if (pass != confirm) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Passwords do not match.')),
-                  );
-                  return;
-                }
-
-                try {
-                  final user = FirebaseAuth.instance.currentUser;
-                  if (user != null) {
-                    await user.updatePassword(pass);
-                  }
-                  if (!mounted) return;
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password updated successfully!')),
-                  );
-                } catch (e) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Password reset request submitted for ${FirebaseAuth.instance.currentUser?.email}')),
-                  );
-                }
-              },
-              child: const Text('Update Password', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showFeatureDialog(String title, String desc) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
-          content: Text(desc, style: const TextStyle(color: Color(0xFF4B5563))),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('OK'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   Future<void> _saveSettings() async {
     setState(() => _isSaving = true);
@@ -178,29 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 12),
 
-            // 2. Privacy
-            _buildSettingCard(
-              icon: Icons.person_outline_rounded,
-              title: 'Privacy',
-              subtitle: 'Profile & data visibility',
-              iconColor: const Color(0xFFA855F7),
-              iconBgColor: const Color(0xFFF3E8FF),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacySettingsScreen())),
-            ),
-            const SizedBox(height: 12),
-
-            // 3. Security
-            _buildSettingCard(
-              icon: Icons.verified_user_outlined,
-              title: 'Security',
-              subtitle: 'Biometric, PIN & sessions',
-              iconColor: const Color(0xFF10B981),
-              iconBgColor: const Color(0xFFECFDF5),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SecuritySettingsScreen())),
-            ),
-            const SizedBox(height: 12),
-
-            // 4. Change Password
+            // 2. Change Password
             _buildSettingCard(
               icon: Icons.edit_outlined,
               title: 'Change Password',

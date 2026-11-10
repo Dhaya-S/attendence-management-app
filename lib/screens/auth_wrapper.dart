@@ -221,7 +221,16 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (approvedDoc.exists && approvedDoc.data() != null) {
         final d = approvedDoc.data()!;
         debugPrint('AUTH DEBUG: approvedDoc data=$d');
-        role = (d['role'] as String? ?? 'employee').toLowerCase();
+        final rawRole = (d['role'] as String? ?? 'employee').toLowerCase().trim();
+        role = (rawRole == 'super_admin' ||
+                rawRole == 'superadmin' ||
+                rawRole == 'admin' ||
+                rawRole == 'hr_admin' ||
+                rawRole == 'hradmin')
+            ? 'hr_admin'
+            : rawRole == 'manager'
+                ? 'manager'
+                : 'employee';
 
         // NEW: self-registered orgs use 'orgId'; legacy uses 'companyId'
         final orgId = d['orgId'] as String? ?? d['companyId'] as String?;
@@ -311,8 +320,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         }
       }
 
-      double? parseDouble(dynamic v) =>
-          v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
       int? parseInt(dynamic v) =>
           v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
 
@@ -400,9 +407,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
         department = memberDoc.data()!['department'] as String?;
       }
 
-      double? parseDouble(dynamic v) =>
-          v is num ? v.toDouble() : (v is String ? double.tryParse(v) : null);
-
       // Extract isGeofencingEnabled from org doc
       bool? geoEnabled;
       if (od.containsKey('isGeofencingEnabled')) {
@@ -411,10 +415,21 @@ class _AuthWrapperState extends State<AuthWrapper> {
         else if (gv is String) geoEnabled = gv.toLowerCase() == 'true';
       }
 
+      final rawRole = role.toLowerCase().trim();
+      final cleanRole = (rawRole == 'super_admin' ||
+              rawRole == 'superadmin' ||
+              rawRole == 'admin' ||
+              rawRole == 'hr_admin' ||
+              rawRole == 'hradmin')
+          ? 'hr_admin'
+          : rawRole == 'manager'
+              ? 'manager'
+              : 'employee';
+
       AppSession().populate(
         uid: user.uid,
         email: email,
-        role: role,
+        role: cleanRole,
         companyId: orgId,
         companyName: od['companyName'] as String? ?? od['name'] as String?,
         featurePermissions: od['featurePermissions'] as Map<String, dynamic>?,

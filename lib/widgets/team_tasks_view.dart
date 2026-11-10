@@ -209,7 +209,7 @@ class _TeamTasksViewState extends State<TeamTasksView> {
               bool matchesSearch = name.contains(_searchQuery.toLowerCase()) || 
                                    department.toLowerCase().contains(_searchQuery.toLowerCase());
               bool matchesDept = _selectedDepartment == 'All'
-                  ? (myDept.isEmpty || AppSession().isSuperAdmin || department.toLowerCase() == myDept)
+                  ? (myDept.isEmpty || AppSession().hasAdminAccess || department.toLowerCase() == myDept)
                   : department == _selectedDepartment;
               
               return matchesSearch && matchesDept;

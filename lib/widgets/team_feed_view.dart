@@ -456,7 +456,7 @@ class _TeamFeedViewState extends State<TeamFeedView> {
         final docs = (snapshot.data?.docs ?? []).where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final dept = (data['department'] ?? '').toString().trim().toLowerCase();
-          if (myDept.isEmpty || AppSession().isSuperAdmin) return true;
+          if (myDept.isEmpty || AppSession().hasAdminAccess) return true;
           return dept == myDept || dept.isEmpty;
         }).toList();
 

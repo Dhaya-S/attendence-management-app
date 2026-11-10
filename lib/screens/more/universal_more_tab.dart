@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/screens/employee/documents_screen.dart';
-import 'package:attendance_app/screens/employee/history_screen.dart';
 import 'package:attendance_app/screens/profile/universal_profile_screen.dart';
 import 'package:attendance_app/screens/more/settings_screen.dart';
 import 'package:attendance_app/screens/more/help_support_screen.dart';
@@ -43,16 +41,6 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
     );
   }
 
-  void _showComingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$feature coming soon!'),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -67,7 +55,7 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
             final userName = data['name'] ?? AppSession().userName ?? 'User';
             final initials = userName.split(' ').take(2).map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').join();
             
-            final roleDisplay = data['designation'] ?? (AppSession().isManager ? 'Manager' : AppSession().isEmployee ? 'Employee' : 'Admin');
+            final roleDisplay = data['designation'] ?? AppSession().displayRole;
             final department = data['department'] ?? 'Not provided';
             final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'Not provided';
 
@@ -112,20 +100,11 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                       ),
                       const SizedBox(height: 12),
                     ],
-                    _buildMenuItem(
-                      icon: Icons.history_rounded,
-                      title: 'History',
-                      subtitle: 'Tasks & past requests',
-                      iconColor: const Color(0xFF8B5CF6),
-                      iconBgColor: const Color(0xFFF5F3FF),
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EmployeeHistoryScreen())),
-                    ),
-                    const SizedBox(height: 12),
                     if (AppSession().hasPermission('settings')) ...[
                       _buildMenuItem(
                         icon: Icons.settings_outlined,
                         title: 'Settings',
-                        subtitle: 'Appearance, privacy & security',
+                        subtitle: 'Notifications & password',
                         iconColor: const Color(0xFF7C3AED),
                         iconBgColor: const Color(0xFFF5F3FF),
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),

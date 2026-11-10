@@ -58,9 +58,18 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
     setState(() => _isSubmitting = true);
     try {
       final email = user?.email;
-      final role = AppSession().role;
+      final rawRole = (AppSession().role ?? 'employee').toLowerCase().trim();
+      final senderRole = (rawRole == 'admin' ||
+              rawRole == 'super_admin' ||
+              rawRole == 'superadmin' ||
+              rawRole == 'hr_admin' ||
+              rawRole == 'hradmin')
+          ? 'hr_admin'
+          : rawRole == 'manager'
+              ? 'manager'
+              : 'employee';
 
-      bool reqManager = role == 'employee';
+      bool reqManager = senderRole == 'employee';
       bool reqAdmin = true;
 
       int calculateWorkingDays(DateTime from, DateTime to) {
@@ -110,19 +119,24 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
         'requiresManagerApproval': reqManager,
         'requiresAdminApproval': reqAdmin,
         'approverRemarks': '',
-        'senderRole': (role ?? 'employee').toLowerCase(),
+        'senderRole': senderRole,
+        'targetRoles': (senderRole == 'hr_admin' || senderRole == 'manager')
+            ? ['hr_admin']
+            : ['manager', 'hr_admin'],
+        'approver': (senderRole == 'hr_admin' || senderRole == 'manager')
+            ? 'HR Admin'
+            : 'Reporting Manager',
       });
       
       // Notify based on sender role
-      final senderRole = (role ?? 'employee').toLowerCase();
       final dateRangeStr = durationInDays == 1
           ? 'on ${DateFormat('MMM dd, yyyy').format(_fromDate)}'
           : 'from ${DateFormat('MMM dd').format(_fromDate)} to ${DateFormat('MMM dd').format(_toDate)}';
-      final title = 'New Leave Request ðŸ“ ';
+      final title = 'New Leave Request 📝';
       final body = '${AppSession().userName ?? "Employee"} applied for $_selectedLeaveType $dateRangeStr.';
       final extraData = {'employeeEmail': email};
 
-      if (senderRole == 'admin' || senderRole == 'super_admin' || senderRole == 'hr_admin') {
+      if (senderRole == 'hr_admin') {
         await NotificationHelper.notifyAdmin(
             title: title,
             body: body,

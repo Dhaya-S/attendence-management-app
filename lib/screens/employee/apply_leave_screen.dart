@@ -96,8 +96,17 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       }
 
       final diff = calculateWorkingDays(fromDate!, toDate!);
-      final senderRole =
-          (userData['role'] as String?)?.toLowerCase() ?? 'employee';
+      final rawSenderRole =
+          (userData['role'] as String?)?.toLowerCase().trim() ?? 'employee';
+      final senderRole = (rawSenderRole == 'super_admin' ||
+              rawSenderRole == 'superadmin' ||
+              rawSenderRole == 'admin' ||
+              rawSenderRole == 'hr_admin' ||
+              rawSenderRole == 'hradmin')
+          ? 'hr_admin'
+          : rawSenderRole == 'manager'
+              ? 'manager'
+              : 'employee';
 
       await FirestoreService.submitLeaveRequest(data: {
         'companyId': FirestoreService.companyId,
@@ -128,7 +137,7 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
       final body = '$userName applied for $selectedType $dateRangeStr.';
       final extraData = {'employeeEmail': user.email};
 
-      if (senderRole == 'admin' || senderRole == 'super_admin' || senderRole == 'hr_admin') {
+      if (senderRole == 'hr_admin') {
         await NotificationHelper.notifyAdmin(
             title: title,
             body: body,

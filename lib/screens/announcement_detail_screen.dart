@@ -640,15 +640,17 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               final liveRole = (userData['role'] ?? userData['designation'] ?? authorRole).toString();
                               final liveName = (userData['name'] ?? userData['userName'] ?? authorName).toString();
                               final rawRole = liveRole.toLowerCase().replaceAll('_', ' ');
-                              final displayRole = (rawRole == 'super admin' || rawRole == 'superadmin')
-                                  ? 'Super Admin'
-                                  : (rawRole == 'hr admin' || rawRole == 'hradmin')
-                                      ? 'HR Admin'
-                                      : (rawRole == 'manager')
-                                          ? 'Manager'
-                                          : (rawRole == 'employee')
-                                              ? 'Employee'
-                                              : rawRole.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+                              final displayRole = (rawRole == 'super admin' ||
+                                      rawRole == 'superadmin' ||
+                                      rawRole == 'hr admin' ||
+                                      rawRole == 'hradmin' ||
+                                      rawRole == 'admin')
+                                  ? 'HR Admin'
+                                  : (rawRole == 'manager')
+                                      ? 'Manager'
+                                      : (rawRole == 'employee')
+                                          ? 'Employee'
+                                          : rawRole.split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
 
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

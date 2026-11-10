@@ -113,7 +113,7 @@ class _EmployeeTeamAnnouncementsTabState
               final List targetEmails = (data['targetEmails'] as List?)?.map((e) => e.toString().toLowerCase()).toList() ?? [];
               final notifyOthersStr = (data['notifyOthers'] ?? '').toString().toLowerCase();
 
-              if (AppSession().isSuperAdmin) return true;
+              if (AppSession().hasAdminAccess) return true;
               if (myDept.isNotEmpty && (deptId == myDept || targetTeams.contains(myDept) || aud.contains(myDept))) return true;
               if (myEmail.isNotEmpty && (targetEmails.contains(myEmail) || notifyOthersStr.contains(myEmail))) return true;
               return false;

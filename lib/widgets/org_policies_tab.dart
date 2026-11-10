@@ -462,7 +462,7 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
         ),
       );
     }
-    final isAdminOrManager = AppSession().isManager || AppSession().isSuperAdmin;
+    final isAdminOrManager = AppSession().isManager || AppSession().hasAdminAccess;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),

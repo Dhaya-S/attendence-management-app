@@ -43,7 +43,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
     'Operations',
   ];
 
-  final _roles = ['Employee', 'Manager'];
+  final _roles = ['Employee', 'Manager', 'HR Admin'];
 
   bool get isEditing => widget.existingData != null;
 
@@ -57,7 +57,18 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
       _roleController.text = widget.existingData!['designation'] ?? '';
       _selectedDepartment =
           widget.existingData!['department'] ?? 'Engineering';
-      _selectedRole = (widget.existingData!['role'] ?? 'Employee').toString().toUpperCase() == 'MANAGER' ? 'Manager' : 'Employee';
+      final rawRole = (widget.existingData!['role'] ?? 'Employee').toString().toLowerCase().trim();
+      if (rawRole == 'hr_admin' ||
+          rawRole == 'hradmin' ||
+          rawRole == 'admin' ||
+          rawRole == 'super_admin' ||
+          rawRole == 'superadmin') {
+        _selectedRole = 'HR Admin';
+      } else if (rawRole == 'manager') {
+        _selectedRole = 'Manager';
+      } else {
+        _selectedRole = 'Employee';
+      }
       _managerController.text = widget.existingData!['reportingManager'] ?? '';
       _locationController.text = widget.existingData!['location'] ?? '';
       _employeeIdController.text = widget.existingData!['employeeId'] ?? '';
@@ -127,7 +138,7 @@ class _AddEmployeeScreenState extends State<AddEmployeeScreen> {
         throw 'This email is already registered as an employee in your company.';
       }
 
-      final role = _selectedRole.toLowerCase();
+      final role = _selectedRole == 'HR Admin' ? 'hr_admin' : _selectedRole.toLowerCase();
       final data = {
         'name': _nameController.text.trim(),
         'email': email,

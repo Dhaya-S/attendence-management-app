@@ -104,7 +104,7 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
         'authorName': user?.displayName ?? 'Admin',
         'authorId': user?.uid,
         'authorEmail': user?.email,
-        'authorRole': widget.isAdmin ? 'admin' : 'manager',
+        'authorRole': widget.isAdmin ? 'hr_admin' : 'manager',
         'timestamp': FieldValue.serverTimestamp(),
         'likes': 0,
         'commentsCount': 0,
@@ -324,7 +324,10 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
                   children: [
                     Text(timeStr, style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
                     const SizedBox(width: 8),
-                    if (widget.isAdmin || data['authorRole'] == 'manager')
+                    if (widget.isAdmin ||
+                        data['authorRole'] == 'manager' ||
+                        data['authorRole'] == 'hr_admin' ||
+                        data['authorRole'] == 'admin')
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_horiz, size: 16, color: Color(0xFF9CA3AF)),
                         padding: EdgeInsets.zero,

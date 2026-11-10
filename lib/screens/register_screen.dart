@@ -1,7 +1,7 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'package:attendance_app/screens/organization_setup_screen.dart';
+import 'package:attendance_app/screens/auth_wrapper.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/message_helper.dart';
 
@@ -63,10 +63,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Successfully created auth account, now navigate to org setup.
-      Navigator.push(
+      // Successfully created auth account, navigate to main session wrapper.
+      Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => const OrganizationSetupScreen()),
+        MaterialPageRoute(builder: (_) => const AuthWrapper()),
+        (route) => false,
       );
     } on FirebaseAuthException catch (e) {
       String msg = 'Failed to create account.';
@@ -103,7 +104,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               Text('Create Account', style: AppTheme.h1.copyWith(fontSize: 28)),
               const SizedBox(height: 8),
               Text(
-                'Get started with AttendanceOS by creating your admin account.',
+                'Get started with AttendanceOS by creating your HR Admin account.',
                 style: AppTheme.bodyLarge.copyWith(fontSize: 14),
               ),
               const SizedBox(height: 32),

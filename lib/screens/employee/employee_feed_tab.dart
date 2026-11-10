@@ -92,7 +92,7 @@ class _EmployeeFeedTabState extends State<EmployeeFeedTab> {
                 final filteredDocs = rawDocs.where((doc) {
                   final data = doc.data() as Map<String, dynamic>;
                   final dept = (data['department'] ?? '').toString().trim().toLowerCase();
-                  if (AppSession().isSuperAdmin) return true;
+                  if (AppSession().hasAdminAccess) return true;
                   if (myDept.isEmpty) return false;
                   return dept == myDept;
                 }).toList();

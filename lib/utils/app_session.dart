@@ -19,7 +19,7 @@ class AppSession {
   // ── Authenticated User Info ──────────────────────────────────────────────
   String? uid;
   String? email;
-  String? role; // 'super_admin' | 'admin' | 'hr_admin' | 'manager' | 'employee'
+  String? role; // 'hr_admin' | 'manager' | 'employee' (legacy 'super_admin' | 'admin' map to 'hr_admin')
   String? companyId;
   String? companyName;
   String? userName;
@@ -52,28 +52,43 @@ class AppSession {
 
   // ── Role helpers ─────────────────────────────────────────────────────────
 
-  bool get isSuperAdmin =>
-      role?.toLowerCase() == 'super_admin' ||
-      role?.toLowerCase() == 'superadmin';
-
-  bool get isAdmin => role?.toLowerCase() == 'admin';
-
+  /// HR Admin is the main administrator and head of the company.
+  /// Any legacy super_admin or admin roles map directly to HR Admin.
   bool get isHrAdmin =>
-      role?.toLowerCase() == 'hr_admin' || role?.toLowerCase() == 'hradmin';
+      role?.toLowerCase() == 'hr_admin' ||
+      role?.toLowerCase() == 'hradmin' ||
+      role?.toLowerCase() == 'super_admin' ||
+      role?.toLowerCase() == 'superadmin' ||
+      role?.toLowerCase() == 'admin';
+
+  /// Legacy alias: admin operations now belong to HR Admin.
+  bool get isAdmin => isHrAdmin;
+
+  /// Legacy alias: super admin operations now belong to HR Admin.
+  bool get isSuperAdmin => isHrAdmin;
 
   bool get isManager => role?.toLowerCase() == 'manager';
 
-  bool get isEmployee => role?.toLowerCase() == 'employee';
+  /// True if current user is HR Admin or Manager (elevated privileges)
+  bool get isManagerOrAbove => isHrAdmin || isManager;
 
-  /// Grouped getter for administrative dashboards (Super Admin, Admin & HR Admin)
-  bool get hasAdminAccess => isSuperAdmin || isAdmin || isHrAdmin;
+  bool get isEmployee =>
+      role?.toLowerCase() == 'employee' ||
+      (!isHrAdmin && !isManager);
 
-  /// Clean display title for the webapp roles
+  /// Grouped getter for administrative dashboards (HR Admin is head of organization)
+  bool get hasAdminAccess => isHrAdmin;
+
+  /// Clean display title for the 3 webapp roles (HR Admin, Manager, Employee)
   String get displayRole {
-    final r = (role ?? 'employee').toLowerCase().replaceAll('_', ' ');
-    if (r == 'super admin' || r == 'superadmin') return 'Super Admin';
-    if (r == 'admin') return 'Admin';
-    if (r == 'hr admin' || r == 'hradmin') return 'HR Admin';
+    final r = (role ?? 'employee').toLowerCase().replaceAll('_', ' ').trim();
+    if (r == 'super admin' ||
+        r == 'superadmin' ||
+        r == 'admin' ||
+        r == 'hr admin' ||
+        r == 'hradmin') {
+      return 'HR Admin';
+    }
     if (r == 'manager') return 'Manager';
     if (r == 'employee') return 'Employee';
     return r
@@ -185,8 +200,8 @@ class AppSession {
   /// Parity with Web App AuthContext.tsx:
   ///   1. GEOFENCING: Evaluated FIRST (before admin bypass).
   ///      If org-level isGeofencingEnabled is false, returns false for all roles.
-  ///      Otherwise checks role's permission in featurePermissions (including admin).
-  ///   2. Super Admin / Admin bypass → always true for all OTHER modules & actions.
+  ///      Otherwise checks role's permission in featurePermissions (including HR Admin).
+  ///   2. HR Admin bypass → always true for all OTHER modules & actions.
   ///   3. Baseline features → always true for all authenticated employees.
   ///   4. Action-based keys resolved via alias map against role's permission list.
   bool hasPermission(String featureKey) {
@@ -201,11 +216,13 @@ class AppSession {
       if (!isGeofencingEnabled) return false;
 
       // If geofencing policy is ON, check if the role has it enabled in the Permission Matrix
-      if (isSuperAdmin || isAdmin) {
-        final List<dynamic> adminPerms = featurePermissions.containsKey('admin')
-            ? (featurePermissions['admin'] as List<dynamic>? ?? [])
-            : (_defaultPermissions['admin'] ?? []);
-        return adminPerms.contains('geofencing') || adminPerms.contains('geofence');
+      if (isHrAdmin || isAdmin || isSuperAdmin) {
+        final List<dynamic> hrPerms = featurePermissions.containsKey('hr_admin')
+            ? (featurePermissions['hr_admin'] as List<dynamic>? ?? [])
+            : featurePermissions.containsKey('admin')
+                ? (featurePermissions['admin'] as List<dynamic>? ?? [])
+                : (_defaultPermissions['hr_admin'] ?? []);
+        return hrPerms.contains('geofencing') || hrPerms.contains('geofence');
       }
 
       final rKey = _normaliseRoleKey(role ?? 'employee');
@@ -215,8 +232,8 @@ class AppSession {
       return rolePerms.contains('geofencing') || rolePerms.contains('geofence');
     }
 
-    // 2. Super Admin / Admin bypass for all other modules & actions
-    if (isSuperAdmin || isAdmin) return true;
+    // 2. HR Admin (`hr_admin` / legacy `admin` / `super_admin`) is head of organization with full administrative access to all other modules & actions
+    if (isHrAdmin || isAdmin || isSuperAdmin) return true;
 
     // 3. Baseline features always allowed to all authenticated employees
     if (_baselineFeatures.contains(k)) return true;
@@ -234,11 +251,16 @@ class AppSession {
   }
 
   /// Normalise role strings to the keys used in featurePermissions.
-  /// In Firestore featurePermissions, keys are: 'admin', 'hr_admin', 'manager', 'employee'.
+  /// In Firestore featurePermissions, keys are: 'hr_admin', 'manager', 'employee' (legacy: 'admin').
   String _normaliseRoleKey(String r) {
-    final l = r.toLowerCase();
-    if (l == 'super_admin' || l == 'superadmin' || l == 'admin') return 'admin';
-    if (l == 'hr_admin' || l == 'hradmin') return 'hr_admin';
+    final l = r.toLowerCase().trim();
+    if (l == 'super_admin' ||
+        l == 'superadmin' ||
+        l == 'admin' ||
+        l == 'hr_admin' ||
+        l == 'hradmin') {
+      return 'hr_admin';
+    }
     if (l == 'manager') return 'manager';
     return 'employee';
   }

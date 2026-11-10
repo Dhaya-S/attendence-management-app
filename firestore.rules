@@ -22,13 +22,21 @@ service cloud.firestore {
 
     function userCompanyId() {
       let user = getApprovedUser();
-      return user != null ? user.companyId : "NONE";
+      return user != null ? (
+        (user.keys().hasAll(["companyId"]) && user.companyId != null && user.companyId != "") ? user.companyId :
+        (user.keys().hasAll(["orgId"]) && user.orgId != null && user.orgId != "") ? user.orgId : "NONE"
+      ) : "NONE";
     }
 
     function isManager() {
       let user = getApprovedUser();
-      // Case-insensitive check: handles "manager", "admin"
-      return user != null && (user.role == "manager" || user.role == "Manager" || user.role == "MANAGER" || user.role == "admin" || user.role == "Admin" || user.role == "ADMIN");
+      // Case-insensitive check: handles "super_admin", "admin", "hr_admin", "manager"
+      return user != null && (
+        user.role == "super_admin" || user.role == "superadmin" || user.role == "SUPER_ADMIN" ||
+        user.role == "admin" || user.role == "Admin" || user.role == "ADMIN" ||
+        user.role == "hr_admin" || user.role == "hr" || user.role == "HR_ADMIN" ||
+        user.role == "manager" || user.role == "Manager" || user.role == "MANAGER"
+      );
     }
 
     function isOwner(employeeId) {
@@ -39,12 +47,36 @@ service cloud.firestore {
 
     // Helper to check if current user is an admin of a specific org
     function isOrgAdmin(orgId) {
+      let user = getApprovedUser();
+      let isApprovedAdmin = user != null && (
+        (user.keys().hasAll(["companyId"]) && user.companyId == orgId) ||
+        (user.keys().hasAll(["orgId"]) && user.orgId == orgId)
+      ) && (
+        user.role == "admin" || user.role == "Admin" || user.role == "ADMIN" ||
+        user.role == "hr_admin" || user.role == "HR_ADMIN" || user.role == "hradmin" ||
+        user.role == "super_admin" || user.role == "SUPER_ADMIN"
+      );
       let memberDoc = /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid);
-      return exists(memberDoc) && get(memberDoc).data.role == "admin";
+      return isApprovedAdmin || (exists(memberDoc) && (
+        get(memberDoc).data.role == "admin" ||
+        get(memberDoc).data.role == "hr_admin" ||
+        get(memberDoc).data.role == "HR_ADMIN" ||
+        get(memberDoc).data.role == "super_admin" ||
+        get(memberDoc).data.role == "SUPER_ADMIN"
+      ));
+    }
+
+    function isOrgMember(orgId) {
+      return isSignedIn() && (userCompanyId() == orgId || isOrgAdmin(orgId) || isAdmin());
+    }
+
+    function isOrgManager(orgId) {
+      return isSignedIn() && ((userCompanyId() == orgId && isManager()) || isOrgAdmin(orgId) || isAdmin());
     }
 
     // 1. Global mapping used during login - Force Case-Insensitive Deploy
     match /approved_users/{email} {
+      allow read, write: if isAdmin();
       allow read: if isSignedIn() && (
         isOwner(email) || 
         isManager() ||  // Managers need to check if an email is already registered
@@ -53,26 +85,21 @@ service cloud.firestore {
         isAdmin()
       );
       
-      // Managers and Org Admins can create new employee approved_user mappings
+      // Managers, HR Admins and Org Admins can create new employee approved_user mappings;
+      // Signing up users can create their own initial mapping
       allow create: if isAdmin() || (isSignedIn() && (
+        isOwner(email) ||
         (isManager() && request.resource.data.companyId == userCompanyId()) ||
-        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId)) ||
-        (isOwner(email) && 
-         (
-           (request.resource.data.keys().hasAll(["companyId"]) &&
-            exists(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)) &&
-            get(/databases/$(database)/documents/approved_companies/$(request.resource.data.companyId)).data.managerEmail.lower() == email.lower()) 
-           ||
-           (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId))
-         ) &&
-         (request.resource.data.role == "manager" || request.resource.data.role == "Manager" || request.resource.data.role == "MANAGER" || request.resource.data.role == "admin")
-        )
+        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId))
       ));
 
-      // Users can only update their own entry without changing role/companyId
-      // Managers and Org Admins can update their employees
+      // Users can update their own entry without changing role/companyId (unless completing initial setup)
+      // Managers, HR Admins and Org Admins can update their employees
       allow update: if isAdmin() || (isSignedIn() && (
-        (isOwner(email) && request.resource.data.role == resource.data.role && request.resource.data.companyId == resource.data.companyId) ||
+        (isOwner(email) && (
+          (request.resource.data.role == resource.data.role && request.resource.data.companyId == resource.data.companyId) ||
+          (resource.data.setupComplete == false)
+        )) ||
         (isManager() && request.resource.data.companyId == userCompanyId() && resource.data.companyId == userCompanyId()) ||
         (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId) && resource.data.orgId == request.resource.data.orgId)
       ));
@@ -84,7 +111,11 @@ service cloud.firestore {
     }
     
     match /admin_users/{uid} {
-       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+    
+    match /audit_logs/{logId} {
+       allow read, write: if isSignedIn();
     }
     
     match /company_users/{uid} {
@@ -124,26 +155,157 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    // 1.6 Organizations (New Architecture)
+    // 1.6 Organizations (Secure Multi-Tenant Architecture)
     match /organizations/{orgId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn();
+      allow read, write: if isAdmin();
+      allow read: if isOrgMember(orgId);
+      allow create: if isSignedIn();
+      allow update: if isOrgManager(orgId);
       allow delete: if isAdmin();
       
+      // All nested collections accessible to master super admins
+      match /{allSubcollections=**} {
+        allow read, write: if isAdmin();
+      }
+      
+      // Member directory & roles
       match /members/{uid} {
-        allow read, write: if isSignedIn();
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
       }
       match /departments/{deptId} {
-        allow read, write: if isSignedIn();
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+      match /designations/{desigId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
       }
       match /shifts/{shiftId} {
-        allow read, write: if isSignedIn();
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
       }
       match /policies/{policyId} {
-        allow read, write: if isSignedIn();
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
       }
-      match /{document=**} {
-        allow read, write: if isSignedIn();
+      match /locations/{locId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+      match /branches/{branchId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+      match /leave_types/{typeId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+      match /holidays/{holidayId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+
+      // Organization users & subcollections
+      match /users/{employeeEmail} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId) || (isOrgMember(orgId) && isOwner(employeeEmail));
+
+        match /attendance/{docId} {
+          allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow write: if isOrgManager(orgId) || isOwner(employeeEmail);
+        }
+
+        match /leave_requests/{docId} {
+          allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow create: if isOwner(employeeEmail);
+          allow update: if isOrgManager(orgId) || (isOwner(employeeEmail) && request.resource.data.status == resource.data.status);
+          allow delete: if isOrgManager(orgId) || (isOwner(employeeEmail) && resource.data.status == "Pending");
+        }
+
+        match /notifications/{docId} {
+          allow read, write: if isOwner(employeeEmail) || isOrgManager(orgId) || isOrgMember(orgId);
+        }
+
+        match /overtime_requests/{docId} {
+          allow read, write: if isOwner(employeeEmail) || isOrgManager(orgId) || isOrgMember(orgId);
+        }
+
+        match /notification_meta/{docId} {
+          allow read, write: if isOrgManager(orgId) || isOwner(employeeEmail);
+        }
+      }
+
+      // Top-level Organization Collections
+      match /global_notifications/{docId} {
+        allow read, write: if isOrgMember(orgId);
+      }
+      match /attendance/{docId} {
+        allow read, write: if isOrgMember(orgId);
+      }
+
+      match /leave_requests/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.userId == request.auth.uid || isOwner(resource.data.applicantEmail)) && request.resource.data.status == resource.data.status);
+        allow delete: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.userId == request.auth.uid || isOwner(resource.data.applicantEmail)) && resource.data.status == "Pending");
+      }
+
+      match /announcements/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+
+      match /tasks/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgMember(orgId);
+      }
+
+      match /documents/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgMember(orgId);
+      }
+
+      match /support_tickets/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update, delete: if isOrgManager(orgId);
+      }
+
+      match /audit_logs/{docId} {
+        allow read: if isOrgManager(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update, delete: if isAdmin();
+      }
+
+      match /settings/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+
+      match /notifications/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+
+      match /attendance_issues/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.createdBy == request.auth.token.email || isOwner(resource.data.createdBy)));
+        allow delete: if isOrgManager(orgId);
+      }
+
+      match /team_announcements/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if isOrgManager(orgId);
+      }
+
+      match /team_feed/{docId} {
+        allow read, write: if isOrgMember(orgId);
+      }
+
+      match /outgoing_emails/{docId} {
+        allow read, write: if isOrgMember(orgId);
       }
     }
 
@@ -449,6 +611,7 @@ service cloud.firestore {
 
     // 4. Legacy top-level collections (kept for backward compat during migration)
     match /companies/{companyId} {
+      allow read, write: if isAdmin();
       // Allow creators, designated managers, and admins to read
       allow read: if isSignedIn() && (
         (resource != null && resource.data.registeredBy == request.auth.uid) || 
@@ -472,15 +635,25 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isSignedIn() && (
+        request.auth.uid == userId ||
         request.auth.token.email == userId || 
         (resource != null && resource.data.email == request.auth.token.email) ||
         (resource != null && resource.data.companyId == userCompanyId()) ||
         isAdmin()
       );
       allow write: if isSignedIn() && (
+        request.auth.uid == userId ||
         (request.auth.token.email == userId && (resource == null || request.resource.data.role == resource.data.role)) ||
         (resource == null && request.resource.data.companyId == userCompanyId() && isManager()) ||
         (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        isAdmin()
+      );
+    }
+
+    match /user/{userEmail} {
+      allow read, write: if isSignedIn() && (
+        isOwner(userEmail) ||
+        (isManager() && userCompanyId() != "NONE") ||
         isAdmin()
       );
     }

@@ -124,7 +124,7 @@ class _TeamMembersViewState extends State<TeamMembersView> {
         final filteredDocs = docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final dept = (data['department'] ?? '').toString().trim().toLowerCase();
-          if (myDept.isEmpty || AppSession().isSuperAdmin) return true;
+          if (myDept.isEmpty || AppSession().hasAdminAccess) return true;
           return dept == myDept;
         }).toList();
 

@@ -757,7 +757,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
                   Text(
                       _role == 'employee'
                           ? managerName
-                          : _role[0].toUpperCase() + _role.substring(1),
+                          : AppSession().displayRole,
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
