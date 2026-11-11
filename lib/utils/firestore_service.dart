@@ -31,23 +31,43 @@ class FirestoreService {
   static String get companyId => _cid;
 
   /// Strict multi-tenant guard: returns true ONLY if [doc] belongs to the active company.
-  /// Checks both explicit 'companyId' field and document path structure.
+  /// Validates explicit tenant fields ('companyId', 'orgId', 'organizationId') and document hierarchy.
   static bool isDocInCurrentCompany(DocumentSnapshot doc) {
     final currentCid = (AppSession().companyId ?? '').trim().toLowerCase();
     if (currentCid.isEmpty) return false;
 
     final data = doc.data() as Map<String, dynamic>? ?? {};
-    final docCid = (data['companyId'] as String?)?.trim().toLowerCase();
-    final path = doc.reference.path.toLowerCase();
+    final docCid = (data['companyId'] ?? data['orgId'] ?? data['organizationId'])
+        ?.toString()
+        .trim()
+        .toLowerCase();
 
-    // 1. If document explicitly specifies a companyId, it MUST match the active company
-    if (docCid != null && docCid.isNotEmpty) {
-      return docCid == currentCid;
+    // 1. If document explicitly specifies a company/org ID and it DOES NOT match, reject immediately.
+    if (docCid != null && docCid.isNotEmpty && docCid != currentCid) {
+      return false;
     }
 
-    // 2. Otherwise, document MUST be stored within organizations/{currentCid}/...
-    return path.contains('/organizations/$currentCid/') ||
-        path.startsWith('organizations/$currentCid/');
+    final path = doc.reference.path.toLowerCase();
+
+    // 2. If document is nested under organizations/, verify root tenant ID segment.
+    if (path.startsWith('organizations/')) {
+      final segments = path.split('/');
+      if (segments.length > 1) {
+        final pathOrgId = segments[1];
+        if (pathOrgId != currentCid) {
+          return false;
+        }
+        return true;
+      }
+    }
+
+    // 3. Document explicitly specifies the active company ID
+    if (docCid != null && docCid == currentCid) {
+      return true;
+    }
+
+    // 4. Nested subcollection check for .../organizations/{cid}/...
+    return path.contains('/organizations/$currentCid/');
   }
 
   // â”€â”€ Global (cross-company) refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -108,6 +128,77 @@ class FirestoreService {
   /// `organizations/{orgId}/shifts`
   static CollectionReference<Map<String, dynamic>> orgShiftsCol(String orgId) =>
       orgDoc(orgId).collection('shifts');
+
+  /// `organizations/{companyId}/shifts`
+  static CollectionReference<Map<String, dynamic>> get shiftsCol =>
+      orgShiftsCol(_cid);
+
+  /// Fetch the applicable shift document for a company/user.
+  /// 1. Checks by [shiftId] if specified on user doc
+  /// 2. Checks matching [department] or 'All'
+  /// 3. Falls back to first available shift in organizations/{companyId}/shifts
+  static Future<Map<String, dynamic>?> fetchApplicableShift({
+    String? companyId,
+    String? shiftId,
+    String? department,
+  }) async {
+    final cid = companyId ?? _cid;
+    try {
+      final col = orgShiftsCol(cid);
+
+      // 1. By explicit shiftId
+      if (shiftId != null && shiftId.isNotEmpty) {
+        final doc = await col.doc(shiftId).get();
+        if (doc.exists && doc.data() != null) {
+          final data = Map<String, dynamic>.from(doc.data()!);
+          data['id'] = doc.id;
+          return data;
+        }
+      }
+
+      // 2. Fetch all shifts for the org
+      final qs = await col.get();
+      if (qs.docs.isNotEmpty) {
+        // Look for matching department
+        if (department != null && department.isNotEmpty) {
+          for (final doc in qs.docs) {
+            final data = doc.data();
+            final depts = data['depts'] ?? data['departments'];
+            if (depts is List && depts.any((d) => d.toString().toLowerCase() == department.toLowerCase())) {
+              final dMap = Map<String, dynamic>.from(data);
+              dMap['id'] = doc.id;
+              return dMap;
+            }
+            if (depts is String && (depts.toLowerCase() == department.toLowerCase())) {
+              final dMap = Map<String, dynamic>.from(data);
+              dMap['id'] = doc.id;
+              return dMap;
+            }
+          }
+        }
+
+        // Look for shift with depts: "All"
+        for (final doc in qs.docs) {
+          final data = doc.data();
+          final depts = data['depts'] ?? data['departments'];
+          if (depts == 'All' || depts == 'all' || (depts is List && depts.contains('All'))) {
+            final dMap = Map<String, dynamic>.from(data);
+            dMap['id'] = doc.id;
+            return dMap;
+          }
+        }
+
+        // Fallback to the first shift
+        final firstDoc = qs.docs.first;
+        final dMap = Map<String, dynamic>.from(firstDoc.data());
+        dMap['id'] = firstDoc.id;
+        return dMap;
+      }
+    } catch (e) {
+      debugPrint('Error fetching applicable shift for $cid: $e');
+    }
+    return null;
+  }
 
   /// `organizations/{orgId}/policies`
   static CollectionReference<Map<String, dynamic>> orgPoliciesCol(
@@ -198,22 +289,28 @@ class FirestoreService {
   // â”€â”€ Collection Group Queries (Manager Access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These allow managers to query all records across all employees in the company.
 
-  /// All attendance records for the current company via collection group query.
-  static Query<Map<String, dynamic>> get allAttendanceRecordsCol {
-    return _db.collectionGroup('attendance');
-  }
+  /// All attendance records for the current company (strictly scoped)
+  static CollectionReference<Map<String, dynamic>> get attendanceCol =>
+      companyDoc().collection('attendance');
 
-  /// All leave requests for the current company via collection group query.
-  static Query<Map<String, dynamic>> get allLeaveRequestsQuery {
-    return _db.collectionGroup('leave_requests');
-  }
+  static Query<Map<String, dynamic>> get allAttendanceRecordsCol =>
+      attendanceCol;
 
-  /// All overtime requests for the current company via collection group query.
-  static Query<Map<String, dynamic>> get allOvertimeRequestsQuery {
-    return _db.collectionGroup('overtime_requests');
-  }
+  /// All leave requests for the current company (strictly scoped to company)
+  static CollectionReference<Map<String, dynamic>> get leaveRequestsCol =>
+      companyDoc().collection('leave_requests');
 
-  /// All attendance corrections for the current company via collection group query (if sub-collections) or flat
+  static Query<Map<String, dynamic>> get allLeaveRequestsQuery =>
+      leaveRequestsCol;
+
+  /// All overtime requests for the current company (strictly scoped)
+  static CollectionReference<Map<String, dynamic>> get overtimeRequestsCol =>
+      companyDoc().collection('overtime_requests');
+
+  static Query<Map<String, dynamic>> get allOvertimeRequestsQuery =>
+      overtimeRequestsCol;
+
+  /// All attendance corrections for the current company
   static Query<Map<String, dynamic>> get allAttendanceIssuesQuery {
     return companyDoc().collection('attendance_issues');
   }
@@ -233,21 +330,18 @@ class FirestoreService {
     return companyDoc().collection('task_requests');
   }
 
-  /// All notifications for the current company via collection group query.
+  /// All notifications for the current company
   static Query<Map<String, dynamic>> get allNotificationsQuery {
-    return _db
-        .collectionGroup('notifications')
-        .where('companyId', isEqualTo: _cid);
+    return companyDoc().collection('notifications');
   }
 
-  /// All tasks for the current company via collection group query.
-  static Query<Map<String, dynamic>> get allTasksQuery {
-    return _db.collectionGroup('tasks').where('companyId', isEqualTo: _cid);
-  }
+  /// All tasks for the current company (strictly scoped)
+  static Query<Map<String, dynamic>> get allTasksQuery =>
+      tasksCol;
 
   /// Alias for backward compatibility
   static Query<Map<String, dynamic>> get companyLeaveRequestsQuery =>
-      allLeaveRequestsQuery;
+      leaveRequestsCol;
 
   // â”€â”€ Global Company Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These are notifications meant for the entire company, not a specific user.
@@ -287,10 +381,6 @@ class FirestoreService {
   // â”€â”€ Legacy / Flat Collections (To be removed after migration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   /// @deprecated Use [userAttendanceCol]
-  static CollectionReference<Map<String, dynamic>> get attendanceCol =>
-      companyDoc().collection('attendance');
-
-  /// @deprecated Use [userAttendanceCol]
   static CollectionReference<Map<String, dynamic>> attendanceRecordsCol(
       String uidOrEmail) {
     // Attempting to maintain some compatibility during transition
@@ -298,17 +388,9 @@ class FirestoreService {
     return attendanceCol.doc(uidOrEmail).collection('records');
   }
 
-  /// @deprecated Use [userLeaveRequestsCol]
-  static CollectionReference<Map<String, dynamic>> get leaveRequestsCol =>
-      companyDoc().collection('leave_requests');
-
   /// @deprecated Use [userNotificationsCol]
   static CollectionReference<Map<String, dynamic>> get notificationsCol =>
       companyDoc().collection('notifications');
-
-  /// @deprecated Use [userOvertimeRequestsCol]
-  static CollectionReference<Map<String, dynamic>> get overtimeRequestsCol =>
-      companyDoc().collection('overtime_requests');
 
   // â”€â”€ Legacy Compatibility Aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // These aliases keep existing UI code working without mass renames.
@@ -351,7 +433,15 @@ class FirestoreService {
     final cleanEmail = email.trim().toLowerCase();
     final timeStr = DateFormat('hh:mm a').format(now);
     final dateKey = DateFormat('yyyy-MM-dd').format(now);
-    final isLate = now.hour >= 9 && (now.hour > 9 || now.minute > 15);
+    
+    // Dynamic company/shift-aware late calculation from stored shift
+    final customShift = additionalData?['shiftStartTime'] as String?;
+    final customGrace = (additionalData?['gracePeriod'] as num?)?.toInt();
+    final isLate = AppSession().isCheckInLate(
+      now,
+      customShiftStart: customShift,
+      customGracePeriod: customGrace,
+    );
 
     String normalizedStatus = 'Present';
     if (status != null && status.isNotEmpty) {
@@ -374,6 +464,12 @@ class FirestoreService {
       'employeeId': cleanEmail,
       'name': AppSession().userName ?? cleanEmail,
       'status': normalizedStatus,
+      'isLate': isCheckIn ? isLate : false,
+      'shiftId': AppSession().shiftId ?? 'default',
+      'shiftName': AppSession().shiftName,
+      'shiftStartTime': customShift ?? AppSession().shiftStartTime,
+      'shiftEndTime': additionalData?['shiftEndTime'] as String? ?? AppSession().shiftEndTime,
+      'gracePeriod': customGrace ?? AppSession().gracePeriod,
       'date': dateKey, // Web app string format YYYY-MM-DD
       'dateTimestamp': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
       'recordDate': dateKey,

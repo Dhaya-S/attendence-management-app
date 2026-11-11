@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -201,13 +201,33 @@ class NotificationService {
   Future<void> _updateToken() async {
     try {
       String? token = await _fcm.getToken();
-      if (token != null && AppSession().email != null) {
-        final q = await FirestoreService.usersCol.where('email', isEqualTo: AppSession().email).limit(1).get();
-        if (q.docs.isNotEmpty) {
-          await q.docs.first.reference.update({
+      final email = AppSession().email;
+      final companyId = AppSession().companyId;
+      if (token != null && email != null && companyId != null) {
+        // Write directly to the user's document in THEIR org — never use the
+        // singleton usersCol which always points to the session-owner's company.
+        final userDocRef = FirestoreService.companyDoc(companyId)
+            .collection('users')
+            .doc(email.toLowerCase());
+        final snap = await userDocRef.get();
+        if (snap.exists) {
+          await userDocRef.update({
             'fcmToken': token,
             'lastTokenUpdate': FieldValue.serverTimestamp(),
           });
+        } else {
+          // Try querying by email field in case the doc ID is different
+          final q = await FirestoreService.companyDoc(companyId)
+              .collection('users')
+              .where('email', isEqualTo: email)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            await q.docs.first.reference.update({
+              'fcmToken': token,
+              'lastTokenUpdate': FieldValue.serverTimestamp(),
+            });
+          }
         }
       }
     } catch (e) {

@@ -14,28 +14,24 @@ service cloud.firestore {
     }
     
     // Helper to fetch the user's mapping document once
-    function getApprovedUser() {
+    function userCompanyId() {
       let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
       let userPath = /databases/$(database)/documents/approved_users/$(email);
-      return exists(userPath) ? get(userPath).data : null;
-    }
-
-    function userCompanyId() {
-      let user = getApprovedUser();
-      return user != null ? (
-        (user.keys().hasAll(["companyId"]) && user.companyId != null && user.companyId != "") ? user.companyId :
-        (user.keys().hasAll(["orgId"]) && user.orgId != null && user.orgId != "") ? user.orgId : "NONE"
-      ) : "NONE";
+      return exists(userPath) ? 
+        (get(userPath).data.get('companyId', '') != '' ? get(userPath).data.get('companyId', '') : get(userPath).data.get('orgId', 'NONE')) 
+        : 'NONE';
     }
 
     function isManager() {
-      let user = getApprovedUser();
-      // Case-insensitive check: handles "super_admin", "admin", "hr_admin", "manager"
-      return user != null && (
-        user.role == "super_admin" || user.role == "superadmin" || user.role == "SUPER_ADMIN" ||
-        user.role == "admin" || user.role == "Admin" || user.role == "ADMIN" ||
-        user.role == "hr_admin" || user.role == "hr" || user.role == "HR_ADMIN" ||
-        user.role == "manager" || user.role == "Manager" || user.role == "MANAGER"
+      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
+      let userPath = /databases/$(database)/documents/approved_users/$(email);
+      return exists(userPath) && (
+        get(userPath).data.get('role', '').lower() == "super_admin" ||
+        get(userPath).data.get('role', '').lower() == "superadmin" ||
+        get(userPath).data.get('role', '').lower() == "admin" ||
+        get(userPath).data.get('role', '').lower() == "hr_admin" ||
+        get(userPath).data.get('role', '').lower() == "hradmin" ||
+        get(userPath).data.get('role', '').lower() == "manager"
       );
     }
 
@@ -47,31 +43,66 @@ service cloud.firestore {
 
     // Helper to check if current user is an admin of a specific org
     function isOrgAdmin(orgId) {
-      let user = getApprovedUser();
-      let isApprovedAdmin = user != null && (
-        (user.keys().hasAll(["companyId"]) && user.companyId == orgId) ||
-        (user.keys().hasAll(["orgId"]) && user.orgId == orgId)
-      ) && (
-        user.role == "admin" || user.role == "Admin" || user.role == "ADMIN" ||
-        user.role == "hr_admin" || user.role == "HR_ADMIN" || user.role == "hradmin" ||
-        user.role == "super_admin" || user.role == "SUPER_ADMIN"
+      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
+      let userPath = /databases/$(database)/documents/approved_users/$(email);
+      let isApprovedAdmin = exists(userPath) && (
+        (get(userPath).data.get('companyId', '') == orgId || get(userPath).data.get('orgId', '') == orgId) &&
+        (
+          get(userPath).data.get('role', '').lower() == "admin" ||
+          get(userPath).data.get('role', '').lower() == "hr_admin" ||
+          get(userPath).data.get('role', '').lower() == "hradmin" ||
+          get(userPath).data.get('role', '').lower() == "super_admin" ||
+          get(userPath).data.get('role', '').lower() == "superadmin" ||
+          get(userPath).data.get('role', '').lower() == "manager"
+        )
       );
+
+      let orgUserPath = /databases/$(database)/documents/organizations/$(orgId)/users/$(email);
+      let isOrgUserAdmin = exists(orgUserPath) && (
+        get(orgUserPath).data.get('role', '').lower() == "admin" ||
+        get(orgUserPath).data.get('role', '').lower() == "hr_admin" ||
+        get(orgUserPath).data.get('role', '').lower() == "hradmin" ||
+        get(orgUserPath).data.get('role', '').lower() == "super_admin" ||
+        get(orgUserPath).data.get('role', '').lower() == "superadmin" ||
+        get(orgUserPath).data.get('role', '').lower() == "manager"
+      );
+
       let memberDoc = /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid);
-      return isApprovedAdmin || (exists(memberDoc) && (
-        get(memberDoc).data.role == "admin" ||
-        get(memberDoc).data.role == "hr_admin" ||
-        get(memberDoc).data.role == "HR_ADMIN" ||
-        get(memberDoc).data.role == "super_admin" ||
-        get(memberDoc).data.role == "SUPER_ADMIN"
-      ));
+      let isMemberAdmin = exists(memberDoc) && (
+        get(memberDoc).data.get('role', '').lower() == "admin" ||
+        get(memberDoc).data.get('role', '').lower() == "hr_admin" ||
+        get(memberDoc).data.get('role', '').lower() == "hradmin" ||
+        get(memberDoc).data.get('role', '').lower() == "super_admin" ||
+        get(memberDoc).data.get('role', '').lower() == "superadmin"
+      );
+
+      let orgDocPath = /databases/$(database)/documents/organizations/$(orgId);
+      let isOrgDocAdmin = exists(orgDocPath) && (
+        (get(orgDocPath).data.get('superAdminEmail', '').lower() == email) ||
+        (get(orgDocPath).data.get('managerEmail', '').lower() == email) ||
+        (get(orgDocPath).data.get('contactEmail', '').lower() == email) ||
+        (get(orgDocPath).data.get('adminDetails', {}).get('email', '').lower() == email)
+      );
+
+      return isSignedIn() && (isApprovedAdmin || isOrgUserAdmin || isMemberAdmin || isOrgDocAdmin || orgId == request.auth.uid || isAdmin());
     }
 
     function isOrgMember(orgId) {
-      return isSignedIn() && (userCompanyId() == orgId || isOrgAdmin(orgId) || isAdmin());
+      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
+      let userPath = /databases/$(database)/documents/approved_users/$(email);
+      let isApprovedMember = exists(userPath) && (
+        get(userPath).data.get('companyId', '') == orgId ||
+        get(userPath).data.get('orgId', '') == orgId
+      );
+
+      let orgUserPath = /databases/$(database)/documents/organizations/$(orgId)/users/$(email);
+      let isOrgUser = exists(orgUserPath);
+
+      return isSignedIn() && (isApprovedMember || isOrgUser || isOrgAdmin(orgId) || isAdmin() || orgId == request.auth.uid);
     }
 
     function isOrgManager(orgId) {
-      return isSignedIn() && ((userCompanyId() == orgId && isManager()) || isOrgAdmin(orgId) || isAdmin());
+      return isSignedIn() && (isOrgAdmin(orgId) || (userCompanyId() == orgId && isManager()) || isAdmin() || orgId == request.auth.uid);
     }
 
     // 1. Global mapping used during login - Force Case-Insensitive Deploy
@@ -82,6 +113,7 @@ service cloud.firestore {
         isManager() ||  // Managers need to check if an email is already registered
         (resource != null && resource.data.companyId == userCompanyId()) || 
         (resource != null && resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId)) ||
+        (resource != null && resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(resource.data.companyId)) ||
         isAdmin()
       );
       
@@ -90,7 +122,8 @@ service cloud.firestore {
       allow create: if isAdmin() || (isSignedIn() && (
         isOwner(email) ||
         (isManager() && request.resource.data.companyId == userCompanyId()) ||
-        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId))
+        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId)) ||
+        (request.resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(request.resource.data.companyId))
       ));
 
       // Users can update their own entry without changing role/companyId (unless completing initial setup)
@@ -101,12 +134,14 @@ service cloud.firestore {
           (resource.data.setupComplete == false)
         )) ||
         (isManager() && request.resource.data.companyId == userCompanyId() && resource.data.companyId == userCompanyId()) ||
-        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId) && resource.data.orgId == request.resource.data.orgId)
+        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId) && resource.data.orgId == request.resource.data.orgId) ||
+        (request.resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(request.resource.data.companyId) && resource.data.companyId == resource.data.companyId)
       ));
 
       allow delete: if isAdmin() || (isSignedIn() && (
         (isManager() && resource.data.companyId == userCompanyId()) ||
-        (resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId))
+        (resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId)) ||
+        (resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(resource.data.companyId))
       ));
     }
     
@@ -158,7 +193,16 @@ service cloud.firestore {
     // 1.6 Organizations (Secure Multi-Tenant Architecture)
     match /organizations/{orgId} {
       allow read, write: if isAdmin();
-      allow read: if isOrgMember(orgId);
+      // Allow any signed-in user to READ an org document if their email matches
+      // the org's admin/contact fields. This is required for the login org-discovery
+      // flow — web-registered HR admins are NOT in approved_users yet, so we must
+      // let them query the organizations collection to find their own org.
+      allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.token.email != null && (
+        resource.data.get('superAdminEmail', '').lower() == request.auth.token.email.lower() ||
+        resource.data.get('managerEmail', '').lower() == request.auth.token.email.lower() ||
+        resource.data.get('contactEmail', '').lower() == request.auth.token.email.lower() ||
+        resource.data.get('adminDetails', {}).get('email', '').lower() == request.auth.token.email.lower()
+      ));
       allow create: if isSignedIn();
       allow update: if isOrgManager(orgId);
       allow delete: if isAdmin();
@@ -534,6 +578,21 @@ service cloud.firestore {
     } // end match /approved_companies/{companyId}
 
     // 3. Collection Group Queries (Essential for Managers using collectionGroup) — v2 fix: 2026-05-18
+    // Also used for org-discovery login: a user can read their own user doc via collectionGroup
+    match /{path=**}/users/{userId} {
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        isOwner(userId) ||
+        // Allow reading own doc via email match (for login org-discovery)
+        (request.auth.token.email != null && request.auth.token.email.lower() == userId.lower()) ||
+        // Managers can read users in their company
+        (isManager() && userCompanyId() != "NONE")
+      );
+      allow write: if isSignedIn() && (
+        isAdmin() ||
+        (isManager() && userCompanyId() != "NONE")
+      );
+    }
     match /{path=**}/records/{recordId} {
       allow read: if isSignedIn() && (
         // Managers: auth-token check only (no resource.data needed for list queries)

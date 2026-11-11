@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/screens/employee_profile_detail_screen.dart';
@@ -10,7 +10,7 @@ class DepartmentDetailScreen extends StatefulWidget {
   const DepartmentDetailScreen({
     super.key,
     required this.departmentName,
-    required this.members,
+    this.members = const [],
   });
 
   @override

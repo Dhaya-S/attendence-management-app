@@ -113,11 +113,15 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
                 if (checkInTs != null) {
                   final ci = checkInTs.toDate();
-                  final sParts = AppSession().shiftStartTime.split(':');
-                  final lateThreshold = DateTime(ci.year, ci.month, ci.day,
-                      int.parse(sParts[0]), int.parse(sParts[1]))
-                      .add(Duration(minutes: AppSession().gracePeriod));
-                  if (ci.isAfter(lateThreshold)) {
+                  final customShift = data['shiftStartTime'] as String?;
+                  final customGrace = (data['gracePeriod'] as num?)?.toInt();
+                  final isLate = data['isLate'] == true ||
+                      AppSession().isCheckInLate(
+                        ci,
+                        customShiftStart: customShift,
+                        customGracePeriod: customGrace,
+                      );
+                  if (isLate) {
                     lateLogs.add({
                       'name': empName,
                       'designation': designation,
@@ -130,10 +134,8 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
 
                 if (checkOutTs != null) {
                   final co = checkOutTs.toDate();
-                  final eParts = AppSession().shiftEndTime.split(':');
-                  final endThreshold = DateTime(co.year, co.month, co.day,
-                      int.parse(eParts[0]), int.parse(eParts[1]));
-                  if (co.isBefore(endThreshold)) {
+                  final customEnd = data['shiftEndTime'] as String?;
+                  if (AppSession().isCheckOutEarly(co, customShiftEnd: customEnd)) {
                     earlyLogs.add({
                       'name': empName,
                       'designation': designation,
@@ -348,8 +350,8 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
         ? DateFormat('hh:mm a').format(log['checkIn'] as DateTime)
         : DateFormat('hh:mm a').format(log['checkOut'] as DateTime);
     final String expectedTime = isLate
-        ? _formatShiftTime(AppSession().shiftStartTime)
-        : _formatShiftTime(AppSession().shiftEndTime);
+        ? _formatShiftTime(log['shiftStartTime'] as String? ?? AppSession().shiftStartTime)
+        : _formatShiftTime(log['shiftEndTime'] as String? ?? AppSession().shiftEndTime);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -470,7 +472,8 @@ class _LateEarlyExitScreenState extends State<LateEarlyExitScreen> {
   }
 
   // â”€â”€ Shift Time Formatter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  String _formatShiftTime(String hhmm) {
+  String _formatShiftTime(String? hhmm) {
+    if (hhmm == null || hhmm.isEmpty) return '--:--';
     final parts = hhmm.split(':');
     final hour = int.tryParse(parts[0]) ?? 0;
     final minute = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;

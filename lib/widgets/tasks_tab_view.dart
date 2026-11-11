@@ -84,35 +84,38 @@ class _TasksTabViewState extends State<TasksTabView> {
     final userName = (AppSession().userName ?? FirebaseAuth.instance.currentUser?.displayName ?? '').trim().toLowerCase();
     final userUid = (AppSession().uid ?? FirebaseAuth.instance.currentUser?.uid ?? '').trim().toLowerCase();
 
-    // Web App Compatibility: check assignees array
+    // 1. Web App Compatibility: check assignees array
     if (data['assignees'] is List) {
       final list = (data['assignees'] as List).map((e) => e.toString().trim().toLowerCase()).toList();
-      if (list.contains(userEmail)) return true;
+      if (userEmail.isNotEmpty && list.contains(userEmail)) return true;
+      if (userUid.isNotEmpty && list.contains(userUid)) return true;
     }
 
-    // Web App Compatibility: check assignee map object
+    // 2. Web App Compatibility: check assignee map object
     if (data['assignee'] is Map) {
       final aMap = data['assignee'] as Map;
       final aMail = (aMap['email'] ?? aMap['userEmail'] ?? '').toString().trim().toLowerCase();
-      if (aMail.isNotEmpty && (aMail == userEmail || userEmail.contains(aMail))) return true;
+      final aUid = (aMap['uid'] ?? aMap['userId'] ?? '').toString().trim().toLowerCase();
+      if (userEmail.isNotEmpty && aMail.isNotEmpty && aMail == userEmail) return true;
+      if (userUid.isNotEmpty && aUid.isNotEmpty && aUid == userUid) return true;
     }
 
     final assigneeEmail = (data['assigneeEmail'] ?? data['assignedToEmail'] ?? data['employeeEmail'] ?? data['email'] ?? '').toString().trim().toLowerCase();
-    final assignee = (data['assignee'] ?? data['assigneeName'] ?? data['assignedTo'] ?? data['userEmail'] ?? '').toString().trim().toLowerCase();
-    final assigneeUid = (data['userId'] ?? data['uid'] ?? data['assignedToUid'] ?? '').toString().trim().toLowerCase();
+    final assignee = (data['assignee'] is String ? data['assignee'] : (data['assigneeName'] ?? data['assignedTo'] ?? '')).toString().trim().toLowerCase();
+    final assigneeUid = (data['userId'] ?? data['uid'] ?? data['assignedToUid'] ?? data['assigneeId'] ?? '').toString().trim().toLowerCase();
 
+    // Exact UID match
     if (userUid.isNotEmpty && assigneeUid.isNotEmpty && userUid == assigneeUid) return true;
 
-    if (userEmail.isNotEmpty && assigneeEmail.isNotEmpty) {
-      if (assigneeEmail == userEmail || assigneeEmail.contains(userEmail) || userEmail.contains(assigneeEmail)) return true;
+    // Exact Email match
+    if (userEmail.isNotEmpty) {
+      if (assigneeEmail.isNotEmpty && assigneeEmail == userEmail) return true;
+      if (assignee.isNotEmpty && assignee == userEmail) return true;
     }
 
-    if (userEmail.isNotEmpty && assignee.isNotEmpty) {
-      if (assignee == userEmail || assignee.contains(userEmail) || userEmail.contains(assignee)) return true;
-    }
-
-    if (userName.isNotEmpty && assignee.isNotEmpty) {
-      if (assignee == userName || assignee.contains(userName) || userName.contains(assignee)) return true;
+    // Exact Name match (only if assigneeEmail is empty)
+    if (userName.isNotEmpty && assignee.isNotEmpty && assigneeEmail.isEmpty) {
+      if (assignee == userName) return true;
     }
 
     return false;

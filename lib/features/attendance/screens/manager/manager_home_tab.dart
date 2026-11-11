@@ -129,8 +129,10 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
       );
       
       if (isCheckIn) {
-        final eParts = AppSession().shiftEndTime.split(':');
-        await NotificationService().scheduleCheckoutReminder(DateTime(now.year, now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1])));
+        final shiftEnd = AppSession().getShiftEndDateTime(date: now);
+        if (shiftEnd != null) {
+          await NotificationService().scheduleCheckoutReminder(shiftEnd);
+        }
       } else {
         await NotificationService().cancelCheckoutReminder();
       }
@@ -200,14 +202,16 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
     if (checkIn == null) return '0 min';
     final now = checkOut?.toDate() ?? DateTime.now();
     try {
-      final sParts = AppSession().shiftStartTime.split(':');
-      final eParts = AppSession().shiftEndTime.split(':');
-      final shiftDur = Duration(hours: int.parse(eParts[0]), minutes: int.parse(eParts[1])) -
-          Duration(hours: int.parse(sParts[0]), minutes: int.parse(sParts[1]));
-      final worked = now.difference(checkIn.toDate());
-      if (worked > shiftDur) {
-        final ot = worked - shiftDur;
-        return ot.inHours > 0 ? '${ot.inHours}h ${ot.inMinutes % 60}m' : '${ot.inMinutes} min';
+      if (AppSession().shiftStartTime != null && AppSession().shiftEndTime != null) {
+        final sParts = AppSession().shiftStartTime!.split(':');
+        final eParts = AppSession().shiftEndTime!.split(':');
+        final shiftDur = Duration(hours: int.parse(eParts[0]), minutes: int.parse(eParts[1])) -
+            Duration(hours: int.parse(sParts[0]), minutes: int.parse(sParts[1]));
+        final worked = now.difference(checkIn.toDate());
+        if (worked > shiftDur) {
+          final ot = worked - shiftDur;
+          return ot.inHours > 0 ? '${ot.inHours}h ${ot.inMinutes % 60}m' : '${ot.inMinutes} min';
+        }
       }
     } catch (_) {}
     return '0 min';
@@ -989,10 +993,13 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                       bool isLate = false;
                       if (checkInTs != null && workMode != 'wfh') {
                         final checkIn = checkInTs.toDate();
-                        final sParts = AppSession().shiftStartTime.split(':');
-                        final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day, int.parse(sParts[0]), int.parse(sParts[1]))
-                            .add(Duration(minutes: AppSession().gracePeriod));
-                        if (checkIn.isAfter(lateThreshold) && remarkStatus != 'approved') {
+                        final customShift = r['shiftStartTime'] as String?;
+                        final customGrace = (r['gracePeriod'] as num?)?.toInt();
+                        if ((r['isLate'] == true ||
+                                AppSession().isCheckInLate(checkIn,
+                                    customShiftStart: customShift,
+                                    customGracePeriod: customGrace)) &&
+                            remarkStatus != 'approved') {
                           isLate = true;
                         }
                       }
@@ -1888,15 +1895,11 @@ class _ManagerHomeTabState extends State<ManagerHomeTab> {
                         else if (checkIn != null) {
                           if (workMode == 'wfh') status = 'WFH';
                           else {
-                            // simple late logic
+                            // dynamic database-driven late logic
                             status = 'Present';
-                            final sParts = AppSession().shiftStartTime.split(':');
-                            if (sParts.length == 2) {
-                              final dt = (checkIn as Timestamp).toDate();
-                              final s = DateTime(dt.year, dt.month, dt.day, int.parse(sParts[0]), int.parse(sParts[1]));
-                              if (dt.isAfter(s.add(Duration(minutes: AppSession().gracePeriod)))) {
-                                status = 'Late';
-                              }
+                            final dt = (checkIn as Timestamp).toDate();
+                            if (AppSession().isCheckInLate(dt)) {
+                              status = 'Late';
                             }
                           }
                         }

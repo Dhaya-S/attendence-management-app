@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 /// AppSession – Global in-memory state for the authenticated user.
 ///
@@ -33,14 +34,66 @@ class AppSession {
   /// Radius (in metres) within which check-in is allowed.
   double allowedRadius = 500;
 
+  /// Shift ID from database (e.g. S1788254128791)
+  String? shiftId;
+
+  String? _shiftName;
+  String? _shiftStartTime;
+  String? _shiftEndTime;
+  int? _gracePeriod;
+  int? _halfDayHours;
+  String? _shiftDays;
+
+  /// Whether custom shift has been loaded from database
+  bool get isShiftLoaded => _shiftStartTime != null && _shiftEndTime != null;
+
+  /// Shift name (e.g. "mor", "General Shift", "Night Shift")
+  String get shiftName => _shiftName ?? "General Shift";
+  set shiftName(String? val) {
+    _shiftName = val;
+    permissionsNotifier.value++;
+  }
+
   /// Shift start time in HH:mm format (24h)
-  String shiftStartTime = "09:00";
+  String get shiftStartTime => _shiftStartTime ?? "09:00";
+  set shiftStartTime(String? val) {
+    _shiftStartTime = val != null ? normalizeTimeString(val) : null;
+    permissionsNotifier.value++;
+  }
 
   /// Shift end time in HH:mm format (24h)
-  String shiftEndTime = "18:00";
+  String get shiftEndTime => _shiftEndTime ?? "18:00";
+  set shiftEndTime(String? val) {
+    _shiftEndTime = val != null ? normalizeTimeString(val) : null;
+    permissionsNotifier.value++;
+  }
 
   /// Grace period in minutes
-  int gracePeriod = 15;
+  int get gracePeriod => _gracePeriod ?? 15;
+  set gracePeriod(int? val) {
+    _gracePeriod = val;
+    permissionsNotifier.value++;
+  }
+
+  /// Half-day requirement in hours
+  int get halfDayHours => _halfDayHours ?? 4;
+  set halfDayHours(int? val) {
+    _halfDayHours = val;
+    permissionsNotifier.value++;
+  }
+
+  /// Working days (e.g. "Mon-Fri")
+  String get shiftDays => _shiftDays ?? "Mon-Fri";
+  set shiftDays(String? val) {
+    _shiftDays = val;
+    permissionsNotifier.value++;
+  }
+
+  /// Raw database values (null if not loaded from database)
+  String? get rawShiftStartTime => _shiftStartTime;
+  String? get rawShiftEndTime => _shiftEndTime;
+  String? get rawShiftName => _shiftName;
+  int? get rawGracePeriod => _gracePeriod;
 
   /// Annual paid leave entitlement per employee (days)
   int paidLeavesPerYear = 12;
@@ -49,6 +102,115 @@ class AppSession {
   /// This is read from organizations/{companyId}.isGeofencingEnabled.
   /// Defaults to true (enforce geofencing when featurePermissions says so).
   bool isGeofencingEnabled = true;
+
+  // ── Shift & Late Attendance Calculation Helpers ──────────────────────────
+
+  /// Parses minute values from dynamic types (e.g. "15 min", "15", 15).
+  static int? parseMinutes(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toInt();
+    final match = RegExp(r'\d+').firstMatch(v.toString());
+    if (match != null) {
+      return int.tryParse(match.group(0)!);
+    }
+    return null;
+  }
+
+  /// Normalizes time strings like "9:00", "09:00", "9:00 AM", "6:00 PM" into "HH:mm".
+  static String normalizeTimeString(String timeStr) {
+    final clean = timeStr.trim();
+    if (clean.toLowerCase().contains('am') || clean.toLowerCase().contains('pm')) {
+      try {
+        final dt = DateFormat('hh:mm a').parseLoose(clean);
+        return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+      } catch (_) {}
+    }
+    final parts = clean.split(':');
+    if (parts.length >= 2) {
+      final h = int.tryParse(parts[0]) ?? 9;
+      final m = int.tryParse(parts[1].replaceAll(RegExp(r'\D'), '')) ?? 0;
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    }
+    return clean;
+  }
+
+  /// Updates active shift details from a Firestore shift map (e.g. from organizations/{companyId}/shifts).
+  void updateShiftFromMap(Map<String, dynamic>? data, {String? docId}) {
+    if (data == null) return;
+    shiftId = data['id']?.toString() ?? docId ?? shiftId;
+    if (data['name'] != null && data['name'].toString().trim().isNotEmpty) {
+      _shiftName = data['name'].toString().trim();
+    }
+
+    // Checkin / Start time (supports checkin, shiftStartTime, startTime, start)
+    final cin = data['checkin'] ?? data['shiftStartTime'] ?? data['startTime'] ?? data['start'];
+    if (cin != null && cin.toString().trim().isNotEmpty) {
+      _shiftStartTime = normalizeTimeString(cin.toString().trim());
+    }
+
+    // Checkout / End time (supports checkout, shiftEndTime, endTime, end)
+    final cout = data['checkout'] ?? data['shiftEndTime'] ?? data['endTime'] ?? data['end'];
+    if (cout != null && cout.toString().trim().isNotEmpty) {
+      _shiftEndTime = normalizeTimeString(cout.toString().trim());
+    }
+
+    // Grace / Late period in minutes (supports "15 min", "15", 15)
+    final g = data['grace'] ?? data['late'] ?? data['gracePeriod'] ?? data['grace_period'];
+    if (g != null) {
+      final parsedG = parseMinutes(g);
+      if (parsedG != null) _gracePeriod = parsedG;
+    }
+
+    // Halfday (supports "4 hrs", "4", 4)
+    final hd = data['halfday'] ?? data['halfDay'] ?? data['half_day'];
+    if (hd != null) {
+      final parsedHd = parseMinutes(hd);
+      if (parsedHd != null) _halfDayHours = parsedHd;
+    }
+
+    if (data['days'] != null && data['days'].toString().trim().isNotEmpty) {
+      _shiftDays = data['days'].toString().trim();
+    }
+
+    permissionsNotifier.value++;
+  }
+
+  /// Returns the DateTime threshold for when attendance is considered late on [date].
+  DateTime getLateThreshold({DateTime? date, String? customShiftStart, int? customGracePeriod}) {
+    final d = date ?? DateTime.now();
+    final timeStr = customShiftStart ?? shiftStartTime;
+    final parts = timeStr.split(':');
+    final h = int.tryParse(parts[0]) ?? 9;
+    final m = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    final grace = customGracePeriod ?? gracePeriod;
+    return DateTime(d.year, d.month, d.day, h, m).add(Duration(minutes: grace));
+  }
+
+  /// Determines whether [time] is late according to shift start and grace period.
+  bool isCheckInLate(DateTime time, {String? customShiftStart, int? customGracePeriod}) {
+    final threshold = getLateThreshold(
+      date: time,
+      customShiftStart: customShiftStart,
+      customGracePeriod: customGracePeriod,
+    );
+    return time.isAfter(threshold);
+  }
+
+  /// Returns the shift end DateTime for [date] (defaults to now).
+  DateTime getShiftEndDateTime({DateTime? date, String? customShiftEnd}) {
+    final d = date ?? DateTime.now();
+    final timeStr = customShiftEnd ?? shiftEndTime;
+    final parts = timeStr.split(':');
+    final h = int.tryParse(parts[0]) ?? 18;
+    final m = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+    return DateTime(d.year, d.month, d.day, h, m);
+  }
+
+  /// Determines whether [time] is an early exit according to shift end time.
+  bool isCheckOutEarly(DateTime time, {String? customShiftEnd}) {
+    final endThreshold = getShiftEndDateTime(date: time, customShiftEnd: customShiftEnd);
+    return time.isBefore(endThreshold);
+  }
 
   // ── Role helpers ─────────────────────────────────────────────────────────
 
@@ -361,6 +523,10 @@ class AppSession {
     String? shiftStartTime,
     String? shiftEndTime,
     int? gracePeriod,
+    String? shiftId,
+    String? shiftName,
+    int? halfDayHours,
+    String? shiftDays,
     int? paidLeavesPerYear,
     Map<String, dynamic>? featurePermissions,
     bool? isGeofencingEnabled,
@@ -378,6 +544,10 @@ class AppSession {
     if (shiftStartTime != null) this.shiftStartTime = shiftStartTime;
     if (shiftEndTime != null) this.shiftEndTime = shiftEndTime;
     if (gracePeriod != null) this.gracePeriod = gracePeriod;
+    if (shiftId != null) this.shiftId = shiftId;
+    if (shiftName != null) this.shiftName = shiftName;
+    if (halfDayHours != null) this.halfDayHours = halfDayHours;
+    if (shiftDays != null) this.shiftDays = shiftDays;
     if (paidLeavesPerYear != null) this.paidLeavesPerYear = paidLeavesPerYear;
     if (featurePermissions != null) {
       this.featurePermissions = featurePermissions;
@@ -414,9 +584,13 @@ class AppSession {
     officeLat = null;
     officeLng = null;
     allowedRadius = 500;
-    shiftStartTime = "09:00";
-    shiftEndTime = "18:00";
-    gracePeriod = 15;
+    shiftId = null;
+    _shiftName = null;
+    _shiftStartTime = null;
+    _shiftEndTime = null;
+    _gracePeriod = null;
+    _halfDayHours = null;
+    _shiftDays = null;
     paidLeavesPerYear = 12;
     featurePermissions = {};
     isGeofencingEnabled = true;

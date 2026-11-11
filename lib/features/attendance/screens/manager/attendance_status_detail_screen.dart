@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/theme/app_theme.dart';
@@ -251,11 +251,15 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
         if (checkInTs == null) return false;
         final checkIn = checkInTs.toDate();
         final remarkStatus = att['remarkStatus'] as String?;
-        final sParts = AppSession().shiftStartTime.split(':');
-        final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
-            int.parse(sParts[0]), int.parse(sParts[1]))
-            .add(Duration(minutes: AppSession().gracePeriod));
-        return checkIn.isAfter(lateThreshold) && remarkStatus != 'approved';
+        final customShift = att['shiftStartTime'] as String?;
+        final customGrace = (att['gracePeriod'] as num?)?.toInt();
+        final isLate = att['isLate'] == true ||
+            AppSession().isCheckInLate(
+              checkIn,
+              customShiftStart: customShift,
+              customGracePeriod: customGrace,
+            );
+        return isLate && remarkStatus != 'approved';
       }
       if (_currentFilter == 'Leave') return leave != null;
       if (_currentFilter == 'Absent') return att == null && leave == null;
@@ -302,11 +306,15 @@ class _AttendanceStatusDetailScreenState extends State<AttendanceStatusDetailScr
           final checkInTs = att['checkIn'] as Timestamp?;
           if (checkInTs != null) {
             final checkIn = checkInTs.toDate();
-          final sParts = AppSession().shiftStartTime.split(':');
-          final lateThreshold = DateTime(checkIn.year, checkIn.month, checkIn.day,
-              int.parse(sParts[0]), int.parse(sParts[1]))
-              .add(Duration(minutes: AppSession().gracePeriod));
-            if (checkIn.isAfter(lateThreshold) && status != 'WFH') {
+            final customShift = att['shiftStartTime'] as String?;
+            final customGrace = (att['gracePeriod'] as num?)?.toInt();
+            final isLate = att['isLate'] == true ||
+                AppSession().isCheckInLate(
+                  checkIn,
+                  customShiftStart: customShift,
+                  customGracePeriod: customGrace,
+                );
+            if (isLate && status != 'WFH') {
               status = 'Late';
               statusColor = AppTheme.warning;
             }

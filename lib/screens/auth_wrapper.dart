@@ -24,11 +24,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
   late Future<User?> _initialAuthFuture;
   StreamSubscription<DocumentSnapshot>? _orgSubscription;
   StreamSubscription<DocumentSnapshot>? _legacyOrgSubscription;
+  StreamSubscription<QuerySnapshot>? _shiftsSubscription;
 
   @override
   void dispose() {
     _orgSubscription?.cancel();
     _legacyOrgSubscription?.cancel();
+    _shiftsSubscription?.cancel();
     super.dispose();
   }
 
@@ -248,7 +250,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           }
         }
       } else {
-        // Fallback: find legacy company by managerEmail field
+        // ── Fallback 1: find org where this email is the managerEmail ────────
         final companySearch = await FirestoreService.findCompanyByManagerEmail(email);
         debugPrint('AUTH DEBUG: legacy companySearch docs count=${companySearch.docs.length}');
         if (companySearch.docs.isNotEmpty) {
@@ -261,6 +263,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             await FirestoreService.approvedUserDoc(email).set({
               'role': 'manager',
               'companyId': companyId,
+              'orgId': companyId,
               'email': email,
               'status': 'approved',
               'createdAt': FieldValue.serverTimestamp(),
@@ -270,10 +273,126 @@ class _AuthWrapperState extends State<AuthWrapper> {
             debugPrint('Manager auto-provisioning warning: $e');
           }
         } else {
-          // Check if they are in the users collection with an orgId?
-          final userQuery = await FirestoreService.usersCol.where('email', isEqualTo: email).limit(1).get();
-          if (userQuery.docs.isNotEmpty) {
-             debugPrint('AUTH DEBUG: user found in users collection: ${userQuery.docs.first.data()}');
+          // ── Fallback 2: search organizations collection for this email as
+          //    admin/super-admin. Web-registered org admins are stored in the
+          //    organizations collection directly, NOT in approved_users. ───────
+          debugPrint('AUTH DEBUG: searching organizations for admin email=$email');
+          String? foundOrgId;
+          String? foundRole;
+
+          // Check adminDetails.email field (most web-registered orgs use this)
+          try {
+            final adminDetailsSearch = await FirebaseFirestore.instance
+                .collection('organizations')
+                .where('adminDetails.email', isEqualTo: email)
+                .limit(1)
+                .get();
+            if (adminDetailsSearch.docs.isNotEmpty) {
+              foundOrgId = adminDetailsSearch.docs.first.id;
+              foundRole = 'hr_admin';
+              debugPrint('AUTH DEBUG: found org $foundOrgId via adminDetails.email');
+            }
+          } catch (e) {
+            debugPrint('AUTH DEBUG: adminDetails search error: $e');
+          }
+
+          // Check superAdminEmail field
+          if (foundOrgId == null) {
+            try {
+              final superAdminSearch = await FirebaseFirestore.instance
+                  .collection('organizations')
+                  .where('superAdminEmail', isEqualTo: email)
+                  .limit(1)
+                  .get();
+              if (superAdminSearch.docs.isNotEmpty) {
+                foundOrgId = superAdminSearch.docs.first.id;
+                foundRole = 'hr_admin';
+                debugPrint('AUTH DEBUG: found org $foundOrgId via superAdminEmail');
+              }
+            } catch (e) {
+              debugPrint('AUTH DEBUG: superAdminEmail search error: $e');
+            }
+          }
+
+          // Check contactEmail field
+          if (foundOrgId == null) {
+            try {
+              final contactSearch = await FirebaseFirestore.instance
+                  .collection('organizations')
+                  .where('contactEmail', isEqualTo: email)
+                  .limit(1)
+                  .get();
+              if (contactSearch.docs.isNotEmpty) {
+                foundOrgId = contactSearch.docs.first.id;
+                foundRole = 'hr_admin';
+                debugPrint('AUTH DEBUG: found org $foundOrgId via contactEmail');
+              }
+            } catch (e) {
+              debugPrint('AUTH DEBUG: contactEmail search error: $e');
+            }
+          }
+
+          // Last resort: search users subcollection across all orgs
+          if (foundOrgId == null) {
+            try {
+              final userGroupSearch = await FirebaseFirestore.instance
+                  .collectionGroup('users')
+                  .where('email', isEqualTo: email)
+                  .limit(1)
+                  .get();
+              if (userGroupSearch.docs.isNotEmpty) {
+                final ref = userGroupSearch.docs.first.reference;
+                // Path: organizations/{orgId}/users/{docId} — extract orgId
+                final segments = ref.path.split('/');
+                if (segments.length >= 2 && segments[0] == 'organizations') {
+                  foundOrgId = segments[1];
+                  final userData = userGroupSearch.docs.first.data();
+                  final rawR = (userData['role'] as String? ?? 'employee').toLowerCase();
+                  foundRole = (rawR == 'super_admin' || rawR == 'superadmin' ||
+                          rawR == 'admin' || rawR == 'hr_admin' || rawR == 'hradmin')
+                      ? 'hr_admin'
+                      : rawR == 'manager'
+                          ? 'manager'
+                          : 'employee';
+                  debugPrint('AUTH DEBUG: found org $foundOrgId via collectionGroup users');
+                }
+              }
+            } catch (e) {
+              debugPrint('AUTH DEBUG: collectionGroup users search error: $e');
+            }
+          }
+
+          if (foundOrgId != null && foundRole != null) {
+            role = foundRole;
+            companyId = foundOrgId;
+
+            // Auto-provision this admin into approved_users so future logins are fast
+            try {
+              await FirestoreService.approvedUserDoc(email).set({
+                'role': role,
+                'companyId': companyId,
+                'orgId': companyId,
+                'email': email,
+                'status': 'approved',
+                'createdAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+              debugPrint('AUTH DEBUG: auto-provisioned $email → org $companyId into approved_users');
+            } catch (e) {
+              debugPrint('AUTH DEBUG: auto-provision warning: $e');
+            }
+
+            // Load directly from organizations and return early
+            try {
+              await _loadSessionFromOrganizations(user, email, role, companyId);
+              return;
+            } catch (e) {
+              debugPrint('AUTH DEBUG: _loadSessionFromOrganizations failed after org discovery: $e');
+              // Fall through so the error message is shown
+              role = null;
+              companyId = null;
+            }
+          } else {
+            debugPrint('AUTH DEBUG: email=$email not found in any org. User is not registered.');
           }
         }
       }
@@ -305,9 +424,12 @@ class _AuthWrapperState extends State<AuthWrapper> {
           .collection('users')
           .doc(email)
           .get();
-      if (userDoc.exists && userDoc.data()?['name'] != null) {
-        userName = userDoc.data()?['name'] as String?;
-        department = userDoc.data()?['department'] as String?;
+      String? userShiftId;
+      if (userDoc.exists && userDoc.data() != null) {
+        final ud = userDoc.data()!;
+        userName = ud['name'] as String?;
+        department = ud['department'] as String?;
+        userShiftId = (ud['shiftId'] ?? ud['shift']) as String?;
       } else {
         final q = await FirestoreService.companyDoc(companyId)
             .collection('users')
@@ -315,13 +437,22 @@ class _AuthWrapperState extends State<AuthWrapper> {
             .limit(1)
             .get();
         if (q.docs.isNotEmpty) {
-          userName = q.docs.first.data()['name'] as String?;
-          department = q.docs.first.data()['department'] as String?;
+          final ud = q.docs.first.data();
+          userName = ud['name'] as String?;
+          department = ud['department'] as String?;
+          userShiftId = (ud['shiftId'] ?? ud['shift']) as String?;
         }
       }
 
       int? parseInt(dynamic v) =>
           v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
+
+      // Fetch dynamic shift from organizations/{companyId}/shifts
+      final shiftData = await FirestoreService.fetchApplicableShift(
+        companyId: companyId,
+        shiftId: userShiftId,
+        department: department,
+      );
 
       // Extract isGeofencingEnabled from org doc
       bool? geoEnabled;
@@ -347,6 +478,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
         department: department,
       );
 
+      // Apply dynamic shift configuration from database
+      if (shiftData != null) {
+        AppSession().updateShiftFromMap(shiftData);
+      }
+
       AppSession().updateOfficeLocationFromMap(cd);
 
       NotificationService().onUserLogin();
@@ -354,6 +490,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (mounted) {
         setState(() { _sessionLoaded = true; _error = null; });
       }
+
+      // ── Set up real-time listener on shifts collection ───────────────────
+      _shiftsSubscription?.cancel();
+      _shiftsSubscription = FirestoreService.orgShiftsCol(companyId)
+          .snapshots()
+          .listen((snapshot) async {
+        if (snapshot.docs.isNotEmpty) {
+          final updatedShift = await FirestoreService.fetchApplicableShift(
+            companyId: companyId,
+            shiftId: userShiftId,
+            department: AppSession().department,
+          );
+          if (updatedShift != null) {
+            AppSession().updateShiftFromMap(updatedShift);
+            if (mounted) setState(() {});
+          }
+        }
+      });
 
       // ── Set up real-time listener on legacy company doc ──────────────────
       _legacyOrgSubscription?.cancel();
@@ -398,14 +552,63 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
       final od = orgDoc.data()!;
 
-      // Load member profile
+      // Load member profile from members, users collection, or adminDetails
       final memberDoc = await FirestoreService.orgMemberDoc(orgId, user.uid).get();
       String? userName;
       String? department;
+      String? userShiftId;
       if (memberDoc.exists && memberDoc.data() != null) {
-        userName = (memberDoc.data()!['fullName'] ?? memberDoc.data()!['name']) as String?;
-        department = memberDoc.data()!['department'] as String?;
+        final md = memberDoc.data()!;
+        userName = (md['fullName'] ?? md['name']) as String?;
+        department = (md['department'] ?? md['dept']) as String?;
+        userShiftId = (md['shiftId'] ?? md['shift']) as String?;
       }
+
+      // Check users subcollection if not found in members
+      if (userName == null || department == null) {
+        final userDoc = await FirestoreService.companyDoc(orgId)
+            .collection('users')
+            .doc(email.toLowerCase())
+            .get();
+        if (userDoc.exists && userDoc.data() != null) {
+          final ud = userDoc.data()!;
+          userName ??= (ud['name'] ?? ud['fullName'] ?? '${ud['firstName'] ?? ''} ${ud['lastName'] ?? ''}'.trim()) as String?;
+          department ??= (ud['department'] ?? ud['dept']) as String?;
+          userShiftId ??= (ud['shiftId'] ?? ud['shift']) as String?;
+        } else {
+          final q = await FirestoreService.companyDoc(orgId)
+              .collection('users')
+              .where('email', isEqualTo: email.toLowerCase())
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            final ud = q.docs.first.data();
+            userName ??= (ud['name'] ?? ud['fullName'] ?? '${ud['firstName'] ?? ''} ${ud['lastName'] ?? ''}'.trim()) as String?;
+            department ??= (ud['department'] ?? ud['dept']) as String?;
+            userShiftId ??= (ud['shiftId'] ?? ud['shift']) as String?;
+          }
+        }
+      }
+
+      // Fallback to adminDetails on the org document if current user is the admin
+      if ((userName == null || department == null) && od.containsKey('adminDetails')) {
+        final ad = od['adminDetails'] as Map<String, dynamic>? ?? {};
+        final adminEmail = (ad['email'] as String? ?? '').toLowerCase().trim();
+        if (adminEmail == email.toLowerCase().trim()) {
+          userName ??= (ad['name'] ?? '${ad['firstName'] ?? ''} ${ad['lastName'] ?? ''}'.trim()) as String?;
+          department ??= (ad['department'] ?? ad['dept']) as String?;
+        }
+      }
+
+      int? parseInt(dynamic v) =>
+          v is num ? v.toInt() : (v is String ? int.tryParse(v) : null);
+
+      // Fetch dynamic shift from organizations/{orgId}/shifts
+      final shiftData = await FirestoreService.fetchApplicableShift(
+        companyId: orgId,
+        shiftId: userShiftId,
+        department: department,
+      );
 
       // Extract isGeofencingEnabled from org doc
       bool? geoEnabled;
@@ -432,11 +635,20 @@ class _AuthWrapperState extends State<AuthWrapper> {
         role: cleanRole,
         companyId: orgId,
         companyName: od['companyName'] as String? ?? od['name'] as String?,
+        shiftStartTime: od['shiftStartTime'] as String?,
+        shiftEndTime: od['shiftEndTime'] as String?,
+        gracePeriod: parseInt(od['gracePeriod']),
+        paidLeavesPerYear: parseInt(od['paidLeavesPerYear']),
         featurePermissions: od['featurePermissions'] as Map<String, dynamic>?,
         isGeofencingEnabled: geoEnabled,
         userName: userName,
         department: department,
       );
+
+      // Apply dynamic shift configuration from database
+      if (shiftData != null) {
+        AppSession().updateShiftFromMap(shiftData);
+      }
 
       AppSession().updateOfficeLocationFromMap(od);
 
@@ -445,6 +657,24 @@ class _AuthWrapperState extends State<AuthWrapper> {
       if (mounted) {
         setState(() { _sessionLoaded = true; _error = null; });
       }
+
+      // ── Set up real-time listener on shifts collection ───────────────────
+      _shiftsSubscription?.cancel();
+      _shiftsSubscription = FirestoreService.orgShiftsCol(orgId)
+          .snapshots()
+          .listen((snapshot) async {
+        if (snapshot.docs.isNotEmpty) {
+          final updatedShift = await FirestoreService.fetchApplicableShift(
+            companyId: orgId,
+            shiftId: userShiftId,
+            department: AppSession().department,
+          );
+          if (updatedShift != null) {
+            AppSession().updateShiftFromMap(updatedShift);
+            if (mounted) setState(() {});
+          }
+        }
+      });
 
       // ── Set up real-time listener for permissions, geofencing & location ──
       _orgSubscription?.cancel();

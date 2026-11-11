@@ -1,4 +1,4 @@
-﻿import 'package:attendance_app/screens/employee/employee_attendance_detail_screen.dart';
+import 'package:attendance_app/screens/employee/employee_attendance_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -77,10 +77,10 @@ class _EmployeeAttendanceOverviewTabState
       );
 
       if (isCheckIn) {
-        final eParts = AppSession().shiftEndTime.split(':');
-        final shiftEnd = DateTime(now.year, now.month, now.day,
-            int.parse(eParts[0]), int.parse(eParts[1]));
-        await NotificationService().scheduleCheckoutReminder(shiftEnd);
+        final shiftEnd = AppSession().getShiftEndDateTime(date: now);
+        if (shiftEnd != null) {
+          await NotificationService().scheduleCheckoutReminder(shiftEnd);
+        }
       } else {
         await NotificationService().cancelCheckoutReminder();
       }
@@ -151,8 +151,8 @@ class _EmployeeAttendanceOverviewTabState
 
     int lateBufferMinutes = 0;
     try {
-      if (checkInTs != null) {
-        final sParts = AppSession().shiftStartTime.split(':');
+      if (checkInTs != null && AppSession().shiftStartTime != null) {
+        final sParts = AppSession().shiftStartTime!.split(':');
         final expectedCheckIn = DateTime(now.year, now.month, now.day,
             int.parse(sParts[0]), int.parse(sParts[1]));
         if (checkInTs.toDate().isAfter(expectedCheckIn)) {
@@ -788,9 +788,9 @@ class _EmployeeAttendanceOverviewTabState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'General Shift',
-                      style: TextStyle(
+                    Text(
+                      AppSession().shiftName ?? 'No Shift Assigned',
+                      style: const TextStyle(
                         color: Color(0xFF111827),
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -798,7 +798,9 @@ class _EmployeeAttendanceOverviewTabState
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${AppSession().shiftStartTime} â€“ ${AppSession().shiftEndTime} Â· Office',
+                      AppSession().isShiftLoaded
+                          ? '${AppSession().shiftStartTime} - ${AppSession().shiftEndTime} · Office'
+                          : '--:-- - --:-- · No shift timing',
                       style: const TextStyle(
                         color: Color(0xFF9CA3AF),
                         fontSize: 11,

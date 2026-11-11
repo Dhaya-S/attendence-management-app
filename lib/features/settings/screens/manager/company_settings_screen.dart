@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -25,19 +25,19 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
     super.initState();
     final session = AppSession();
 
-    // Shift timing
-    final parts = session.shiftStartTime.split(':');
+    // Shift timing (purely database-driven, with safe fallbacks only for form inputs)
+    final parts = (session.shiftStartTime ?? "09:00").split(':');
     _startTime = TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
+      hour: int.tryParse(parts[0]) ?? 9,
+      minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0,
     );
-    final eParts = session.shiftEndTime.split(':');
+    final eParts = (session.shiftEndTime ?? "18:00").split(':');
     _endTime = TimeOfDay(
-      hour: int.parse(eParts[0]),
-      minute: int.parse(eParts[1]),
+      hour: int.tryParse(eParts[0]) ?? 18,
+      minute: int.tryParse(eParts.length > 1 ? eParts[1] : '0') ?? 0,
     );
     _gracePeriodController =
-        TextEditingController(text: session.gracePeriod.toString());
+        TextEditingController(text: (session.gracePeriod ?? 15).toString());
 
     // Leave policy
     _paidLeavesController =
@@ -90,6 +90,33 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
         final gp = (d['gracePeriod'] as num?)?.toInt();
         if (gp != null) {
           _gracePeriodController.text = gp.toString();
+        }
+      }
+
+      // Check for shift document in organizations/{companyId}/shifts
+      final shift = await FirestoreService.fetchApplicableShift();
+      if (shift != null && mounted) {
+        final cin = shift['checkin'] ?? shift['shiftStartTime'];
+        if (cin != null) {
+          final p = cin.toString().split(':');
+          final h = int.tryParse(p[0]);
+          final m = int.tryParse(p.length > 1 ? p[1] : '0');
+          if (h != null && m != null) {
+            setState(() => _startTime = TimeOfDay(hour: h, minute: m));
+          }
+        }
+        final cout = shift['checkout'] ?? shift['shiftEndTime'];
+        if (cout != null) {
+          final p = cout.toString().split(':');
+          final h = int.tryParse(p[0]);
+          final m = int.tryParse(p.length > 1 ? p[1] : '0');
+          if (h != null && m != null) {
+            setState(() => _endTime = TimeOfDay(hour: h, minute: m));
+          }
+        }
+        final parsedGrace = AppSession.parseMinutes(shift['grace'] ?? shift['late']);
+        if (parsedGrace != null) {
+          setState(() => _gracePeriodController.text = parsedGrace.toString());
         }
       }
     } catch (_) {
@@ -163,13 +190,28 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
       final gracePeriod = int.parse(_gracePeriodController.text);
       final paidLeavesPerYear = int.parse(_paidLeavesController.text);
 
-      await FirestoreService.companyDoc().update({
+      await FirestoreService.companyDoc().set({
         'shiftStartTime': shiftStartTime,
         'shiftEndTime': shiftEndTime,
         'gracePeriod': gracePeriod,
         'paidLeavesPerYear': paidLeavesPerYear,
         'updatedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
+
+      // Also sync to active shift doc in organizations/{companyId}/shifts if present
+      if (AppSession().shiftId != null && AppSession().shiftId!.isNotEmpty) {
+        try {
+          await FirestoreService.shiftsCol.doc(AppSession().shiftId).set({
+            'checkin': shiftStartTime,
+            'checkout': shiftEndTime,
+            'grace': '$gracePeriod min',
+            'late': '$gracePeriod min',
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        } catch (err) {
+          debugPrint('Warning: unable to sync shift doc: $err');
+        }
+      }
 
       // Update in-memory session immediately
       AppSession().shiftStartTime = shiftStartTime;

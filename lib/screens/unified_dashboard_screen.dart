@@ -37,6 +37,8 @@ import 'package:attendance_app/screens/more/universal_more_tab.dart';
 import 'package:attendance_app/screens/employee/apply_leave_screen.dart';
 import 'package:attendance_app/screens/employee/requests_tab/request_correction_form.dart';
 import 'package:attendance_app/widgets/notification_action.dart';
+import 'package:attendance_app/screens/org_departments_screen.dart';
+import 'package:attendance_app/screens/department_detail_screen.dart';
 
 class UnifiedDashboardScreen extends StatefulWidget {
   const UnifiedDashboardScreen({super.key});
@@ -75,6 +77,13 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Timer? _timer;
 
   late final String orgId;
+
+  // Cached state to prevent broadcast stream listener dropping & infinite spinners
+  int _lastPendingCount = 0;
+  bool _pendingCountLoaded = false;
+  Map<String, int> _lastStatsMap = {'present': 0, 'wfh': 0, 'onLeave': 0};
+  List<DocumentSnapshot> _cachedEmployeeDocs = [];
+  bool _employeesLoaded = false;
 
   // Stored streams – initialized once in initState to prevent rebuild blinking
   late final Stream<int> _allPendingCountStream;
@@ -182,7 +191,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       final userEmail = user?.email ?? '';
       final isGeofenceActive = AppSession().hasPermission('geofencing');
       final isInside = !isGeofenceActive || (_currentLocationData?.isWithinRadius ?? false);
-      final isLate = now.hour >= 9 && (now.hour > 9 || now.minute > 15);
+      final isLate = AppSession().isCheckInLate(now);
       final finalStatus = isCheckIn
           ? (isInside ? (isLate ? 'Late' : 'Present') : 'WFH')
           : (status.isNotEmpty ? status : 'Present');
@@ -200,6 +209,12 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           'companyId': FirestoreService.companyId,
           'userId': userEmail,
           'workMode': workMode,
+          'isLate': isLate,
+          'shiftId': AppSession().shiftId ?? 'default',
+          'shiftName': AppSession().shiftName,
+          'shiftStartTime': AppSession().shiftStartTime,
+          'shiftEndTime': AppSession().shiftEndTime,
+          'gracePeriod': AppSession().gracePeriod,
           'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
           'recordDate': DateFormat('yyyy-MM-dd').format(now),
           if (isCheckIn) 'checkInLocation': _currentLocationData?.address ?? loc,
@@ -247,9 +262,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       );
 
       if (isCheckIn) {
-        final eParts = AppSession().shiftEndTime.split(':');
-        await NotificationService().scheduleCheckoutReminder(DateTime(now.year,
-            now.month, now.day, int.parse(eParts[0]), int.parse(eParts[1])));
+        final endDt = AppSession().getShiftEndDateTime(date: now);
+        if (endDt != null) {
+          await NotificationService().scheduleCheckoutReminder(endDt);
+        }
       } else {
         await NotificationService().cancelCheckoutReminder();
       }
@@ -378,22 +394,26 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         shiftPending = 0,
         deptPending = 0,
         taskPending = 0;
-    int lastPendingCount = 0;
     final pendingController = StreamController<int>.broadcast();
     pendingController.onListen = () {
-      pendingController.add(lastPendingCount);
+      pendingController.add(_lastPendingCount);
     };
 
     void emitPending() {
+      _lastPendingCount = leavePending +
+          attPending +
+          shiftPending +
+          deptPending +
+          taskPending;
+      _pendingCountLoaded = true;
       if (!pendingController.isClosed) {
-        lastPendingCount = leavePending +
-            attPending +
-            shiftPending +
-            deptPending +
-            taskPending;
-        pendingController.add(lastPendingCount);
+        pendingController.add(_lastPendingCount);
       }
+      if (mounted) setState(() {});
     }
+
+    // Immediately emit initial pending state so UI never hangs in waiting
+    emitPending();
 
     _subPendingLeaves =
         FirestoreService.allLeaveRequestsQuery.snapshots().listen((s) {
@@ -403,35 +423,35 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         return status == 'pending' && FirestoreService.isDocInCurrentCompany(d);
       }).length;
       emitPending();
-    }, onError: (_) {});
+    }, onError: (_) => emitPending());
     _subPendingAtt = FirestoreService.allAttendanceIssuesQuery
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((s) {
       attPending = s.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).length;
       emitPending();
-    }, onError: (_) {});
+    }, onError: (_) => emitPending());
     _subPendingShifts = FirestoreService.allShiftRequestsQuery
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((s) {
       shiftPending = s.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).length;
       emitPending();
-    }, onError: (_) {});
+    }, onError: (_) => emitPending());
     _subPendingDepts = FirestoreService.allDepartmentRequestsQuery
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((s) {
       deptPending = s.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).length;
       emitPending();
-    }, onError: (_) {});
+    }, onError: (_) => emitPending());
     _subPendingTasks = FirestoreService.allTaskRequestsQuery
         .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((s) {
       taskPending = s.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).length;
       emitPending();
-    }, onError: (_) {});
+    }, onError: (_) => emitPending());
 
     _allPendingCountStream = pendingController.stream;
 
@@ -440,25 +460,34 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     final todayDate =
         DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
     final statsController = StreamController<Map<String, int>>.broadcast();
-    Map<String, int> lastStatsMap = {'present': 0, 'wfh': 0, 'onLeave': 0};
     statsController.onListen = () {
-      statsController.add(lastStatsMap);
+      statsController.add(_lastStatsMap);
     };
     List<DocumentSnapshot> statAttDocs = [];
     List<DocumentSnapshot> statLeaveDocs = [];
 
     void emitStats() {
-      if (statsController.isClosed) return;
       int present = 0, wfh = 0, onLeave = 0;
+      final Set<String> presentEmails = {};
       for (final doc in statAttDocs) {
-        if (doc.id == todayStr) {
-          final data = doc.data() as Map<String, dynamic>? ?? {};
-          if (data['checkIn'] != null) {
-            present++;
-            if (data['workMode'] == 'wfh') wfh++;
+        final data = doc.data() as Map<String, dynamic>? ?? {};
+        final docDate = (data['date'] ?? '').toString();
+        final isToday = doc.id == todayStr ||
+            doc.id.endsWith('_$todayStr') ||
+            docDate == todayStr;
+        if (isToday) {
+          final hasCheckIn = data['checkIn'] != null ||
+              (data['checkInTime'] != null && data['checkInTime'] != '-' && data['checkInTime'] != '—') ||
+              data['checkInTimestamp'] != null;
+          final status = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
+          if (hasCheckIn || status == 'present' || status == 'late' || status == 'half-day') {
+            final email = (data['email'] ?? data['userEmail'] ?? doc.id.split('_').first).toString().toLowerCase();
+            presentEmails.add(email);
+            if (data['workMode'] == 'wfh' || data['location'] == 'WFH') wfh++;
           }
         }
       }
+      present = presentEmails.length;
       for (final doc in statLeaveDocs) {
         final data = doc.data() as Map<String, dynamic>? ?? {};
         try {
@@ -479,9 +508,14 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           }
         } catch (_) {}
       }
-      lastStatsMap = {'present': present, 'wfh': wfh, 'onLeave': onLeave};
-      statsController.add(lastStatsMap);
+      _lastStatsMap = {'present': present, 'wfh': wfh, 'onLeave': onLeave};
+      if (!statsController.isClosed) {
+        statsController.add(_lastStatsMap);
+      }
+      if (mounted) setState(() {});
     }
+
+    emitStats();
 
     _subStatsAtt =
         FirestoreService.allAttendanceRecordsCol.snapshots().listen((snap) {
@@ -489,7 +523,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           .where((d) => FirestoreService.isDocInCurrentCompany(d))
           .toList();
       emitStats();
-    }, onError: (_) {});
+    }, onError: (_) => emitStats());
     _subStatsLeaves =
         FirestoreService.allLeaveRequestsQuery.snapshots().listen((snap) {
       statLeaveDocs = snap.docs.where((d) {
@@ -498,7 +532,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             FirestoreService.isDocInCurrentCompany(d);
       }).toList();
       emitStats();
-    }, onError: (_) {});
+    }, onError: (_) => emitStats());
 
     _todayStatsStream = statsController.stream;
 
@@ -621,6 +655,8 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     _myAttendanceStream =
         FirestoreService.userAttendanceCol(userEmail).snapshots();
     _subEmployeesMap = _employeesStream.listen((snap) {
+      _cachedEmployeeDocs = snap.docs;
+      _employeesLoaded = true;
       final newMap = <String, Map<String, dynamic>>{};
 
       final now = DateTime.now();
@@ -662,7 +698,23 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         setState(() => _empMap = newMap);
       }
       emitActivity();
-    }, onError: (_) {});
+
+      // For self-registered orgs that store members in organizations/{cid}/members
+      if (snap.docs.isEmpty && cid.isNotEmpty) {
+        FirestoreService.orgMembersCol(cid).get().then((memberSnap) {
+          if (memberSnap.docs.isNotEmpty && mounted) {
+            setState(() {
+              _cachedEmployeeDocs = memberSnap.docs;
+              _employeesLoaded = true;
+            });
+          }
+        }).catchError((_) {});
+      }
+    }, onError: (err) {
+      debugPrint('UnifiedDashboardScreen: Error loading employees: $err');
+      _employeesLoaded = true;
+      if (mounted) setState(() {});
+    });
   }
 
   void _initApprovalsListeners() {
@@ -2444,7 +2496,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             color: Color(0xFF111827))),
                     const SizedBox(height: 2),
                     Text(
-                        '$checkInStr  -  General Shift${(data?['workMode'] as String? ?? '').toLowerCase() == 'wfh' ? '  -  WFH' : ''}',
+                        '$checkInStr  -  ${data?['shiftName'] ?? AppSession().shiftName ?? 'No Shift Assigned'}${(data?['workMode'] as String? ?? '').toLowerCase() == 'wfh' ? '  -  WFH' : ''}',
                         style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),
@@ -2835,8 +2887,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Widget _buildStatsGrid() {
     return StreamBuilder<Map<String, int>>(
       stream: _todayStatsStream,
+      initialData: _lastStatsMap,
       builder: (context, statsSnap) {
-        final stats = statsSnap.data ?? {'present': 0, 'wfh': 0, 'onLeave': 0};
+        final stats = statsSnap.data ?? _lastStatsMap;
         return StreamBuilder<QuerySnapshot>(
           stream: _orgUsersStream,
           builder: (context, usersSnap) {
@@ -2854,8 +2907,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                 : (totalEmp - present - onLeave - wfh);
             return StreamBuilder<int>(
               stream: _allPendingCountStream,
+              initialData: _lastPendingCount,
               builder: (context, pendingSnap) {
-                final pending = pendingSnap.data ?? 0;
+                final pending = pendingSnap.data ?? _lastPendingCount;
                 return GridView.count(
                   crossAxisCount: 2,
                   shrinkWrap: true,
@@ -2915,9 +2969,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Widget _buildOrgWideAttendanceCard() {
     return StreamBuilder<Map<String, int>>(
         stream: _todayStatsStream,
+        initialData: _lastStatsMap,
         builder: (context, statsSnap) {
-          final stats =
-              statsSnap.data ?? {'present': 0, 'wfh': 0, 'onLeave': 0};
+          final stats = statsSnap.data ?? _lastStatsMap;
           final p = stats['present'] ?? 0;
           final w = stats['wfh'] ?? 0;
           final l = stats['onLeave'] ?? 0;
@@ -2995,9 +3049,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
   Widget _buildPendingApprovalsCard() {
     return StreamBuilder<int>(
       stream: _allPendingCountStream,
+      initialData: _lastPendingCount,
       builder: (context, snapshot) {
-        final pendingCount = snapshot.data ?? 0;
-        final hasData = snapshot.connectionState != ConnectionState.waiting;
+        final pendingCount = snapshot.data ?? _lastPendingCount;
+        final hasData = _pendingCountLoaded || snapshot.hasData;
         return GestureDetector(
           onTap: () => setState(() {
             _selectedSubTab = 1; // Navigate to Approvals tab
@@ -3156,41 +3211,54 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
 
           final s = (data['status'] as String? ?? 'assigned').toLowerCase();
 
-          final assignedTo = (data['assignedTo'] ??
-                  data['assignedToEmail'] ??
-                  data['assigneeEmail'] ??
-                  data['assignee'] ??
-                  data['userEmail'] ??
-                  data['email'] ??
-                  '')
+          // 1. Check assignees array
+          bool isMine = false;
+          if (data['assignees'] is List) {
+            final list = (data['assignees'] as List).map((e) => e.toString().trim().toLowerCase()).toList();
+            if (userEmail.isNotEmpty && list.contains(userEmail)) isMine = true;
+            if (userUid.isNotEmpty && list.contains(userUid)) isMine = true;
+          }
+
+          // 2. Check assignee map object
+          if (!isMine && data['assignee'] is Map) {
+            final aMap = data['assignee'] as Map;
+            final aMail = (aMap['email'] ?? aMap['userEmail'] ?? '').toString().trim().toLowerCase();
+            final aUid = (aMap['uid'] ?? aMap['userId'] ?? '').toString().trim().toLowerCase();
+            if (userEmail.isNotEmpty && aMail.isNotEmpty && aMail == userEmail) isMine = true;
+            if (userUid.isNotEmpty && aUid.isNotEmpty && aUid == userUid) isMine = true;
+          }
+
+          final assignedEmail = (data['assigneeEmail'] ?? data['assignedToEmail'] ?? data['employeeEmail'] ?? data['email'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          final assignedName = (data['assignee'] is String ? data['assignee'] : (data['assigneeName'] ?? data['assignedTo'] ?? ''))
               .toString()
               .trim()
               .toLowerCase();
           final assigneeUid = (data['userId'] ??
                   data['uid'] ??
                   data['assignedToUid'] ??
+                  data['assigneeId'] ??
                   '')
               .toString()
               .trim()
               .toLowerCase();
 
-          bool isMine = false;
-          if (userUid.isNotEmpty && assigneeUid.isNotEmpty && userUid == assigneeUid) {
+          // Exact UID match
+          if (!isMine && userUid.isNotEmpty && assigneeUid.isNotEmpty && userUid == assigneeUid) {
             isMine = true;
           }
-          if (!isMine && userEmail.isNotEmpty && assignedTo.isNotEmpty) {
-            if (assignedTo == userEmail ||
-                assignedTo.contains(userEmail) ||
-                userEmail.contains(assignedTo)) {
-              isMine = true;
-            }
+
+          // Exact Email match
+          if (!isMine && userEmail.isNotEmpty) {
+            if (assignedEmail.isNotEmpty && assignedEmail == userEmail) isMine = true;
+            if (assignedName.isNotEmpty && assignedName == userEmail) isMine = true;
           }
-          if (!isMine && userName.isNotEmpty && assignedTo.isNotEmpty) {
-            if (assignedTo == userName ||
-                assignedTo.contains(userName) ||
-                userName.contains(assignedTo)) {
-              isMine = true;
-            }
+
+          // Exact Name match (only when explicit email is missing)
+          if (!isMine && userName.isNotEmpty && assignedName.isNotEmpty && assignedEmail.isEmpty) {
+            if (assignedName == userName) isMine = true;
           }
 
           if (!isMine) return false;
@@ -3408,142 +3476,189 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _employeesStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting &&
-            !snapshot.hasData) {
-          return _buildCardContainer(
-            child: const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: CircularProgressIndicator(),
-              ),
-            ),
-          );
-        }
+        final docs = (snapshot.hasData && snapshot.data!.docs.isNotEmpty)
+            ? snapshot.data!.docs
+            : _cachedEmployeeDocs;
 
-        final docs = snapshot.data?.docs ?? [];
+        final isWaiting = snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData &&
+            !_employeesLoaded &&
+            docs.isEmpty;
 
-        if (docs.isEmpty) {
-          return _buildCardContainer(
-            child: const Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 16),
-                child: Text('No employee data yet.',
-                    style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
-              ),
-            ),
-          );
-        }
+        // Strictly enforce multi-tenant isolation
+        final validDocs = docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList();
 
-        // Group by department – fall back to 'Unknown' like team_departments_view
+        // Group by department
         final Map<String, int> deptCount = {};
-        for (final doc in docs) {
+        for (final doc in validDocs) {
           final data = doc.data() as Map<String, dynamic>;
-          // Skip admin accounts
+          final status = (data['status'] ?? 'active').toString().toLowerCase();
+          if (status == 'inactive' || status == 'terminated' || status == 'rejected') {
+            continue;
+          }
           final r = ((data['role'] ?? '') as String).toLowerCase();
-          if (r == 'admin' || r == 'hr_admin' || r == 'super_admin') continue;
-          final dept = ((data['department'] as String?)?.trim().isEmpty ?? true)
-              ? 'Unknown'
-              : (data['department'] as String).trim();
+          final rawDept = ((data['department'] ?? data['dept']) as String?)?.trim();
+
+          // Skip system admins only if they have no department assigned
+          if ((r == 'admin' || r == 'hr_admin' || r == 'super_admin') &&
+              (rawDept == null || rawDept.isEmpty)) {
+            continue;
+          }
+          final dept = (rawDept == null || rawDept.isEmpty) ? 'General' : rawDept;
           deptCount[dept] = (deptCount[dept] ?? 0) + 1;
+        }
+
+        // If no department from users subcollection, fall back to current user's department
+        if (deptCount.isEmpty &&
+            AppSession().userDepartment != null &&
+            AppSession().userDepartment!.trim().isNotEmpty) {
+          deptCount[AppSession().userDepartment!.trim()] = 1;
         }
 
         final deptList = deptCount.keys.toList()..sort();
         final maxCount = deptCount.values.fold(0, (a, b) => a > b ? a : b);
+        final totalCount = deptCount.values.fold(0, (a, b) => a + b);
 
-        if (deptList.isEmpty) {
-          return _buildCardContainer(
+        return GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const OrgDepartmentsScreen()),
+            );
+          },
+          child: _buildCardContainer(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('DEPARTMENT HEADCOUNT',
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF6B7280),
-                        letterSpacing: 0.5)),
-                const SizedBox(height: 16),
-                const Center(
-                  child: Text('No department data found',
-                      style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Text('DEPARTMENT HEADCOUNT',
+                            style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF6B7280),
+                                letterSpacing: 0.5)),
+                        SizedBox(width: 4),
+                        Icon(Icons.chevron_right_rounded,
+                            size: 16, color: Color(0xFF9CA3AF)),
+                      ],
+                    ),
+                    if (totalCount > 0)
+                      Text('$totalCount total',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF5C5CFF))),
+                  ],
                 ),
-              ],
-            ),
-          );
-        }
+                const SizedBox(height: 16),
+                if (isWaiting)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 20),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (deptList.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text('No department data found',
+                          style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
+                    ),
+                  )
+                else
+                  ...List.generate(deptList.length, (i) {
+                    final dept = deptList[i];
+                    final count = deptCount[dept]!;
+                    final color = _deptColor(dept);
+                    final fraction = maxCount == 0 ? 0.0 : count / maxCount;
+                    final deptMembers = validDocs
+                        .where((d) {
+                          final data = d.data() as Map<String, dynamic>;
+                          final rawDept = ((data['department'] ?? data['dept']) as String?)?.trim();
+                          final deptName = (rawDept == null || rawDept.isEmpty) ? 'General' : rawDept;
+                          return deptName.toLowerCase() == dept.toLowerCase();
+                        })
+                        .map((d) {
+                          final data = Map<String, dynamic>.from(d.data() as Map<String, dynamic>);
+                          data['id'] = d.id;
+                          return data;
+                        })
+                        .toList();
 
-        return _buildCardContainer(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('DEPARTMENT HEADCOUNT',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF6B7280),
-                          letterSpacing: 0.5)),
-                  Text('${docs.length} total',
-                      style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF5C5CFF))),
-                ],
-              ),
-              const SizedBox(height: 16),
-              ...List.generate(deptList.length, (i) {
-                final dept = deptList[i];
-                final count = deptCount[dept]!;
-                final color = _deptColor(dept);
-                final fraction = maxCount == 0 ? 0.0 : count / maxCount;
-                return Padding(
-                  padding:
-                      EdgeInsets.only(bottom: i < deptList.length - 1 ? 14 : 0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                      color: color, shape: BoxShape.circle)),
-                              const SizedBox(width: 10),
-                              Text(dept,
-                                  style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Color(0xFF374151),
-                                      fontWeight: FontWeight.w600)),
-                            ],
+                    return InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DepartmentDetailScreen(
+                              departmentName: dept,
+                              members: deptMembers,
+                            ),
                           ),
-                          Text(count.toString(),
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                  color: color)),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: fraction,
-                          backgroundColor: const Color(0xFFF3F4F6),
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                              color.withOpacity(0.6)),
-                          minHeight: 5,
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding:
+                            EdgeInsets.only(bottom: i < deptList.length - 1 ? 14 : 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                            color: color, shape: BoxShape.circle)),
+                                    const SizedBox(width: 10),
+                                    Text(dept,
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF374151),
+                                            fontWeight: FontWeight.w600)),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    Text(count.toString(),
+                                        style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            color: color)),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.chevron_right_rounded,
+                                        size: 14, color: Color(0xFFD1D5DB)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: fraction,
+                                backgroundColor: const Color(0xFFF3F4F6),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                    color.withOpacity(0.6)),
+                                minHeight: 5,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
-                );
-              }),
-            ],
+                    );
+                  }),
+              ],
+            ),
           ),
         );
       },
