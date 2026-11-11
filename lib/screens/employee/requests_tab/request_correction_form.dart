@@ -88,33 +88,30 @@ class _RequestCorrectionFormState extends State<RequestCorrectionForm> {
         if (t == null) return null;
         final now = DateTime.now();
         final dt = DateTime(now.year, now.month, now.day, t.hour, t.minute);
-        return DateFormat('HH:mm').format(dt);
+        return DateFormat('hh:mm a').format(dt); // web format: "09:00 AM"
       }
 
-      final data = {
-        'userId': user.email,
-        'attendanceDate': Timestamp.fromDate(_selectedDate),
-        'correctedCheckIn': formatTime(_checkInTime),
-        'correctedCheckOut': formatTime(_checkOutTime),
-        'reason': _reasonController.text.trim(),
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
       if (widget.editItem != null) {
+        // Edit keeps the web shape; status / createdBy are never changed here.
         await FirebaseFirestore.instance
             .collection('organizations')
             .doc(FirestoreService.companyId)
             .collection('attendance_issues')
             .doc(widget.editItem!['id'])
-            .update({...data, 'createdAt': widget.editItem!['submittedAt']});
+            .update({
+          'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+          'requestedCheckIn': formatTime(_checkInTime) ?? '09:00 AM',
+          'requestedCheckOut': formatTime(_checkOutTime) ?? '06:00 PM',
+          'reason': _reasonController.text.trim(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
       } else {
-        await FirebaseFirestore.instance
-            .collection('organizations')
-            .doc(FirestoreService.companyId)
-            .collection('attendance_issues')
-            .add(data);
+        await FirestoreService.submitAttendanceIssue(
+          date: _selectedDate,
+          requestedCheckIn: formatTime(_checkInTime) ?? '09:00 AM',
+          requestedCheckOut: formatTime(_checkOutTime) ?? '06:00 PM',
+          reason: _reasonController.text.trim(),
+        );
       }
 
       setState(() => _isSubmitted = true);

@@ -214,10 +214,12 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
   Widget _buildAnnouncementCard(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final title = data['title'] ?? 'No Title';
-    final message = data['message'] ?? '';
+    // Web announcements store the text in "body"; older mobile ones in "message"
+    final message = data['body'] ?? data['message'] ?? data['content'] ?? '';
     final category = data['category'] ?? 'General';
-    
-    DateTime timestamp = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+
+    DateTime timestamp = FirestoreService.parseAnyDate(data['timestamp'] ?? data['createdAt']) ??
+        DateTime.now();
     String timeStr = _formatTimestamp(timestamp);
 
     Color categoryBg = const Color(0xFFEEF2FF);
@@ -654,14 +656,38 @@ class _AnnouncementsTabViewState extends State<AnnouncementsTabView> {
     List<DocumentSnapshot> filteredDocs = allDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>? ?? {};
 
-      // Audience filtering
+      // Drafts (web) are only visible to their author
+      final myEmail = (AppSession().email ?? '').toLowerCase();
+      if (FirestoreService.statusIs(data['status'], 'draft') &&
+          (data['authorEmail'] ?? '').toString().toLowerCase() != myEmail) {
+        return false;
+      }
+
+      // Audience filtering – same rules as the web app
       if (!widget.isAdmin) {
-        final aud = data['audience'] ?? 'all';
-        if (aud != 'all' && aud != 'managers' && aud != 'admins' && aud != 'team') {
-          return false;
-        }
-        if (aud == 'team' && data['departmentId'] != widget.departmentId) {
-          return false;
+        final audType = (data['audienceType'] ?? '').toString();
+        if (audType == 'departments') {
+          final myDept = (AppSession().department ?? '').toLowerCase();
+          final depts = (data['targetDepartments'] is List ? data['targetDepartments'] as List : [])
+              .map((e) => e.toString().toLowerCase())
+              .toList();
+          if (depts.isNotEmpty && !depts.contains(myDept)) return false;
+        } else if (audType == 'particular' || audType == 'particular_employees') {
+          final ids = (data['targetMemberIds'] ?? data['targetEmployeeIds']);
+          final targets = (ids is List ? ids : [])
+              .map((e) => e.toString().toLowerCase())
+              .toList();
+          final isAuthor = (data['authorEmail'] ?? '').toString().toLowerCase() == myEmail;
+          if (!isAuthor && !targets.contains(myEmail)) return false;
+        } else if (audType.isEmpty) {
+          // Older mobile announcements used a free-text "audience"
+          final aud = data['audience'] ?? 'all';
+          if (aud != 'all' && aud != 'managers' && aud != 'admins' && aud != 'team') {
+            return false;
+          }
+          if (aud == 'team' && data['departmentId'] != widget.departmentId) {
+            return false;
+          }
         }
       }
 

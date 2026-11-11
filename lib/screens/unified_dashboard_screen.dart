@@ -194,7 +194,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       final isLate = AppSession().isCheckInLate(now);
       final finalStatus = isCheckIn
           ? (isInside ? (isLate ? 'Late' : 'Present') : 'WFH')
-          : (status.isNotEmpty ? status : 'Present');
+          : 'Present'; // check-out never changes the day's status (see recordAttendancePunch)
       final workMode = isInside ? 'office' : 'wfh';
       final loc = isInside ? 'Work in Office' : 'Work from Home';
 
@@ -206,17 +206,27 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         location: loc,
         address: _currentLocationData?.address,
         additionalData: {
-          'companyId': FirestoreService.companyId,
-          'userId': userEmail,
+          // NOTE: companyId / userId / date are set by recordAttendancePunch in the
+          // web format (uid + "yyyy-MM-dd" string). Do not override them here.
           'workMode': workMode,
-          'isLate': isLate,
           'shiftId': AppSession().shiftId ?? 'default',
           'shiftName': AppSession().shiftName,
           'shiftStartTime': AppSession().shiftStartTime,
           'shiftEndTime': AppSession().shiftEndTime,
           'gracePeriod': AppSession().gracePeriod,
-          'date': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
-          'recordDate': DateFormat('yyyy-MM-dd').format(now),
+          'geofencingEnabled': isGeofenceActive,
+          'isOutside': !isInside,
+          if (_currentLocationData?.position != null)
+            'coordinates': {
+              'lat': _currentLocationData!.position!.latitude,
+              'lng': _currentLocationData!.position!.longitude,
+            },
+          if (AppSession().officeLat != null && AppSession().officeLng != null)
+            'orgCoordinates': {
+              'lat': AppSession().officeLat,
+              'lng': AppSession().officeLng,
+            },
+          'orgRadius': AppSession().allowedRadius,
           if (isCheckIn) 'checkInLocation': _currentLocationData?.address ?? loc,
           if (!isCheckIn) 'checkOutLocation': _currentLocationData?.address ?? loc,
         },
@@ -369,14 +379,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
         if (snap.exists && snap.data() != null) {
           final liveData = snap.data()!;
           Map<String, dynamic>? newPerms;
-          bool? newGeo;
+          bool? newGeo = AppSession.geofencePolicyEnabled(liveData);
           if (liveData.containsKey('featurePermissions')) {
             newPerms = liveData['featurePermissions'] as Map<String, dynamic>;
-          }
-          if (liveData.containsKey('isGeofencingEnabled')) {
-            final gv = liveData['isGeofencingEnabled'];
-            if (gv is bool) newGeo = gv;
-            else if (gv is String) newGeo = gv.toLowerCase() == 'true';
           }
           AppSession().updatePermissions(
             newPermissions: newPerms,
@@ -425,10 +430,13 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       emitPending();
     }, onError: (_) => emitPending());
     _subPendingAtt = FirestoreService.allAttendanceIssuesQuery
-        .where('status', isEqualTo: 'pending')
         .snapshots()
         .listen((s) {
-      attPending = s.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).length;
+      attPending = s.docs
+          .where((d) =>
+              FirestoreService.isDocInCurrentCompany(d) &&
+              FirestoreService.statusIs(d.data()['status'] ?? 'pending', 'pending'))
+          .length;
       emitPending();
     }, onError: (_) => emitPending());
     _subPendingShifts = FirestoreService.allShiftRequestsQuery
@@ -467,47 +475,66 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     List<DocumentSnapshot> statLeaveDocs = [];
 
     void emitStats() {
-      int present = 0, wfh = 0, onLeave = 0;
-      final Set<String> presentEmails = {};
+      // Every person is counted ONCE, in exactly one bucket (same idea as the web Attendance page):
+      //   checked in at office → Present · checked in as WFH → WFH · approved leave today → On Leave
+      final Set<String> officeEmails = {};
+      final Set<String> wfhEmails = {};
       for (final doc in statAttDocs) {
         final data = doc.data() as Map<String, dynamic>? ?? {};
         final docDate = (data['date'] ?? '').toString();
         final isToday = doc.id == todayStr ||
             doc.id.endsWith('_$todayStr') ||
             docDate == todayStr;
-        if (isToday) {
-          final hasCheckIn = data['checkIn'] != null ||
-              (data['checkInTime'] != null && data['checkInTime'] != '-' && data['checkInTime'] != '—') ||
-              data['checkInTimestamp'] != null;
-          final status = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
-          if (hasCheckIn || status == 'present' || status == 'late' || status == 'half-day') {
-            final email = (data['email'] ?? data['userEmail'] ?? doc.id.split('_').first).toString().toLowerCase();
-            presentEmails.add(email);
-            if (data['workMode'] == 'wfh' || data['location'] == 'WFH') wfh++;
-          }
+        if (!isToday) continue;
+
+        final hasCheckIn = data['checkIn'] != null ||
+            (data['checkInTime'] != null && data['checkInTime'] != '-' && data['checkInTime'] != '—') ||
+            data['checkInTimestamp'] != null;
+        final status = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
+        final isPresentStatus = status == 'present' ||
+            status == 'late' ||
+            status == 'wfh' ||
+            status == 'half day' ||
+            status == 'half-day' ||
+            status == 'completed' ||
+            status == 'checked out';
+        if (!(hasCheckIn || isPresentStatus)) continue;
+
+        final email = (data['email'] ?? data['userEmail'] ?? doc.id.split('_').first)
+            .toString()
+            .toLowerCase();
+        final isWfh = data['workMode'] == 'wfh' ||
+            status == 'wfh' ||
+            (data['location'] ?? '').toString().toLowerCase().contains('work from home');
+        if (isWfh) {
+          wfhEmails.add(email);
+        } else {
+          officeEmails.add(email);
         }
       }
-      present = presentEmails.length;
+      officeEmails.removeAll(wfhEmails); // a person is never in two buckets
+
+      final Set<String> leaveEmails = {};
       for (final doc in statLeaveDocs) {
         final data = doc.data() as Map<String, dynamic>? ?? {};
         try {
-          final fromTs = data['fromDate'] ?? data['from'];
-          final toTs = data['toDate'] ?? data['to'];
-          if (fromTs == null) continue;
-          DateTime? from = fromTs is Timestamp
-              ? fromTs.toDate()
-              : DateTime.tryParse(fromTs.toString());
-          DateTime? to = toTs is Timestamp
-              ? toTs.toDate()
-              : (toTs != null ? DateTime.tryParse(toTs.toString()) : from);
-          if (from != null && to != null) {
-            final fromDate = DateTime(from.year, from.month, from.day);
-            final toDate = DateTime(to.year, to.month, to.day);
-            if (!todayDate.isBefore(fromDate) && !todayDate.isAfter(toDate))
-              onLeave++;
-          }
+          final from = FirestoreService.parseAnyDate(data['fromDate'] ?? data['from']);
+          final to = FirestoreService.parseAnyDate(data['toDate'] ?? data['to']) ?? from;
+          if (from == null || to == null) continue;
+          final fromDate = DateTime(from.year, from.month, from.day);
+          final toDate = DateTime(to.year, to.month, to.day);
+          if (todayDate.isBefore(fromDate) || todayDate.isAfter(toDate)) continue;
+          final email = FirestoreService.requesterEmail(data);
+          if (email.isNotEmpty) leaveEmails.add(email);
         } catch (_) {}
       }
+      // someone who actually checked in today is not "on leave"
+      leaveEmails.removeAll(officeEmails);
+      leaveEmails.removeAll(wfhEmails);
+
+      final present = officeEmails.length;
+      final wfh = wfhEmails.length;
+      final onLeave = leaveEmails.length;
       _lastStatsMap = {'present': present, 'wfh': wfh, 'onLeave': onLeave};
       if (!statsController.isClosed) {
         statsController.add(_lastStatsMap);
@@ -1282,8 +1309,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildOfficeLocationCard(),
-          const SizedBox(height: 16),
+          if (AppSession().hasPermission('geofencing')) ...[
+            _buildOfficeLocationCard(),
+            const SizedBox(height: 16),
+          ],
           _buildAttendanceTodayCard(),
           const SizedBox(height: 16),
           _buildMonthlyAttendanceCard(),
@@ -2218,16 +2247,10 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
     }
 
     try {
-      await _selectedApprovalRef!.update({'status': status});
-      if (status == 'approved' &&
-          _selectedApprovalRef!.parent.id == 'attendance_issues' &&
-          _selectedApprovalData != null) {
-        final docData =
-            (_selectedApprovalData!['docData'] as Map<String, dynamic>?) ??
-                _selectedApprovalData!;
-        await FirestoreService.applyAttendanceCorrectionApproval(
-            requestData: docData);
-      }
+      // Web-compatible decision (Approved/Rejected, approvedBy/At, both leave copies,
+      // attendance record fixed for approved corrections)
+      await FirestoreService.reviewRequest(
+          ref: _selectedApprovalRef!, approve: status == 'approved');
       setState(() => _selectedApprovalData = null);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -2406,8 +2429,62 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             ? DateFormat('hh:mm a').format(checkInDt)
             : (data?['checkInTime']?.toString() ?? '--:-- --');
 
+        // ── Shift: the one saved on today's record, else my assigned shift (live) ──────────
+        final recStart = data?['shiftCheckIn'] ?? data?['shiftStartTime'];
+        final recEnd = data?['shiftCheckOut'] ?? data?['shiftEndTime'];
+        final useRecordShift = hasCheckIn && recStart != null && recEnd != null;
+        final shiftStartRaw = useRecordShift ? recStart : AppSession().shiftStartTime;
+        final shiftEndRaw = useRecordShift ? recEnd : AppSession().shiftEndTime;
+        var shiftName = useRecordShift
+            ? (data?['shift'] ?? data?['shiftName'] ?? AppSession().shiftName).toString().trim()
+            : AppSession().shiftName.trim();
+        if (shiftName.isEmpty) shiftName = 'Shift';
+        if (!shiftName.toLowerCase().endsWith('shift')) shiftName = '$shiftName Shift';
+        final shiftStartStr = FirestoreService.formatTime12(shiftStartRaw);
+        final shiftEndStr = FirestoreService.formatTime12(shiftEndRaw);
+        final graceMin = AppSession.parseMinutes(
+                useRecordShift ? (data?['gracePeriod'] ?? AppSession().gracePeriod) : AppSession().gracePeriod) ??
+            AppSession().gracePeriod;
+        final shiftRange = (shiftStartStr.isNotEmpty && shiftEndStr.isNotEmpty)
+            ? '$shiftStartStr – $shiftEndStr'
+            : (shiftStartStr.isNotEmpty ? shiftStartStr : shiftEndStr);
+
+        // ── Late: after shift start + grace (the record's own flag is trusted too) ────────
+        bool isLate = false;
+        int lateByMin = 0;
+        final shiftStartDt = checkInDt == null
+            ? null
+            : FirestoreService.parseTimeOnDay(shiftStartRaw, checkInDt);
+        if (checkInDt != null && shiftStartDt != null) {
+          if (checkInDt.isAfter(shiftStartDt.add(Duration(minutes: graceMin)))) {
+            isLate = true;
+            lateByMin = checkInDt.difference(shiftStartDt).inMinutes;
+          }
+        }
+        if (data?['isLate'] == true || (status ?? '').toLowerCase() == 'late') {
+          isLate = true;
+        }
+        // an approved attendance correction clears the late mark
+        if (data?['isCorrection'] == true && (status ?? '').toLowerCase() != 'late') {
+          isLate = false;
+          lateByMin = 0;
+        }
+        String lateText = 'Late';
+        if (lateByMin > 0) {
+          lateText = lateByMin >= 60
+              ? 'Late by ${lateByMin ~/ 60}h ${lateByMin % 60}m'
+              : 'Late by $lateByMin min';
+        }
+
+        // ── Working time / overtime (overtime = time beyond the length of MY shift) ───────
         String workingStr = data?['hoursWorked']?.toString() ?? "0h 0m";
         String overtimeStr = "0h 0m";
+        final startDt = FirestoreService.parseTimeOnDay(shiftStartRaw, DateTime.now());
+        final endDt = FirestoreService.parseTimeOnDay(shiftEndRaw, DateTime.now());
+        int shiftMinutes = 9 * 60;
+        if (startDt != null && endDt != null && endDt.isAfter(startDt)) {
+          shiftMinutes = endDt.difference(startDt).inMinutes;
+        }
 
         if (checkInDt != null) {
           final diff = (checkOutDt ?? DateTime.now()).difference(checkInDt);
@@ -2415,13 +2492,14 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
           final m = diff.inMinutes % 60;
           workingStr = '${h}h ${m}m';
 
-          if (h > 9 || (h == 9 && m > 0)) {
-            final otMin = diff.inMinutes - (9 * 60);
-            final oth = otMin ~/ 60;
-            final otm = otMin % 60;
-            overtimeStr = '${oth}h ${otm}m';
+          if (diff.inMinutes > shiftMinutes) {
+            final otMin = diff.inMinutes - shiftMinutes;
+            overtimeStr = '${otMin ~/ 60}h ${otMin % 60}m';
           }
         }
+
+        final isWfhToday = (data?['workMode'] as String? ?? '').toLowerCase() == 'wfh' ||
+            (status?.toLowerCase() ?? '') == 'wfh';
 
         return Container(
           decoration: BoxDecoration(
@@ -2442,20 +2520,16 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             letterSpacing: 0.4)),
                     if (isPresent)
                       Builder(builder: (context) {
-                        final workMode =
-                            (data?['workMode'] as String? ?? '').toLowerCase();
-                        final isWfh = workMode == 'wfh' ||
-                            (status?.toLowerCase() ?? '') == 'wfh';
-                        final badgeColor = isWfh
+                        final Color badgeColor = isWfhToday
                             ? const Color(0xFF2563EB)
-                            : const Color(0xFF10B981);
-                        final badgeBg = isWfh
+                            : (isLate ? const Color(0xFFD97706) : const Color(0xFF10B981));
+                        final Color badgeBg = isWfhToday
                             ? const Color(0xFFEFF6FF)
-                            : const Color(0xFFECFDF5);
-                        final label = isWfh ? 'WFH' : 'Present';
-                        final icon = isWfh
+                            : (isLate ? const Color(0xFFFFFBEB) : const Color(0xFFECFDF5));
+                        final label = isWfhToday ? 'WFH' : (isLate ? 'Late' : 'Present');
+                        final icon = isWfhToday
                             ? Icons.home_work_rounded
-                            : Icons.check_circle_rounded;
+                            : (isLate ? Icons.schedule_rounded : Icons.check_circle_rounded);
                         return Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
@@ -2496,11 +2570,49 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
                             color: Color(0xFF111827))),
                     const SizedBox(height: 2),
                     Text(
-                        '$checkInStr  -  ${data?['shiftName'] ?? AppSession().shiftName ?? 'No Shift Assigned'}${(data?['workMode'] as String? ?? '').toLowerCase() == 'wfh' ? '  -  WFH' : ''}',
+                        hasCheckIn
+                            ? 'Checked in at $checkInStr${isWfhToday ? '  -  WFH' : ''}'
+                            : (shiftStartStr.isEmpty
+                                ? 'Not checked in yet'
+                                : 'Shift starts at $shiftStartStr'),
                         style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),
                             fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    // Shift + timing (one compact line) with the Late chip beside it
+                    Row(children: [
+                      const Icon(Icons.schedule_rounded,
+                          size: 14, color: Color(0xFF5C5CFF)),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                            shiftRange.isEmpty
+                                ? '$shiftName  ·  Grace ${graceMin}m'
+                                : '$shiftName  ·  $shiftRange  ·  Grace ${graceMin}m',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF6B7280),
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      if (isPresent && isLate) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                              color: const Color(0xFFFFFBEB),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFFDE68A))),
+                          child: Text(lateText,
+                              style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Color(0xFF92400E),
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ],
+                    ]),
                     const SizedBox(height: 14),
                     Row(children: [
                       Expanded(child: _statPill(checkInStr, 'Check In')),
@@ -2896,7 +3008,7 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             final totalEmp = usersSnap.data?.docs
                     .where((d) =>
                         FirestoreService.isDocInCurrentCompany(d) &&
-                        !['admin', 'hr_admin', 'super_admin'].contains(((d.data() as Map)['role'] ?? '').toString().toLowerCase()))
+                        FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
                     .length ??
                 0;
             final present = stats['present'] ?? 0;
@@ -2979,7 +3091,9 @@ class _UnifiedDashboardScreenState extends State<UnifiedDashboardScreen> {
             stream: _orgUsersStream,
             builder: (context, usersSnap) {
               final total = usersSnap.data?.docs
-                      .where((d) => !['admin', 'hr_admin', 'super_admin'].contains(((d.data() as Map)['role'] ?? '').toString().toLowerCase()))
+                      .where((d) =>
+                          FirestoreService.isDocInCurrentCompany(d) &&
+                          FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
                       .length ??
                   0;
               final nm = (total - p - l - w) < 0 ? 0 : (total - p - l - w);
@@ -4234,17 +4348,8 @@ class _AdminApprovalReviewScreenState
   void _updateApprovalStatus(String status) async {
     setState(() => _isLoading = true);
     try {
-      await widget.docRef.update({
-        'status': status,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
-      if (status == 'approved' &&
-          widget.docRef.parent.id == 'attendance_issues') {
-        final docSnap = await widget.docRef.get();
-        final docData = (docSnap.data() as Map<String, dynamic>?) ?? data;
-        await FirestoreService.applyAttendanceCorrectionApproval(
-            requestData: docData);
-      }
+      await FirestoreService.reviewRequest(
+          ref: widget.docRef, approve: status == 'approved');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

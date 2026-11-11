@@ -44,24 +44,28 @@ class EmployeeProfileDetailScreen extends StatelessWidget {
     for (var doc in attendanceSnap.docs) {
       if (doc.id.startsWith(monthStr)) {
         final data = doc.data() as Map<String, dynamic>;
-        if (data['status'] == 'present' || data['status'] == 'late') {
+        // Web statuses are Title Case (Present / Late / WFH / Completed)
+        final st = (data['status'] ?? '').toString().trim().toLowerCase();
+        if (st == 'present' || st == 'late' || st == 'wfh' || st == 'completed') {
           present++;
         }
       }
     }
 
     // Fetch approved leaves overlapping this month
-    final leavesSnap = await FirestoreService.userLeaveRequestsCol(email)
-        .where('status', isEqualTo: 'approved')
-        .get();
-        
+    final leavesSnap = await FirestoreService.userLeaveRequestsCol(email).get();
+
     for (var doc in leavesSnap.docs) {
       final data = doc.data() as Map<String, dynamic>;
-      final startTs = data['startDate'] as Timestamp?;
-      final endTs = data['endDate'] as Timestamp?;
-      if (startTs != null && endTs != null) {
-        DateTime current = startTs.toDate();
-        final end = endTs.toDate();
+      // Web leaves: status "Approved", dates stored as from/to "yyyy-MM-dd"
+      if (!FirestoreService.statusIs(data['status'], 'approved')) continue;
+      final startDt = FirestoreService.parseAnyDate(
+          data['fromDate'] ?? data['startDate'] ?? data['from']);
+      final endDt = FirestoreService.parseAnyDate(
+          data['toDate'] ?? data['endDate'] ?? data['to']);
+      if (startDt != null && endDt != null) {
+        DateTime current = startDt;
+        final end = endDt;
         while (current.isBefore(end.add(const Duration(days: 1)))) {
           if (current.year == now.year && current.month == now.month) {
             // Count week days only (assuming mon-fri, but let's just count all for simplicity unless specified)

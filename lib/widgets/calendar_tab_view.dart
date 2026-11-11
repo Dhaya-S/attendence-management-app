@@ -40,34 +40,38 @@ class _CalendarTabViewState extends State<CalendarTabView> {
   DateTime? _selectedDay;
 
   final Set<String> _activeFilters = {
-    'my_leave',
-    'holidays',
-    'events',
     'attendance',
+    'wfh',
+    'my_leave',
+    'team_leave',
+    'holidays',
+    'birthdays',
+    'anniversaries',
+    'shift_schedule',
   };
   String? _selectedDepartment;
   String? _selectedBranch;
 
   final Map<String, Color> _filterColors = {
+    'attendance': const Color(0xFF22C55E),
+    'wfh': const Color(0xFF2563EB),
     'my_leave': const Color(0xFF5C5CFF),
     'team_leave': const Color(0xFFA855F7),
     'holidays': const Color(0xFFEF4444),
     'birthdays': const Color(0xFFEAB308),
     'anniversaries': const Color(0xFFEC4899),
-    'events': const Color(0xFF22C55E),
-    'shift_schedule': const Color(0xFF1E3A8A),
-    'training': const Color(0xFF14B8A6),
+    'shift_schedule': const Color(0xFF14B8A6),
   };
 
   final Map<String, String> _filterLabels = {
+    'attendance': 'Attendance',
+    'wfh': 'WFH',
     'my_leave': 'My Leave',
     'team_leave': 'Team Leave',
     'holidays': 'Holidays',
     'birthdays': 'Birthdays',
     'anniversaries': 'Anniversaries',
-    'events': 'Events',
-    'shift_schedule': 'Shift Schedule',
-    'training': 'Training',
+    'shift_schedule': 'Shift',
   };
 
   @override
@@ -116,147 +120,302 @@ class _CalendarTabViewState extends State<CalendarTabView> {
     return '-';
   }
 
+  // ── helpers ────────────────────────────────────────────────────────────────
+
+  /// Holiday date: web wizard stores rawDate "yyyy-MM-dd" (+ a formatted `date`), the
+  /// Organization page stores `date`; older records may only have year/month/day.
+  DateTime? _holidayDate(Map<String, dynamic> m) {
+    final iso = FirestoreService.parseAnyDate(m['rawDate'] ?? m['date']);
+    if (iso != null) return iso;
+    final text = (m['date'] ?? m['rawDate'] ?? '').toString().trim();
+    for (final f in ['MMM d, yyyy', 'MMMM d, yyyy', 'd MMM yyyy', 'dd/MM/yyyy', 'dd-MM-yyyy']) {
+      try {
+        return DateFormat(f).parseStrict(text);
+      } catch (_) {}
+    }
+    final y = int.tryParse('${m['year'] ?? ''}');
+    final mo = int.tryParse('${m['month'] ?? ''}');
+    final d = int.tryParse('${m['day'] ?? ''}');
+    if (y != null && mo != null && d != null) return DateTime(y, mo, d);
+    return null;
+  }
+
+  /// Birthday / joining date as stored by the web ("yyyy-MM-dd") or typed in the app.
+  DateTime? _personDate(dynamic v) {
+    final iso = FirestoreService.parseAnyDate(v);
+    if (iso != null) return iso;
+    final text = (v ?? '').toString().trim();
+    for (final f in ['MMM d, yyyy', 'd MMM yyyy', 'dd/MM/yyyy', 'dd-MM-yyyy', 'MMMM d, yyyy']) {
+      try {
+        return DateFormat(f).parseStrict(text);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Working weekdays (1 = Mon … 7 = Sun) from a shift's "Mon–Fri" / "Mon-Sat" / list value.
+  Set<int> _workingWeekdays(dynamic v) {
+    const names = {'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7};
+    int? day(String s) {
+      final k = s.trim().toLowerCase();
+      return k.length >= 3 ? names[k.substring(0, 3)] : null;
+    }
+
+    if (v is List) {
+      final out = v.map((e) => day(e.toString())).whereType<int>().toSet();
+      if (out.isNotEmpty) return out;
+    } else if (v is String && v.trim().isNotEmpty) {
+      final m = RegExp(r'^\s*([A-Za-z]{3,})\s*[–—-]\s*([A-Za-z]{3,})\s*$').firstMatch(v);
+      if (m != null) {
+        final a = day(m.group(1)!), b = day(m.group(2)!);
+        if (a != null && b != null) {
+          final out = <int>{};
+          var d = a;
+          for (var i = 0; i < 7; i++) {
+            out.add(d);
+            if (d == b) break;
+            d = d % 7 + 1;
+          }
+          return out;
+        }
+      }
+      final out = v.split(RegExp(r'[,/ ]+')).map(day).whereType<int>().toSet();
+      if (out.isNotEmpty) return out;
+    }
+    return {1, 2, 3, 4, 5};
+  }
+
+  bool _hasBranch(Map<String, dynamic> m, String branch) {
+    final b = branch.toLowerCase().trim();
+    final lists = [m['branches'], m['locations']];
+    var hasAny = false;
+    for (final l in lists) {
+      if (l is List && l.isNotEmpty) {
+        hasAny = true;
+        if (l.any((e) => e.toString().toLowerCase().trim() == b || e.toString().toLowerCase().trim() == 'all')) {
+          return true;
+        }
+      }
+    }
+    final single = (m['branch'] ?? m['location'] ?? '').toString().toLowerCase().trim();
+    if (single.isNotEmpty) {
+      hasAny = true;
+      if (single == b || single == 'all') return true;
+    }
+    return !hasAny; // a holiday with no branch applies to every branch
+  }
+
+  List<String> _deptOptions = [];
+  List<String> _branchOptions = [];
+
   Map<DateTime, List<CalendarEvent>> _buildEventMap({
     required List<QueryDocumentSnapshot> leaves,
     required List<QueryDocumentSnapshot> attendanceRecords,
     required List<QueryDocumentSnapshot> holidays,
+    required List<QueryDocumentSnapshot> users,
+    required List<QueryDocumentSnapshot> shifts,
   }) {
     final Map<DateTime, List<CalendarEvent>> map = {};
     final currentUserEmail = (AppSession().email ?? '').toLowerCase().trim();
     final currentUserUid = AppSession().uid;
-    final currentCompanyId = AppSession().companyId;
 
     void addEvent(DateTime date, CalendarEvent event) {
-      final norm = _normalizeDate(date);
-      map.putIfAbsent(norm, () => []).add(event);
+      map.putIfAbsent(_normalizeDate(date), () => []).add(event);
     }
 
-    // 1. Process Approved Leaves
+    // people by email (department / branch / name / birthday / joining date)
+    final Map<String, Map<String, dynamic>> people = {};
+    for (final d in users) {
+      final m = d.data() as Map<String, dynamic>;
+      if (!FirestoreService.isActiveUserDoc(m)) continue;
+      final email = (m['email'] ?? m['workEmail'] ?? d.id).toString().toLowerCase().trim();
+      people[email] = m;
+    }
+
+    String deptOf(String email) =>
+        (people[email]?['dept'] ?? people[email]?['department'] ?? '').toString().trim();
+    String branchOf(String email) =>
+        (people[email]?['branch'] ?? people[email]?['location'] ?? '').toString().trim();
+
+    // Department / Branch filter for an employee
+    bool passesPeopleFilters(String email) {
+      if (_selectedDepartment != null &&
+          deptOf(email).toLowerCase() != _selectedDepartment!.toLowerCase().trim()) {
+        return false;
+      }
+      if (_selectedBranch != null &&
+          branchOf(email).toLowerCase() != _selectedBranch!.toLowerCase().trim()) {
+        return false;
+      }
+      return true;
+    }
+
+    final focus = _focusedDay;
+    final rangeStart = DateTime(focus.year, focus.month - 1, 1);
+    final rangeEnd = DateTime(focus.year, focus.month + 2, 0);
+
+    // 1. Approved leaves — mine / team
     for (var doc in leaves) {
       final data = doc.data() as Map<String, dynamic>;
-      final docCid = data['companyId'] as String?;
-      if (docCid != null && currentCompanyId != null && docCid != currentCompanyId) {
-        continue;
-      }
+      if (!FirestoreService.statusIs(data['status'], 'approved')) continue;
+      final email = FirestoreService.requesterEmail(data);
+      final uid = data['userId'] ?? data['uid'] ?? '';
+      final isMine = (currentUserEmail.isNotEmpty && email == currentUserEmail) ||
+          (currentUserUid != null && uid == currentUserUid);
+      final type = isMine ? 'my_leave' : 'team_leave';
+      if (!_activeFilters.contains(type)) continue;
+      if (!passesPeopleFilters(email)) continue;
 
-      // Department Filtering
-      if (_selectedDepartment != null) {
-        final dept = (data['department'] ?? data['dept'] ?? '').toString().toLowerCase().trim();
-        if (dept != _selectedDepartment!.toLowerCase().trim()) continue;
-      }
+      final from = _parseDate(data['fromDate'] ?? data['startDate'] ?? data['from']);
+      final to = _parseDate(data['toDate'] ?? data['endDate'] ?? data['to']) ?? from;
+      if (from == null) continue;
+      final leaveType = (data['leaveType'] ?? data['type'] ?? 'Leave').toString();
+      final who = isMine ? '' : '${(data['applicantName'] ?? data['employee'] ?? data['userName'] ?? people[email]?['name'] ?? 'Team member')} · ';
 
-      final status = (data['status'] ?? '').toString().toLowerCase();
-      if (status == 'approved') {
-        final email = (data['applicantEmail'] ?? data['employeeEmail'] ?? data['email'] ?? '').toString().toLowerCase().trim();
-        final uid = data['userId'] ?? data['uid'] ?? '';
-        final isMine = (currentUserEmail.isNotEmpty && email == currentUserEmail) ||
-            (currentUserUid != null && uid == currentUserUid);
-        
-        final type = isMine ? 'my_leave' : 'team_leave';
-
-        if (_activeFilters.contains(type)) {
-          final from = _parseDate(data['fromDate'] ?? data['startDate'] ?? data['from']);
-          final to = _parseDate(data['toDate'] ?? data['endDate'] ?? data['to']) ?? from;
-          final leaveType = (data['leaveType'] ?? data['type'] ?? 'Leave').toString();
-
-          if (from != null) {
-            DateTime current = from;
-            final totalDays = to != null ? to.difference(from).inDays + 1 : 1;
-            int dayCount = 1;
-            while (!current.isAfter(to ?? from)) {
-              addEvent(
-                current,
-                CalendarEvent(
-                  title: '$leaveType (Approved)',
-                  type: type,
-                  date: current,
-                  status: 'Leave',
-                  notes: 'Day $dayCount of $totalDays',
-                ),
-              );
-              current = current.add(const Duration(days: 1));
-              dayCount++;
-            }
-          }
-        }
+      var current = _normalizeDate(from);
+      final last = _normalizeDate(to ?? from);
+      final totalDays = last.difference(current).inDays + 1;
+      var dayCount = 1;
+      while (!current.isAfter(last) && dayCount <= 400) {
+        addEvent(
+          current,
+          CalendarEvent(
+            title: '$who$leaveType (Approved)',
+            type: type,
+            date: current,
+            status: 'Leave',
+            notes: 'Day $dayCount of $totalDays',
+          ),
+        );
+        current = current.add(const Duration(days: 1));
+        dayCount++;
       }
     }
 
-    // 2. Process Attendance Records
+    // 2. My attendance — Present / Late / WFH
     for (var doc in attendanceRecords) {
       final data = doc.data() as Map<String, dynamic>;
-      final docCid = data['companyId'] as String?;
-      if (docCid != null && currentCompanyId != null && docCid != currentCompanyId) {
-        continue;
-      }
-
-      // Department Filtering
-      if (_selectedDepartment != null) {
-        final dept = (data['department'] ?? data['dept'] ?? '').toString().toLowerCase().trim();
-        if (dept != _selectedDepartment!.toLowerCase().trim()) continue;
-      }
-
-      final docEmail = (data['userEmail'] ?? data['email'] ?? doc.reference.parent.parent?.id ?? '').toString().toLowerCase().trim();
+      final docEmail = (data['userEmail'] ?? data['email'] ?? doc.reference.parent.parent?.id ?? '')
+          .toString()
+          .toLowerCase()
+          .trim();
       if (currentUserEmail.isNotEmpty && docEmail.isNotEmpty && docEmail != currentUserEmail) continue;
 
       final date = _parseDate(data['date'] ?? data['recordDate'] ?? data['createdAt'] ?? doc.id);
-      if (date != null) {
-        final checkInVal = data['checkIn'] ?? data['checkInTime'] ?? data['lastCheckIn'];
-        final checkOutVal = data['checkOut'] ?? data['checkOutTime'] ?? data['lastCheckout'];
-        final checkInStr = _formatTime(checkInVal);
-        final checkOutStr = _formatTime(checkOutVal);
-        final hoursStr = _calculateHours(checkInVal, checkOutVal);
-        final statusRaw = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
-        final isLate = data['isLate'] == true || statusRaw.contains('late');
-        final isWfh = (data['workMode'] ?? '').toString().toLowerCase().contains('wfh');
+      if (date == null) continue;
 
-        final statusLabel = isWfh ? 'WFH' : (isLate ? 'Late' : 'Present');
-        final titleLabel = isWfh ? 'Work From Home' : (isLate ? 'Late Check-in' : 'Present');
+      final statusRaw = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
+      final isWfh = (data['workMode'] ?? '').toString().toLowerCase().contains('wfh') || statusRaw == 'wfh';
+      final isLate = data['isLate'] == true || statusRaw.contains('late');
+      final type = isWfh ? 'wfh' : 'attendance';
+      if (!_activeFilters.contains(type)) continue;
+      if (!passesPeopleFilters(docEmail.isEmpty ? currentUserEmail : docEmail)) continue;
 
+      final checkInVal = data['checkIn'] ?? data['checkInTime'] ?? data['lastCheckIn'];
+      final checkOutVal = data['checkOut'] ?? data['checkOutTime'] ?? data['lastCheckout'];
+      final checkInStr = checkInVal == null ? '-' : (FirestoreService.formatTime12(checkInVal).isNotEmpty ? FirestoreService.formatTime12(checkInVal) : _formatTime(checkInVal));
+      final checkOutStr = checkOutVal == null ? '-' : (FirestoreService.formatTime12(checkOutVal).isNotEmpty ? FirestoreService.formatTime12(checkOutVal) : _formatTime(checkOutVal));
+      var hoursStr = _calculateHours(checkInVal, checkOutVal);
+      if (hoursStr == '-' && (data['hoursWorked'] ?? '').toString().isNotEmpty) {
+        hoursStr = data['hoursWorked'].toString();
+      }
+
+      addEvent(
+        date,
+        CalendarEvent(
+          title: isWfh ? 'Work From Home' : (isLate ? 'Late Check-in' : 'Present'),
+          type: type,
+          date: date,
+          status: isWfh ? 'WFH' : (isLate ? 'Late' : 'Present'),
+          checkIn: checkInStr,
+          checkOut: checkOutStr,
+          hours: hoursStr,
+          notes: (data['reason'] ?? 'Attendance record').toString(),
+        ),
+      );
+    }
+
+    // 3. Holidays (branch filter uses the holiday's own branches)
+    if (_activeFilters.contains('holidays')) {
+      for (var doc in holidays) {
+        final data = doc.data() as Map<String, dynamic>;
+        if (_selectedBranch != null && !_hasBranch(data, _selectedBranch!)) continue;
+        final date = _holidayDate(data);
+        if (date == null) continue;
+        final title = (data['name'] ?? data['title'] ?? 'Holiday').toString();
         addEvent(
           date,
-          CalendarEvent(
-            title: titleLabel,
-            type: 'events',
-            date: date,
-            status: statusLabel,
-            checkIn: checkInStr,
-            checkOut: checkOutStr,
-            hours: hoursStr,
-            notes: (data['reason'] ?? 'Attendance Record').toString(),
-          ),
+          CalendarEvent(title: title, type: 'holidays', date: date, status: 'Holiday', notes: title),
         );
       }
     }
 
-    // 3. Process Holidays
-    if (_activeFilters.contains('holidays')) {
-      for (var doc in holidays) {
-        final data = doc.data() as Map<String, dynamic>;
-        
-        // Branch Filtering
-        if (_selectedBranch != null) {
-          final branch = (data['branch'] ?? data['location'] ?? '').toString().toLowerCase().trim();
-          if (branch != _selectedBranch!.toLowerCase().trim()) continue;
+    // 4. Birthdays + work anniversaries (every year, shown around the month being viewed)
+    final wantBirthdays = _activeFilters.contains('birthdays');
+    final wantAnniv = _activeFilters.contains('anniversaries');
+    if (wantBirthdays || wantAnniv) {
+      people.forEach((email, p) {
+        if (!passesPeopleFilters(email)) return;
+        final name = (p['name'] ?? p['fullName'] ?? email).toString();
+        for (var y = rangeStart.year; y <= rangeEnd.year; y++) {
+          if (wantBirthdays) {
+            final dob = _personDate(p['dob'] ?? p['birthday'] ?? p['dateOfBirth']);
+            if (dob != null) {
+              final d = DateTime(y, dob.month, dob.day);
+              if (!d.isBefore(rangeStart) && !d.isAfter(rangeEnd)) {
+                addEvent(d, CalendarEvent(title: "$name's Birthday", type: 'birthdays', date: d, status: 'Birthday'));
+              }
+            }
+          }
+          if (wantAnniv) {
+            final joined = _personDate(p['joinDate'] ?? p['joiningDate'] ?? p['dateOfJoining']);
+            if (joined != null && y > joined.year) {
+              final d = DateTime(y, joined.month, joined.day);
+              if (!d.isBefore(rangeStart) && !d.isAfter(rangeEnd)) {
+                final n = y - joined.year;
+                addEvent(
+                  d,
+                  CalendarEvent(
+                    title: '$name · $n year${n == 1 ? '' : 's'} at the company',
+                    type: 'anniversaries',
+                    date: d,
+                    status: 'Anniversary',
+                  ),
+                );
+              }
+            }
+          }
         }
+      });
+    }
 
-        final date = _parseDate(data['date']);
-        final title = data['name'] ?? data['title'] ?? 'Holiday';
-        if (date != null) {
-          addEvent(
-            date,
-            CalendarEvent(
-              title: title,
-              type: 'holidays',
-              date: date,
-              status: 'Holiday',
-              notes: title,
-            ),
-          );
+    // 5. My shift schedule (working days of MY assigned shift)
+    if (_activeFilters.contains('shift_schedule') && currentUserEmail.isNotEmpty) {
+      final shiftMaps = shifts.map((d) {
+        final m = Map<String, dynamic>.from(d.data() as Map);
+        m['id'] = m['id'] ?? d.id;
+        return m;
+      }).toList();
+      final mine = people[currentUserEmail] ?? <String, dynamic>{};
+      final shift = FirestoreService.pickShiftFor(mine, shiftMaps);
+      final label = FirestoreService.shiftLabel(shift);
+      final workDays = _workingWeekdays(shift?['days'] ?? shift?['workingDays'] ?? shift?['weeklyOff']);
+      if (passesPeopleFilters(currentUserEmail)) {
+        var d = rangeStart;
+        while (!d.isAfter(rangeEnd)) {
+          if (workDays.contains(d.weekday)) {
+            addEvent(d, CalendarEvent(title: label, type: 'shift_schedule', date: d, status: 'Shift'));
+          }
+          d = d.add(const Duration(days: 1));
         }
       }
     }
 
+    // most important first (this decides what the day card highlights)
+    const order = ['holidays', 'my_leave', 'team_leave', 'attendance', 'wfh', 'birthdays', 'anniversaries', 'shift_schedule'];
+    for (final list in map.values) {
+      list.sort((a, b) => order.indexOf(a.type).compareTo(order.indexOf(b.type)));
+    }
     return map;
   }
 
@@ -409,10 +568,10 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _selectedDepartment,
+                        initialValue: _selectedDepartment ?? 'All',
                         hint: const Text('Select Department', style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
                         decoration: const InputDecoration(border: InputBorder.none),
-                        items: ['Engineering', 'HR', 'Product', 'Sales', 'Marketing', 'Finance']
+                        items: ['All', ..._deptOptions]
                             .map((dept) => DropdownMenuItem(
                                   value: dept,
                                   child: Text(dept, style: const TextStyle(fontSize: 13, color: Color(0xFF1F2937))),
@@ -420,7 +579,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                             .toList(),
                         onChanged: (val) {
                           setModalState(() {
-                            _selectedDepartment = val;
+                            _selectedDepartment = (val == null || val == 'All') ? null : val;
                           });
                         },
                       ),
@@ -448,10 +607,10 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                     ),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButtonFormField<String>(
-                        initialValue: _selectedBranch,
+                        initialValue: _selectedBranch ?? 'All',
                         hint: const Text('Select Branch', style: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF))),
                         decoration: const InputDecoration(border: InputBorder.none),
-                        items: ['Headquarters', 'New York Office', 'London Office', 'Remote']
+                        items: ['All', ..._branchOptions]
                             .map((branch) => DropdownMenuItem(
                                   value: branch,
                                   child: Text(branch, style: const TextStyle(fontSize: 13, color: Color(0xFF1F2937))),
@@ -459,7 +618,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                             .toList(),
                         onChanged: (val) {
                           setModalState(() {
-                            _selectedBranch = val;
+                            _selectedBranch = (val == null || val == 'All') ? null : val;
                           });
                         },
                       ),
@@ -474,7 +633,9 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                         child: TextButton(
                           onPressed: () {
                             setModalState(() {
-                              _activeFilters.clear();
+                              _activeFilters
+                                ..clear()
+                                ..addAll(_filterLabels.keys);
                               _selectedDepartment = null;
                               _selectedBranch = null;
                             });
@@ -547,15 +708,36 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                   .doc(AppSession().companyId ?? 'default')
                   .collection('holidays')
                   .snapshots(),
-              builder: (context, holidaySnap) {
+              builder: (context, holidaySnap) => StreamBuilder<QuerySnapshot>(
+              stream: FirestoreService.employeesCol.snapshots(),
+              builder: (context, usersSnap) => StreamBuilder<QuerySnapshot>(
+              stream: FirestoreService.shiftsCol.snapshots(),
+              builder: (context, shiftsSnap) {
                 final leaves = leaveSnap.data?.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList() ?? [];
                 final attendance = attSnap.data?.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList() ?? [];
                 final holidays = holidaySnap.data?.docs ?? [];
+                final users = (usersSnap.data?.docs ?? []).where((d) => FirestoreService.isDocInCurrentCompany(d)).toList();
+                final shifts = shiftsSnap.data?.docs ?? [];
+
+                // Department / Branch options come from the company's real people
+                final depts = <String>{};
+                final branches = <String>{};
+                for (final d in users) {
+                  final m = d.data() as Map<String, dynamic>;
+                  final dept = (m['dept'] ?? m['department'] ?? '').toString().trim();
+                  final br = (m['branch'] ?? m['location'] ?? '').toString().trim();
+                  if (dept.isNotEmpty) depts.add(dept);
+                  if (br.isNotEmpty) branches.add(br);
+                }
+                _deptOptions = depts.toList()..sort();
+                _branchOptions = branches.toList()..sort();
 
                 final eventMap = _buildEventMap(
                   leaves: leaves,
                   attendanceRecords: attendance,
                   holidays: holidays,
+                  users: users,
+                  shifts: shifts,
                 );
 
                 return Container(
@@ -577,7 +759,8 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                     ),
                   ),
                 );
-              },
+              }),
+              ),
             );
           },
         );
@@ -728,8 +911,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
     bool isHoliday = events.any((e) => e.type == 'holidays');
     bool isBirthday = events.any((e) => e.type == 'birthdays');
     bool isAnniversary = events.any((e) => e.type == 'anniversaries');
-    bool isEvent = events.any((e) => e.type == 'events');
-    bool isShift = events.any((e) => e.type == 'shift_schedule');
+    bool isEvent = events.any((e) => e.type == 'attendance' || e.type == 'wfh');
     bool isTraining = events.any((e) => e.type == 'training');
 
     Color ringColor = Colors.transparent;
@@ -748,10 +930,10 @@ class _CalendarTabViewState extends State<CalendarTabView> {
       ringColor = const Color(0xFFEAB308);
     } else if (isAnniversary) {
       ringColor = const Color(0xFFEC4899);
+    } else if (events.any((e) => e.type == 'wfh')) {
+      ringColor = const Color(0xFF2563EB);
     } else if (isEvent) {
       ringColor = const Color(0xFF22C55E);
-    } else if (isShift) {
-      ringColor = const Color(0xFF1E3A8A);
     } else if (isTraining) {
       ringColor = const Color(0xFF14B8A6);
     }
@@ -921,7 +1103,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
           ),
 
           // Attendance Metrics Row (Check In / Check Out / Hours)
-          if (primaryEvent != null && primaryEvent.type == 'events' && primaryEvent.checkIn != null) ...[
+          if (primaryEvent != null && (primaryEvent.type == 'attendance' || primaryEvent.type == 'wfh') && primaryEvent.checkIn != null) ...[
             const SizedBox(height: 18),
             Row(
               children: [
@@ -936,7 +1118,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _buildMetricBox(
-                    title: primaryEvent.checkOut ?? '6:15 PM',
+                    title: primaryEvent.checkOut ?? '-',
                     subtitle: 'Check Out',
                     bgColor: const Color(0xFFEFF6FF),
                     fgColor: const Color(0xFF2563EB),
@@ -945,7 +1127,7 @@ class _CalendarTabViewState extends State<CalendarTabView> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: _buildMetricBox(
-                    title: primaryEvent.hours ?? '8h 43m',
+                    title: primaryEvent.hours ?? '-',
                     subtitle: 'Hours',
                     bgColor: const Color(0xFFF5F3FF),
                     fgColor: const Color(0xFF8B5CF6),

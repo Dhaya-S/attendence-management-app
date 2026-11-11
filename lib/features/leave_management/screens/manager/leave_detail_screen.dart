@@ -24,7 +24,7 @@ class LeaveDetailScreen extends StatelessWidget {
     final leaveType = leaveData['leaveType'] ?? 'Leave';
     final from = leaveData['fromDate'] as Timestamp?;
     final to = leaveData['toDate'] as Timestamp?;
-    final status = leaveData['status'] ?? 'pending';
+    final status = (leaveData['status'] ?? 'pending').toString().toLowerCase();
 
     int days = 0;
     if (from != null && to != null) {
@@ -291,10 +291,9 @@ class LeaveDetailScreen extends StatelessWidget {
 
   void _updateStatus(BuildContext context, String newStatus) async {
     try {
-      await leaveRef.update({
-        'status': newStatus,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
+      // Same write as the web app (Approved/Rejected + approvedBy/At on both copies)
+      await FirestoreService.reviewRequest(
+          ref: leaveRef, approve: newStatus == 'approved');
 
       // Notify Employee
       String employeeEmail = leaveData['userEmail'] ?? '';
@@ -311,7 +310,7 @@ class LeaveDetailScreen extends StatelessWidget {
         await NotificationHelper.notifyEmployee(
           employeeEmail: employeeEmail,
           title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
-          body: 'Your ${leaveData['leaveType']} request from ${DateFormat('MMM dd').format((leaveData['fromDate'] as Timestamp).toDate())} has been $newStatus.',
+          body: 'Your ${leaveData['leaveType'] ?? leaveData['type'] ?? 'leave'} request from ${(() { final d = FirestoreService.parseAnyDate(leaveData['fromDate'] ?? leaveData['from']); return d == null ? '' : DateFormat('MMM dd').format(d); })()} has been $newStatus.',
           type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
           extraData: {
             'userId': leaveData['userId'],

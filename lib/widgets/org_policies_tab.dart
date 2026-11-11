@@ -14,7 +14,6 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
   final TextEditingController _searchController = TextEditingController();
   String _selectedCategory = 'All';
   String _searchQuery = '';
-  bool _isSeeding = false;
 
   final List<String> _categories = [
     'All',
@@ -31,83 +30,8 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
     super.dispose();
   }
 
-  // Initial default policies to seed into Firestore if empty
-  Future<void> _seedDefaultPoliciesIfEmpty(QuerySnapshot snapshot) async {
-    if (snapshot.docs.isNotEmpty || _isSeeding) return;
-    _isSeeding = true;
-
-    final defaultPolicies = [
-      {
-        'title': 'Attendance Policies',
-        'category': 'Attendance',
-        'icon': 'access_time',
-        'department': 'All Departments',
-        'badge': 'Mandatory',
-        'updatedAt': FieldValue.serverTimestamp(),
-        'bullets': [
-          'Standard shift: 9:00 AM – 6:00 PM',
-          'Grace period: 15 minutes after shift start',
-          'Minimum hours required: 8.5 hrs/day',
-          'Overtime: Requires manager pre-approval',
-        ],
-      },
-      {
-        'title': 'Leave Policies',
-        'category': 'Leave',
-        'icon': 'calendar',
-        'department': 'All Departments',
-        'badge': 'Standard',
-        'updatedAt': FieldValue.serverTimestamp(),
-        'bullets': [
-          'Annual leave allowance: 18 days/year',
-          'Sick leave allowance: 7 days/year',
-          'Compensatory off: Redeemable within 30 days',
-          'Leave encashment: Up to 10 days at year-end',
-        ],
-      },
-      {
-        'title': 'Document Guidelines',
-        'category': 'Documents',
-        'icon': 'file',
-        'department': 'HR & Management',
-        'badge': 'Reference',
-        'updatedAt': FieldValue.serverTimestamp(),
-        'bullets': [
-          'Standard Offer Letter Template v2.4',
-          'Appointment Letter format compliance',
-          'Non-Disclosure Agreement (NDA) mandatory for joiners',
-          'Quarterly Appraisal Form submissions',
-        ],
-      },
-      {
-        'title': 'Policy Assignments & Roles',
-        'category': 'Workplace',
-        'icon': 'assignment',
-        'department': 'All Departments',
-        'badge': 'Updated',
-        'updatedAt': FieldValue.serverTimestamp(),
-        'bullets': [
-          'Engineering: Policy Set A (Flexible Hours)',
-          'Design: Policy Set A (Flexible Hours)',
-          'Sales & Operations: Policy Set B (Shift Rotations)',
-          'HR & Admin: Policy Set C (Standard Office Hours)',
-        ],
-      },
-    ];
-
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      for (final policy in defaultPolicies) {
-        final docRef = FirestoreService.policiesCol.doc();
-        batch.set(docRef, policy);
-      }
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Error seeding default policies: $e');
-    } finally {
-      _isSeeding = false;
-    }
-  }
+  // NOTE: policies are created and edited in the web app. The mobile app never seeds
+  // made-up default policies into the company's real data.
 
   IconData _getIconData(String? iconName) {
     switch (iconName) {
@@ -479,10 +403,6 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasData && snapshot.data!.docs.isEmpty) {
-            _seedDefaultPoliciesIfEmpty(snapshot.data!);
           }
 
           final docs = snapshot.data?.docs ?? [];

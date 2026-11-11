@@ -29,9 +29,7 @@ class NotificationAction extends StatelessWidget {
 
   Widget _buildManagerNotification(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.companyLeaveRequestsQuery
-          .where('status', isEqualTo: 'pending')
-          .snapshots(),
+      stream: FirestoreService.companyLeaveRequestsQuery.snapshots(),
       builder: (context, leaveSnap) {
         return StreamBuilder<QuerySnapshot>(
           stream: FirestoreService.allAttendanceRecordsCol
@@ -43,7 +41,12 @@ class NotificationAction extends StatelessWidget {
                   .where('isRead', isEqualTo: false)
                   .snapshots(),
               builder: (context, systemSnap) {
-                final leaveCount = (leaveSnap.hasData && leaveSnap.data != null) ? leaveSnap.data!.docs.length : 0;
+                final leaveCount = (leaveSnap.hasData && leaveSnap.data != null)
+                    ? leaveSnap.data!.docs
+                        .where((d) => FirestoreService.statusIs(
+                            (d.data() as Map<String, dynamic>)['status'], 'pending'))
+                        .length
+                    : 0;
                 final adjustCount = (adjustSnap.hasData && adjustSnap.data != null) ? adjustSnap.data!.docs.length : 0;
                 final systemCount = (systemSnap.hasData && systemSnap.data != null) ? systemSnap.data!.docs.length : 0;
                 final total = leaveCount + adjustCount + systemCount;

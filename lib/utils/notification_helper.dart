@@ -259,7 +259,7 @@ class NotificationHelper {
   }) async {
     try {
       // 1. Fetch all employees in the company
-      final usersSnapshot = await FirestoreService.companyUsersQuery.get();
+      final activeUsers = await FirestoreService.fetchActiveCompanyUsers();
       
       final batch = FirebaseFirestore.instance.batch();
       final notificationData = {
@@ -274,7 +274,7 @@ class NotificationHelper {
         if (extraData != null) ...extraData,
       };
 
-      for (var doc in usersSnapshot.docs) {
+      for (var doc in activeUsers) {
         final email = doc.id; // Document ID is email.toLowerCase()
         final userNotifRef = FirestoreService.userNotificationsCol(email).doc();
         batch.set(userNotifRef, notificationData);

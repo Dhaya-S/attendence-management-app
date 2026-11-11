@@ -386,7 +386,9 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
             }
 
             final date = DateTime.tryParse(doc.id) ?? _parseTs(data['date']) ?? DateTime.now();
-            final status = data['status'] == 'checked_out' ? 'PRESENT' : 'ON DUTY';
+            final status = (checkOut != null || data['status'] == 'checked_out')
+                ? 'PRESENT'
+                : 'ON DUTY';
             final workMode = data['workMode'] == 'wfh' ? 'WFH' : 'OFFICE';
             final displayStatus = '$status ($workMode)';
             final color = status == 'PRESENT' ? AppTheme.success : AppTheme.warning;

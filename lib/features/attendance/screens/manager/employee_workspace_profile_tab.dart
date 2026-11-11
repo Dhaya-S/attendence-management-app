@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
@@ -26,7 +27,6 @@ class EmployeeWorkspaceProfileTab extends StatelessWidget {
     final department = employeeData['department'] ?? 'Design';
     final role = employeeData['role'] ?? 'Product Designer';
     final manager = employeeData['managerName'] ?? 'Rahul Mehta';
-    final shift = employeeData['shift'] ?? 'General · 09:00–18:00';
     final empType = employeeData['employmentType'] ?? 'Full-Time Permanent';
 
     return SingleChildScrollView(
@@ -56,7 +56,12 @@ class EmployeeWorkspaceProfileTab extends StatelessWidget {
               _buildDivider(),
               _buildInfoRow('Reporting Manager', manager),
               _buildDivider(),
-              _buildInfoRow('Shift', shift),
+              FutureBuilder<String>(
+                future: FirestoreService.shiftLabelForUser(
+                    Map<String, dynamic>.from(employeeData)),
+                builder: (context, snap) =>
+                    _buildInfoRow('Shift', snap.data ?? 'Loading…'),
+              ),
               _buildDivider(),
               _buildInfoRow('Employee Type', empType),
             ],

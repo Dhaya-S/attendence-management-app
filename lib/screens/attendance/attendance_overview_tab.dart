@@ -64,7 +64,8 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
       await FirestoreService.recordAttendancePunch(
         email: email,
         isCheckIn: isCheckIn,
-        status: isCheckIn ? 'Present' : status,
+        // Late is worked out inside recordAttendancePunch; check-out keeps the day's status.
+        status: 'Present',
         location: 'Work in Office',
         additionalData: {
           'workMode': 'office',
@@ -731,13 +732,13 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('General Shift',
-                        style: TextStyle(
+                    Text(AppSession().shiftLabel,
+                        style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: AppTheme.textPrimary)),
                     const SizedBox(height: 2),
-                    Text('$shiftStart AM â€“ $shiftEnd PM Â· Office',
+                    Text('${AppSession().shiftTimeRange} · Office',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,

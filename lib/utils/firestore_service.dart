@@ -133,10 +133,21 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get shiftsCol =>
       orgShiftsCol(_cid);
 
-  /// Fetch the applicable shift document for a company/user.
-  /// 1. Checks by [shiftId] if specified on user doc
-  /// 2. Checks matching [department] or 'All'
-  /// 3. Falls back to first available shift in organizations/{companyId}/shifts
+  /// Reads which shift a user is assigned to. The web app stores it on the employee
+  /// profile as `shift` (a shift NAME or id), with `shiftTemplate` / `shiftName` / `shiftId`
+  /// as alternatives.
+  static String? userShiftKey(Map<String, dynamic>? m) {
+    if (m == null) return null;
+    for (final k in ['shift', 'shiftTemplate', 'shiftName', 'shiftId']) {
+      final v = (m[k] ?? '').toString().trim();
+      if (v.isNotEmpty) return v;
+    }
+    return null;
+  }
+
+  /// Picks the shift that applies to a user — exactly like the web app does:
+  /// the shift whose id or NAME matches the one on the user's profile
+  /// ("General" also matches "General Shift"), otherwise the first shift of the company.
   static Future<Map<String, dynamic>?> fetchApplicableShift({
     String? companyId,
     String? shiftId,
@@ -144,60 +155,148 @@ class FirestoreService {
   }) async {
     final cid = companyId ?? _cid;
     try {
-      final col = orgShiftsCol(cid);
+      final qs = await orgShiftsCol(cid).get();
+      if (qs.docs.isEmpty) return null;
 
-      // 1. By explicit shiftId
-      if (shiftId != null && shiftId.isNotEmpty) {
-        final doc = await col.doc(shiftId).get();
-        if (doc.exists && doc.data() != null) {
-          final data = Map<String, dynamic>.from(doc.data()!);
-          data['id'] = doc.id;
-          return data;
-        }
+      Map<String, dynamic> withId(QueryDocumentSnapshot<Map<String, dynamic>> d) {
+        final m = Map<String, dynamic>.from(d.data());
+        m['id'] = m['id'] ?? d.id;
+        return m;
       }
 
-      // 2. Fetch all shifts for the org
-      final qs = await col.get();
-      if (qs.docs.isNotEmpty) {
-        // Look for matching department
-        if (department != null && department.isNotEmpty) {
-          for (final doc in qs.docs) {
-            final data = doc.data();
-            final depts = data['depts'] ?? data['departments'];
-            if (depts is List && depts.any((d) => d.toString().toLowerCase() == department.toLowerCase())) {
-              final dMap = Map<String, dynamic>.from(data);
-              dMap['id'] = doc.id;
-              return dMap;
-            }
-            if (depts is String && (depts.toLowerCase() == department.toLowerCase())) {
-              final dMap = Map<String, dynamic>.from(data);
-              dMap['id'] = doc.id;
-              return dMap;
-            }
+      final assigned = (shiftId ?? '').trim().toLowerCase();
+      if (assigned.isNotEmpty) {
+        for (final d in qs.docs) {
+          final data = d.data();
+          final name = (data['name'] ?? data['shiftName'] ?? '')
+              .toString()
+              .trim()
+              .toLowerCase();
+          if (d.id.toLowerCase() == assigned ||
+              name == assigned ||
+              '$name shift' == assigned) {
+            return withId(d);
           }
         }
-
-        // Look for shift with depts: "All"
-        for (final doc in qs.docs) {
-          final data = doc.data();
-          final depts = data['depts'] ?? data['departments'];
-          if (depts == 'All' || depts == 'all' || (depts is List && depts.contains('All'))) {
-            final dMap = Map<String, dynamic>.from(data);
-            dMap['id'] = doc.id;
-            return dMap;
-          }
-        }
-
-        // Fallback to the first shift
-        final firstDoc = qs.docs.first;
-        final dMap = Map<String, dynamic>.from(firstDoc.data());
-        dMap['id'] = firstDoc.id;
-        return dMap;
       }
+      return withId(qs.docs.first); // web fallback: first shift
     } catch (e) {
       debugPrint('Error fetching applicable shift for $cid: $e');
     }
     return null;
+  }
+
+  /// Works out WHERE this user's office is and how large the geofence is — the same
+  /// order the web app uses on check-in:
+  ///   1. the employee's own latitude/longitude (+ radius)
+  ///   2. the employee's branch (branches/{name_with_underscores}, branches by name/id,
+  ///      organization.locations by name)
+  ///   3. the first organization location / first branch / first location
+  ///   4. the organization's own latitude/longitude
+  /// Radius text like "200m" is parsed; default 500 (branch) / 200 (organization).
+  static Future<void> resolveOfficeForCurrentUser(
+      {Map<String, dynamic>? orgData}) async {
+    try {
+      final s = AppSession();
+      final email = (s.email ?? '').trim().toLowerCase();
+      if (email.isEmpty || s.companyId == null) return;
+
+      final org = orgData ?? (await companyDoc().get()).data() ?? <String, dynamic>{};
+
+      bool truthy(dynamic v) =>
+          v != null && v.toString().trim().isNotEmpty && v.toString() != '0' && v != 0;
+      double num0(dynamic v) =>
+          v is num ? v.toDouble() : (double.tryParse((v ?? '').toString()) ?? 0);
+
+      double lat = 0, lng = 0;
+      dynamic radiusRaw = 500;
+
+      final u = (await employeeDoc(email).get()).data() ?? <String, dynamic>{};
+      final userBranch = (u['branch'] ?? u['location'] ?? '').toString().trim();
+
+      if (truthy(u['latitude'] ?? u['lat'])) {
+        lat = num0(u['latitude'] ?? u['lat']);
+        lng = num0(u['longitude'] ?? u['lng']);
+        if (truthy(u['geofenceRadius'] ?? u['radius'])) {
+          radiusRaw = u['geofenceRadius'] ?? u['radius'];
+        }
+      } else {
+        Map<String, dynamic>? matched;
+        final orgLocations = org['locations'] is List
+            ? (org['locations'] as List)
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+            : <Map<String, dynamic>>[];
+
+        if (userBranch.isNotEmpty) {
+          final branchesCol = companyDoc().collection('branches');
+          final direct = await branchesCol
+              .doc(userBranch.replaceAll(RegExp(r'\s+'), '_'))
+              .get();
+          if (direct.exists) {
+            matched = direct.data();
+          } else {
+            final all = await branchesCol.get();
+            for (final d in all.docs) {
+              final b = d.data();
+              if ((b['name'] ?? '').toString().trim().toLowerCase() ==
+                      userBranch.toLowerCase() ||
+                  d.id.toLowerCase() == userBranch.toLowerCase()) {
+                matched = b;
+                break;
+              }
+            }
+          }
+          if (matched == null) {
+            for (final l in orgLocations) {
+              if ((l['name'] ?? '').toString().trim().toLowerCase() ==
+                  userBranch.toLowerCase()) {
+                matched = l;
+                break;
+              }
+            }
+          }
+        }
+        if (matched == null && orgLocations.isNotEmpty) matched = orgLocations.first;
+        if (matched == null) {
+          final b = await companyDoc().collection('branches').limit(1).get();
+          if (b.docs.isNotEmpty) {
+            matched = b.docs.first.data();
+          } else {
+            final l = await companyDoc().collection('locations').limit(1).get();
+            if (l.docs.isNotEmpty) matched = l.docs.first.data();
+          }
+        }
+
+        if (matched != null) {
+          lat = num0(matched['latitude'] ?? matched['lat']);
+          lng = num0(matched['longitude'] ?? matched['lng']);
+          if (truthy(matched['geofenceRadius'] ?? matched['radius'])) {
+            radiusRaw = matched['geofenceRadius'] ?? matched['radius'];
+          }
+        } else {
+          final loc = org['location'] is Map ? org['location'] as Map : const {};
+          lat = num0(org['latitude'] ?? loc['latitude'] ?? org['lat']);
+          lng = num0(org['longitude'] ?? loc['longitude'] ?? org['lng']);
+          radiusRaw = truthy(org['geofenceRadius'] ?? org['radius'])
+              ? (org['geofenceRadius'] ?? org['radius'])
+              : '200';
+        }
+      }
+
+      var radius = 200;
+      final parsed = int.tryParse(radiusRaw.toString().replaceAll(RegExp(r'[^0-9]'), ''));
+      if (parsed != null && parsed > 0) radius = parsed;
+
+      if (lat != 0 && lng != 0) {
+        s.officeLat = lat;
+        s.officeLng = lng;
+      }
+      s.allowedRadius = radius.toDouble();
+    } catch (e) {
+      debugPrint('resolveOfficeForCurrentUser failed: $e');
+    }
   }
 
   /// `organizations/{orgId}/policies`
@@ -229,8 +328,9 @@ class FirestoreService {
       companyDoc().collection('users');
 
   /// Filtered query for approved employees in the current company
-  static Query<Map<String, dynamic>> get companyUsersQuery =>
-      employeesCol.where('status', isEqualTo: 'approved');
+  /// (Web employees have status Active/Inactive, so we do NOT filter on a status value in the
+  /// query; use [isActiveUserDoc] / [fetchActiveCompanyUsers] to exclude inactive people.)
+  static Query<Map<String, dynamic>> get companyUsersQuery => employeesCol;
 
   /// `/organizations/{companyId}/employees/{email}`
   static DocumentReference<Map<String, dynamic>> employeeDoc(String email) =>
@@ -418,9 +518,118 @@ class FirestoreService {
           .limit(1)
           .get();
 
-  /// Records an attendance punch with 100% web-app and mobile database compatibility.
-  /// Dual-writes to user subcollection and company-wide attendance mirror,
-  /// updating live employee status with string time and date formats.
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Web-app compatible write helpers
+  //
+  // The Workzi WEB app is the master platform. Everything below writes exactly
+  // the document shape / values the web app writes, so both platforms read and
+  // write the same Firestore documents:
+  //   • status values are Title Case:  Pending · Approved · Rejected
+  //   • attendance `date` is the LOCAL "yyyy-MM-dd" string (never a Timestamp)
+  //   • attendance `userId` is the Firebase Auth uid
+  //   • leave / attendance decisions are written to BOTH copies
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// Case-insensitive status check ("Pending" == "pending").
+  static bool statusIs(dynamic status, String expected) =>
+      (status ?? '').toString().trim().toLowerCase() == expected.toLowerCase();
+
+  /// Parses a Firestore Timestamp, DateTime, "yyyy-MM-dd" / ISO string or epoch millis.
+  static DateTime? parseAnyDate(dynamic v) {
+    if (v == null) return null;
+    if (v is Timestamp) return v.toDate();
+    if (v is DateTime) return v;
+    if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
+    if (v is String && v.trim().isNotEmpty) return DateTime.tryParse(v.trim());
+    return null;
+  }
+
+  /// Parses "09:00 AM", "9:00 PM", "18:30", "18:30:00" or a Timestamp into a
+  /// DateTime on [day]. Returns null if it cannot be parsed.
+  static DateTime? parseTimeOnDay(dynamic raw, DateTime day) {
+    if (raw == null) return null;
+    if (raw is Timestamp) return raw.toDate();
+    final s = raw.toString().trim();
+    if (s.isEmpty || s == '-' || s == '—') return null;
+    final m = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?$')
+        .firstMatch(s);
+    if (m == null) return DateTime.tryParse(s);
+    var h = int.parse(m.group(1)!);
+    final min = int.parse(m.group(2)!);
+    final ap = m.group(3)?.toUpperCase();
+    if (ap == 'PM' && h < 12) h += 12;
+    if (ap == 'AM' && h == 12) h = 0;
+    return DateTime(day.year, day.month, day.day, h, min);
+  }
+
+  /// Email of the person who raised a request (web: createdBy; old mobile docs: userId/userEmail).
+  static String requesterEmail(Map<String, dynamic> d) {
+    for (final k in [
+      'createdBy',
+      'applicantEmail',
+      'employeeEmail',
+      'userEmail',
+      'email',
+      'userId'
+    ]) {
+      final v = (d[k] ?? '').toString().trim().toLowerCase();
+      if (v.contains('@')) return v;
+    }
+    return '';
+  }
+
+  /// Whether a user profile document is an active employee (web uses Active/Inactive,
+  /// approved_users uses approved/suspended/removed).
+  static bool isActiveUserDoc(Map<String, dynamic> d) {
+    final s = (d['status'] ?? 'active').toString().trim().toLowerCase();
+    return !(s == 'inactive' ||
+        s == 'suspended' ||
+        s == 'removed' ||
+        s == 'deleted');
+  }
+
+  /// All active employees of the current company.
+  static Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>>
+      fetchActiveCompanyUsers() async {
+    final qs = await employeesCol.get();
+    return qs.docs.where((d) => isActiveUserDoc(d.data())).toList();
+  }
+
+  /// Picks who approves this employee's leave (same order as the web Leave page):
+  /// profile.managerEmail → manager looked up by display name → first HR admin.
+  static Future<String> resolveApproverId(String email) async {
+    try {
+      final me = await employeeDoc(email).get();
+      final md = me.data() ?? {};
+      final direct = (md['managerEmail'] ?? '').toString().trim().toLowerCase();
+      if (direct.isNotEmpty) return direct;
+      final all = await employeesCol.get();
+      final mgrName = (md['manager'] ?? '').toString().trim().toLowerCase();
+      if (mgrName.isNotEmpty) {
+        for (final d in all.docs) {
+          final x = d.data();
+          if ((x['name'] ?? '').toString().trim().toLowerCase() == mgrName) {
+            return (x['email'] ?? x['workEmail'] ?? d.id)
+                .toString()
+                .toLowerCase();
+          }
+        }
+      }
+      for (final d in all.docs) {
+        final r = (d.data()['role'] ?? '').toString().toLowerCase();
+        if (r == 'hr_admin' || r == 'super_admin' || r == 'admin') {
+          return (d.data()['email'] ?? d.id).toString().toLowerCase();
+        }
+      }
+    } catch (e) {
+      debugPrint('resolveApproverId failed: $e');
+    }
+    return '';
+  }
+
+  /// Records an attendance punch in the exact shape the web app uses.
+  /// Writes (1) users/{email}/attendance/{date}, (2) the company roll-up
+  /// attendance/{email}_{date} and (3) the live status on the employee profile.
   static Future<void> recordAttendancePunch({
     required String email,
     required bool isCheckIn,
@@ -432,9 +641,9 @@ class FirestoreService {
     final now = DateTime.now();
     final cleanEmail = email.trim().toLowerCase();
     final timeStr = DateFormat('hh:mm a').format(now);
-    final dateKey = DateFormat('yyyy-MM-dd').format(now);
-    
-    // Dynamic company/shift-aware late calculation from stored shift
+    final dateKey =
+        DateFormat('yyyy-MM-dd').format(now); // LOCAL date, same as web
+
     final customShift = additionalData?['shiftStartTime'] as String?;
     final customGrace = (additionalData?['gracePeriod'] as num?)?.toInt();
     final isLate = AppSession().isCheckInLate(
@@ -446,70 +655,89 @@ class FirestoreService {
     String normalizedStatus = 'Present';
     if (status != null && status.isNotEmpty) {
       final s = status.trim().toLowerCase();
-      if (s == 'wfh' || s == 'work from home') normalizedStatus = 'WFH';
-      else if (s == 'late') normalizedStatus = 'Late';
-      else if (s == 'half day' || s == 'half_day') normalizedStatus = 'Half Day';
-      else normalizedStatus = 'Present';
-    } else if (isCheckIn && isLate) {
+      if (s == 'wfh' || s == 'work from home') {
+        normalizedStatus = 'WFH';
+      } else if (s == 'late') {
+        normalizedStatus = 'Late';
+      } else if (s == 'half day' || s == 'half_day') {
+        normalizedStatus = 'Half Day';
+      }
+    }
+    // Office check-in after shift start + grace is Late (web behaviour).
+    if (isCheckIn && isLate && normalizedStatus == 'Present') {
       normalizedStatus = 'Late';
     }
 
-    final String locStr = location ?? address ?? (normalizedStatus == 'WFH' ? 'Work from Home' : 'Work in Office');
+    final workMode = (additionalData?['workMode'] as String?) ??
+        (normalizedStatus == 'WFH' ? 'wfh' : 'office');
+    final String locStr = location ??
+        address ??
+        (normalizedStatus == 'WFH' ? 'Work from Home' : 'Work in Office');
+
+    final rawShiftName = AppSession().shiftName.trim();
+    final shiftLabel = rawShiftName.toLowerCase().endsWith('shift')
+        ? rawShiftName
+        : '$rawShiftName Shift'; // web stores "<name> Shift"
+    final shiftStart = customShift ?? AppSession().shiftStartTime;
+    final shiftEnd =
+        additionalData?['shiftEndTime'] as String? ?? AppSession().shiftEndTime;
 
     final Map<String, dynamic> record = {
       'companyId': _cid,
-      'userId': cleanEmail,
+      'userId': AppSession().uid ?? cleanEmail, // web: Firebase Auth uid
       'email': cleanEmail,
       'workEmail': cleanEmail,
       'employeeId': cleanEmail,
       'name': AppSession().userName ?? cleanEmail,
-      'status': normalizedStatus,
-      'isLate': isCheckIn ? isLate : false,
-      'shiftId': AppSession().shiftId ?? 'default',
-      'shiftName': AppSession().shiftName,
-      'shiftStartTime': customShift ?? AppSession().shiftStartTime,
-      'shiftEndTime': additionalData?['shiftEndTime'] as String? ?? AppSession().shiftEndTime,
-      'gracePeriod': customGrace ?? AppSession().gracePeriod,
-      'date': dateKey, // Web app string format YYYY-MM-DD
-      'dateTimestamp': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
+      'date': dateKey, // String "yyyy-MM-dd" (web queries date >= "yyyy-MM-dd")
+      'dateTimestamp':
+          Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
       'recordDate': dateKey,
+      'workMode': workMode,
       'location': locStr,
+      'shift': shiftLabel,
+      'shiftName': AppSession().shiftName,
+      'shiftId': AppSession().shiftId ?? 'default',
+      'shiftCheckIn': shiftStart,
+      'shiftCheckOut': shiftEnd,
+      'shiftStartTime': shiftStart,
+      'shiftEndTime': shiftEnd,
+      'gracePeriod': customGrace ?? AppSession().gracePeriod,
       'updatedAt': now.toIso8601String(),
     };
 
     if (isCheckIn) {
+      record['status'] = normalizedStatus;
+      record['attendanceStatus'] = normalizedStatus;
+      record['isLate'] = isLate;
       record['checkIn'] = Timestamp.fromDate(now);
-      record['checkInTime'] = timeStr; // Web app 12-hr string
+      record['checkInTime'] = timeStr; // "09:05 AM"
       record['checkInTimestamp'] = now.toIso8601String();
       record['checkInLocation'] = locStr;
+      record['checkOut'] = null;
       record['checkOutTime'] = null;
       record['checkOutTimestamp'] = null;
+      record['checkOutLocation'] = null;
       record['hoursWorked'] = '0h 00m';
       record['hoursNum'] = 0;
     } else {
+      // Check-out must NOT overwrite the day's Present/Late/WFH status.
       record['checkOut'] = Timestamp.fromDate(now);
-      record['checkOutTime'] = timeStr; // Web app 12-hr string
+      record['checkOutTime'] = timeStr;
       record['checkOutTimestamp'] = now.toIso8601String();
       record['checkOutLocation'] = locStr;
       record['attendanceStatus'] = 'Checked Out';
 
-      // Calculate working hours & duration if check-in time is available
       try {
         final existingSnap =
             await userAttendanceCol(cleanEmail).doc(dateKey).get();
         if (existingSnap.exists) {
           final exData = existingSnap.data();
-          DateTime? cinDate;
-          if (exData?['checkIn'] is Timestamp) {
-            cinDate = (exData!['checkIn'] as Timestamp).toDate();
-          } else if (exData?['checkInTimestamp'] is String) {
-            cinDate = DateTime.tryParse(exData!['checkInTimestamp']);
-          }
+          final cinDate = parseAnyDate(exData?['checkIn']) ??
+              parseAnyDate(exData?['checkInTimestamp']);
           if (cinDate != null) {
             final diff = now.difference(cinDate);
-            final h = diff.inHours;
-            final m = diff.inMinutes % 60;
-            record['hoursWorked'] = '${h}h ${m}m';
+            record['hoursWorked'] = '${diff.inHours}h ${diff.inMinutes % 60}m';
             record['hoursNum'] =
                 double.parse((diff.inMinutes / 60.0).toStringAsFixed(1));
           }
@@ -519,71 +747,115 @@ class FirestoreService {
       }
     }
 
-    if (additionalData != null) {
-      record.addAll(additionalData);
-    }
+    // Extra fields from the caller (geofence info, locations …). Identity / date /
+    // status fields are owned by this method so they always match the web format.
+    const protectedKeys = {
+      'date',
+      'userId',
+      'companyId',
+      'recordDate',
+      'dateTimestamp',
+      'email',
+      'status',
+      'checkIn',
+      'checkOut',
+      'checkInTime',
+      'checkOutTime',
+      'checkInTimestamp',
+      'checkOutTimestamp',
+      'isLate',
+      'attendanceStatus',
+    };
+    additionalData?.forEach((k, v) {
+      if (!protectedKeys.contains(k)) record[k] = v;
+    });
 
-    // 1. User attendance record
+    // 1. Employee's own attendance record
     await userAttendanceCol(cleanEmail)
         .doc(dateKey)
         .set(record, SetOptions(merge: true));
 
-    // 2. Mirror to organizations/{companyId}/attendance/{email}_{date} (Web App company rollup!)
-    await _db
-        .collection('organizations')
-        .doc(_cid)
-        .collection('attendance')
+    // 2. Company roll-up: organizations/{cid}/attendance/{email}_{date}
+    await attendanceCol
         .doc('${cleanEmail}_$dateKey')
         .set(record, SetOptions(merge: true));
 
-    // 3. Update employee live card status
+    // 3. Live status on the employee profile (same fields/types as web)
     await employeeDoc(cleanEmail).set({
       'attendanceStatus': isCheckIn ? normalizedStatus : 'Checked Out',
-      if (isCheckIn) 'lastCheckIn': timeStr,
-      if (!isCheckIn) 'lastCheckOut': timeStr,
+      if (isCheckIn) 'lastCheckIn': Timestamp.fromDate(now),
+      if (isCheckIn) 'lastCheckInTime': timeStr,
+      if (!isCheckIn) 'lastCheckOut': Timestamp.fromDate(now),
+      if (!isCheckIn) 'lastCheckOutTime': timeStr,
       'updatedAt': now.toIso8601String(),
     }, SetOptions(merge: true));
   }
 
-  /// Submits a leave request with 100% web-app and mobile database compatibility.
-  /// Dual-writes to organizations/{companyId}/leave_requests (Web master) and user subcollection.
+  /// Submits a leave request exactly like the web Leave page.
+  /// Writes the SAME document to the company queue and to the employee's own list.
   static Future<String> submitLeaveRequest({
     required Map<String, dynamic> data,
   }) async {
     final now = DateTime.now();
     final reqId = (data['id'] as String?)?.isNotEmpty == true
         ? data['id'] as String
-        : 'LR_${now.millisecondsSinceEpoch}';
+        : 'lr_${now.millisecondsSinceEpoch}_${(now.microsecond % 1679616).toRadixString(36)}';
 
-    final email = (data['applicantEmail'] ?? data['userEmail'] ?? data['email'] ?? AppSession().email ?? '').toString().trim().toLowerCase();
-    final name = (data['applicantName'] ?? data['userName'] ?? AppSession().userName ?? email).toString().trim();
-    final leaveType = (data['type'] ?? data['leaveType'] ?? 'Annual Leave').toString().trim();
+    final email = (data['applicantEmail'] ??
+            data['userEmail'] ??
+            data['email'] ??
+            AppSession().email ??
+            '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final name = (data['applicantName'] ??
+            data['userName'] ??
+            AppSession().userName ??
+            email)
+        .toString()
+        .trim();
+    final leaveType =
+        (data['type'] ?? data['leaveType'] ?? 'Annual Leave').toString().trim();
 
     DateTime? fromDt;
     DateTime? toDt;
     if (data['fromDate'] is DateTime) fromDt = data['fromDate'];
-    if (data['fromDate'] is Timestamp) fromDt = (data['fromDate'] as Timestamp).toDate();
-    if (data['from'] is String) fromDt = DateTime.tryParse(data['from']);
+    if (data['fromDate'] is Timestamp) {
+      fromDt = (data['fromDate'] as Timestamp).toDate();
+    }
+    if (data['from'] is String) fromDt = DateTime.tryParse(data['from']) ?? fromDt;
 
     if (data['toDate'] is DateTime) toDt = data['toDate'];
     if (data['toDate'] is Timestamp) toDt = (data['toDate'] as Timestamp).toDate();
-    if (data['to'] is String) toDt = DateTime.tryParse(data['to']);
+    if (data['to'] is String) toDt = DateTime.tryParse(data['to']) ?? toDt;
 
-    final fromStr = fromDt != null ? DateFormat('yyyy-MM-dd').format(fromDt) : (data['from']?.toString() ?? '');
-    final toStr = toDt != null ? DateFormat('yyyy-MM-dd').format(toDt) : (data['to']?.toString() ?? '');
+    final fromStr = fromDt != null
+        ? DateFormat('yyyy-MM-dd').format(fromDt)
+        : (data['from']?.toString() ?? '');
+    final toStr = toDt != null
+        ? DateFormat('yyyy-MM-dd').format(toDt)
+        : (data['to']?.toString() ?? '');
 
     final dynamic rawDays = data['days'] ?? data['durationInDays'] ?? 1;
-    final int days = rawDays is int ? rawDays : (int.tryParse(rawDays.toString()) ?? 1);
+    final int days =
+        rawDays is int ? rawDays : (int.tryParse(rawDays.toString()) ?? 1);
+
+    final isElevated = AppSession().isHrAdmin || AppSession().isManager;
+    final dept = (data['dept'] ?? AppSession().department ?? '').toString();
+    final approverId = await resolveApproverId(email);
 
     final payload = {
       ...data,
       'id': reqId,
       'companyId': _cid,
       'userId': AppSession().uid ?? '',
-      'applicantEmail': email,
-      'userEmail': email,
+      'employee': name,
       'employeeEmail': email,
       'applicantName': name,
+      'applicantEmail': email,
+      'applicantRole': AppSession().role ?? 'employee',
+      'userEmail': email,
       'userName': name,
       'type': leaveType,
       'leaveType': leaveType,
@@ -594,118 +866,498 @@ class FirestoreService {
       'days': days,
       'durationInDays': days,
       'reason': (data['reason'] ?? '').toString().trim(),
-      'status': 'Pending', // Capitalized 'P' for web compatibility
+      'status': 'Pending', // Title Case, same as web
       'applied': DateFormat('MMM dd').format(now),
       'createdAt': now.toIso8601String(),
-      'targetRoles': (AppSession().isHrAdmin || AppSession().isManager)
-          ? ['hr_admin']
-          : ['manager', 'hr_admin'],
-      'approver': (AppSession().isHrAdmin || AppSession().isManager)
-          ? 'HR Admin'
-          : 'Reporting Manager',
+      'dept': dept,
+      'approverId': approverId,
+      'targetRoles': isElevated ? ['hr_admin'] : ['manager', 'hr_admin'],
+      'approver': isElevated ? 'HR Admin' : 'Reporting Manager',
     };
 
-    // 1. Web Master Queue: organizations/{companyId}/leave_requests/{reqId}
-    await _db
-        .collection('organizations')
-        .doc(_cid)
-        .collection('leave_requests')
-        .doc(reqId)
-        .set(payload, SetOptions(merge: true));
+    // 1. Company queue (what approvers read)
+    await leaveRequestsCol.doc(reqId).set(payload, SetOptions(merge: true));
 
-    // 2. Mobile User Subcollection Queue: organizations/{companyId}/users/{email}/leave_requests/{reqId}
-    await userLeaveRequestsCol(email)
-        .doc(reqId)
-        .set(payload, SetOptions(merge: true));
+    // 2. Employee's own copy
+    try {
+      await userLeaveRequestsCol(email)
+          .doc(reqId)
+          .set(payload, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('submitLeaveRequest: user copy failed: $e');
+    }
 
     return reqId;
   }
 
+  /// Creates an attendance correction request in the web "attendance_issues" shape.
+  /// [requestedCheckIn]/[requestedCheckOut] are 12-hour strings like "09:00 AM".
+  static Future<String> submitAttendanceIssue({
+    required DateTime date,
+    required String requestedCheckIn,
+    required String requestedCheckOut,
+    required String reason,
+    String comment = '',
+    String type = 'Missing Check-in',
+  }) async {
+    final now = DateTime.now();
+    final me = (AppSession().email ?? '').trim().toLowerCase();
+    final raw = (AppSession().role ?? 'employee').toLowerCase();
+    final role = AppSession().isHrAdmin
+        ? 'hr_admin'
+        : (raw == 'manager' ? 'manager' : 'employee');
+    final issueId = 'ISS${now.millisecondsSinceEpoch}';
 
-  /// When an attendance correction request is approved, update the employee's attendance record for that day.
+    await companyDoc().collection('attendance_issues').doc(issueId).set({
+      'id': issueId,
+      'companyId': _cid,
+      'createdBy': me,
+      'createdByRole': role,
+      'createdByName': AppSession().userName ?? me,
+      'targetRoles':
+          role == 'employee' ? ['manager', 'hr_admin'] : ['hr_admin'],
+      'type': type,
+      'date': DateFormat('yyyy-MM-dd').format(date),
+      'requestedCheckIn': requestedCheckIn,
+      'requestedCheckOut': requestedCheckOut,
+      'reason': reason,
+      'comment': comment,
+      'status': 'Pending',
+      'createdAt': now.toIso8601String(),
+      'submittedOn': 'Today',
+      'rejectNote': '',
+    });
+    return issueId;
+  }
+
+  /// Approves / rejects a request the same way the web app does.
+  ///  • leave_requests    → Approved/Rejected + approvedBy/At (rejectedBy/At) on BOTH copies
+  ///  • attendance_issues → Approved/Rejected (+ attendance fix on approval)
+  ///  • anything else     → status + reviewer on that document
+  static Future<void> reviewRequest({
+    required DocumentReference ref,
+    required bool approve,
+    String? note,
+  }) async {
+    final me = (AppSession().email ?? '').trim().toLowerCase();
+    final nowIso = DateTime.now().toIso8601String();
+    final collectionName = ref.parent.id;
+
+    final snap = await ref.get();
+    final data = Map<String, dynamic>.from(
+        (snap.data() as Map<String, dynamic>?) ?? {});
+    data['id'] = data['id'] ?? ref.id;
+
+    final payload = <String, dynamic>{
+      'status': approve ? 'Approved' : 'Rejected',
+      if (approve) 'approvedBy': me,
+      if (approve) 'approvedAt': nowIso,
+      if (!approve) 'rejectedBy': me,
+      if (!approve) 'rejectedAt': nowIso,
+      'updatedAt': nowIso,
+    };
+    if (!approve && note != null && note.trim().isNotEmpty) {
+      payload[collectionName == 'attendance_issues'
+          ? 'rejectNote'
+          : 'rejectReason'] = note.trim();
+    }
+
+    if (collectionName == 'leave_requests') {
+      var applicant = requesterEmail(data);
+      if (applicant.isEmpty) {
+        final parts = ref.path.split('/');
+        final i = parts.indexOf('users');
+        if (i != -1 && i + 1 < parts.length) {
+          applicant = parts[i + 1].toLowerCase();
+        }
+      }
+      // Company queue copy
+      await leaveRequestsCol.doc(ref.id).set(payload, SetOptions(merge: true));
+      // Employee's own copy
+      if (applicant.isNotEmpty) {
+        try {
+          await userLeaveRequestsCol(applicant)
+              .doc(ref.id)
+              .set(payload, SetOptions(merge: true));
+        } catch (e) {
+          debugPrint('reviewRequest: employee copy not updated: $e');
+        }
+      }
+      // If the screen opened some other path, keep that document in sync too.
+      if (ref.path != leaveRequestsCol.doc(ref.id).path) {
+        try {
+          await ref.set(payload, SetOptions(merge: true));
+        } catch (_) {}
+      }
+    } else {
+      await ref.update(payload);
+      if (approve && collectionName == 'attendance_issues') {
+        await applyAttendanceCorrectionApproval(requestData: data);
+      }
+    }
+  }
+
+  /// When an attendance correction is approved, fix that day's attendance record
+  /// (employee copy + company roll-up + live status) using the web field format.
+  /// Understands web issues (date / requestedCheckIn / requestedCheckOut / createdBy)
+  /// and older mobile ones (attendanceDate / correctedCheckIn / correctedCheckOut).
   static Future<void> applyAttendanceCorrectionApproval({
     required Map<String, dynamic> requestData,
   }) async {
     try {
-      final email = (requestData['userId'] ??
-              requestData['userEmail'] ??
-              requestData['email'] ??
-              '')
-          .toString();
+      final email = requesterEmail(requestData);
       if (email.isEmpty) return;
 
-      final attDateVal = requestData['attendanceDate'] ??
-          requestData['date'] ??
-          requestData['requestedDate'];
-      DateTime? baseDate;
-      if (attDateVal is Timestamp) baseDate = attDateVal.toDate();
-      if (attDateVal is String) baseDate = DateTime.tryParse(attDateVal);
-
+      final baseDate = parseAnyDate(requestData['date'] ??
+          requestData['attendanceDate'] ??
+          requestData['requestedDate']);
       if (baseDate == null) return;
+      final day = DateTime(baseDate.year, baseDate.month, baseDate.day);
+      final docId = DateFormat('yyyy-MM-dd').format(day);
 
-      final docId = DateFormat('yyyy-MM-dd').format(baseDate);
-
-      Timestamp? parseTime(dynamic rawTime, DateTime date) {
-        if (rawTime is Timestamp) return rawTime;
-        if (rawTime is String && rawTime.isNotEmpty) {
-          if (rawTime.contains(':')) {
-            final parts = rawTime.split(':');
-            final h = int.tryParse(parts[0].trim()) ?? 0;
-            final m = int.tryParse(parts[1].trim()) ?? 0;
-            return Timestamp.fromDate(
-                DateTime(date.year, date.month, date.day, h, m));
-          }
-          final parsed = DateTime.tryParse(rawTime);
-          if (parsed != null) return Timestamp.fromDate(parsed);
-        }
-        return null;
-      }
-
-      final checkInTs = parseTime(
-          requestData['correctedCheckIn'] ??
+      final inDt = parseTimeOnDay(
+          requestData['requestedCheckIn'] ??
+              requestData['correctedCheckIn'] ??
               requestData['checkInTime'] ??
               requestData['checkIn'],
-          baseDate);
-      final checkOutTs = parseTime(
-          requestData['correctedCheckOut'] ??
+          day);
+      final outDt = parseTimeOnDay(
+          requestData['requestedCheckOut'] ??
+              requestData['correctedCheckOut'] ??
               requestData['checkOutTime'] ??
               requestData['checkOut'],
-          baseDate);
+          day);
 
-      final Map<String, dynamic> updatePayload = {
-        'status': 'Present',
-        'date': Timestamp.fromDate(
-            DateTime(baseDate.year, baseDate.month, baseDate.day)),
+      final fmt = DateFormat('hh:mm a');
+      final nowIso = DateTime.now().toIso8601String();
+      final Map<String, dynamic> payload = {
+        'companyId': _cid,
+        'email': email,
+        'date': docId, // String, like every other attendance record
         'recordDate': docId,
+        'status': 'Present',
+        'attendanceStatus': 'Present',
+        'isLate': false,
         'isCorrection': true,
-        'updatedAt': FieldValue.serverTimestamp(),
+        'approvedByIssue': (requestData['id'] ?? '').toString(),
+        'updatedAt': nowIso,
       };
-      if (checkInTs != null) {
-        updatePayload['checkIn'] = checkInTs;
-        updatePayload['checkInTime'] = checkInTs;
+      if (inDt != null) {
+        payload['checkIn'] = Timestamp.fromDate(inDt);
+        payload['checkInTime'] = fmt.format(inDt);
+        payload['checkInTimestamp'] = inDt.toIso8601String();
       }
-      if (checkOutTs != null) {
-        updatePayload['checkOut'] = checkOutTs;
-        updatePayload['checkOutTime'] = checkOutTs;
+      if (outDt != null) {
+        payload['checkOut'] = Timestamp.fromDate(outDt);
+        payload['checkOutTime'] = fmt.format(outDt);
+        payload['checkOutTimestamp'] = outDt.toIso8601String();
+      }
+      if (inDt != null && outDt != null && outDt.isAfter(inDt)) {
+        final diff = outDt.difference(inDt);
+        payload['hoursWorked'] = '${diff.inHours}h ${diff.inMinutes % 60}m';
+        payload['hoursNum'] =
+            double.parse((diff.inMinutes / 60.0).toStringAsFixed(1));
       }
 
       await userAttendanceCol(email)
           .doc(docId)
-          .set(updatePayload, SetOptions(merge: true));
-
-      // Mirror correction to company attendance rollup
-      final compPayload = Map<String, dynamic>.from(updatePayload);
-      compPayload['date'] = docId;
-      compPayload['email'] = email;
-      compPayload['userId'] = email;
-      await _db
-          .collection('organizations')
-          .doc(_cid)
-          .collection('attendance')
+          .set(payload, SetOptions(merge: true));
+      await attendanceCol
           .doc('${email}_$docId')
-          .set(compPayload, SetOptions(merge: true));
+          .set(payload, SetOptions(merge: true));
+
+      // Live status on the profile when the corrected day is today
+      if (docId == DateFormat('yyyy-MM-dd').format(DateTime.now())) {
+        try {
+          await employeeDoc(email).set({
+            'attendanceStatus': 'Present',
+            if (inDt != null) 'lastCheckIn': Timestamp.fromDate(inDt),
+            if (inDt != null) 'lastCheckInTime': fmt.format(inDt),
+            if (outDt != null) 'lastCheckOut': Timestamp.fromDate(outDt),
+            if (outDt != null) 'lastCheckOutTime': fmt.format(outDt),
+            'updatedAt': nowIso,
+          }, SetOptions(merge: true));
+        } catch (_) {}
+      }
     } catch (e) {
       debugPrint('Error applying attendance correction timing: $e');
     }
+  }
+
+  /// Changes a task's status the same way the web task board does:
+  /// status (Todo / In Progress / Overdue / Done / Archived), updatedAt, the
+  /// statusHistory counters and an "activity" entry. When a task with a RUNNING timer is
+  /// finished, that time is also written as a web "work log" (workLogs / totalLoggedMinutes).
+  /// Tasks are CREATED in the web app; the mobile app only views them and updates progress.
+  static Future<void> updateTaskStatus(
+    DocumentReference ref,
+    String newStatus, {
+    String? oldStatus,
+    Map<String, dynamic>? extra,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+    final name = (AppSession().userName ?? AppSession().email ?? 'User').trim();
+    final entry = {
+      'id': 'act_${DateTime.now().millisecondsSinceEpoch}',
+      'taskId': ref.id,
+      'userId': AppSession().uid ?? '',
+      'userName': name,
+      'userInitials': _initialsOf(name),
+      'type': 'status_change',
+      'details': oldStatus == null
+          ? 'changed status to $newStatus'
+          : 'changed status: $oldStatus → $newStatus',
+      'createdAt': nowIso,
+    };
+
+    Map<String, dynamic> timeFields = {};
+    if (newStatus == 'Done' || newStatus == 'Archived') {
+      try {
+        final d = (await ref.get()).data() as Map<String, dynamic>? ?? {};
+        timeFields = _runningTimeFields(ref.id, d);
+      } catch (_) {}
+    }
+
+    await ref.update({
+      'status': newStatus,
+      'updatedAt': nowIso,
+      'done': newStatus == 'Done',
+      if (newStatus == 'Done' || newStatus == 'In Progress')
+        'statusHistory.$newStatus': FieldValue.increment(1),
+      'activity': FieldValue.arrayUnion([entry]),
+      ...timeFields,
+      ...?extra,
+    });
+  }
+
+  static String _initialsOf(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'U';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return '${parts[0][0]}${parts[parts.length - 1][0]}'.toUpperCase();
+  }
+
+  /// Fields that close a running timer: elapsed seconds + a web-style work log entry.
+  static Map<String, dynamic> _runningTimeFields(String taskId, Map<String, dynamic> d) {
+    final st = (d['status'] ?? '').toString().toLowerCase();
+    final running = d['isPaused'] != true && (st == 'in progress' || st == 'in_progress');
+    final timerStart = parseAnyDate(d['timerStart'] ?? d['startedAt']);
+    if (!running || timerStart == null) return {};
+    final seg = DateTime.now().difference(timerStart).inSeconds;
+    if (seg <= 0) return {};
+
+    final base = (d['totalElapsedSeconds'] as num?)?.toInt() ?? 0;
+    final out = <String, dynamic>{'totalElapsedSeconds': base + seg, 'isPaused': true};
+
+    final minutes = seg ~/ 60;
+    if (minutes >= 1) {
+      final orig = (d['originalEstimateMinutes'] as num?)?.toInt();
+      final logged = ((d['totalLoggedMinutes'] as num?)?.toInt() ?? 0) + minutes;
+      final remaining = orig == null ? 0 : (orig - logged < 0 ? 0 : orig - logged);
+      final name = (AppSession().userName ?? AppSession().email ?? 'User').trim();
+      out['workLogs'] = FieldValue.arrayUnion([
+        {
+          'id': 'wl_${DateTime.now().millisecondsSinceEpoch}',
+          'taskId': taskId,
+          'userId': AppSession().uid ?? '',
+          'userName': name,
+          'userInitials': _initialsOf(name),
+          'timeSpentMinutes': minutes,
+          'remainingMinutes': remaining,
+          'startedAt': timerStart.toIso8601String(),
+          'description': 'Time tracked in the mobile app',
+          'createdAt': DateTime.now().toIso8601String(),
+        }
+      ]);
+      out['totalLoggedMinutes'] = FieldValue.increment(minutes);
+      if (orig != null) out['remainingEstimateMinutes'] = remaining;
+    }
+    return out;
+  }
+
+  /// Pause the task timer (writes the time spent so far as a work log).
+  static Future<void> pauseTask(DocumentReference ref) async {
+    final d = (await ref.get()).data() as Map<String, dynamic>? ?? {};
+    final fields = _runningTimeFields(ref.id, d);
+    await ref.update(fields.isEmpty ? {'isPaused': true} : fields);
+  }
+
+  /// Resume the task timer.
+  static Future<void> resumeTask(DocumentReference ref) =>
+      ref.update({'isPaused': false, 'timerStart': FieldValue.serverTimestamp()});
+
+  // ── Shift display (always from the shift assigned to the person) ──────────────
+
+  /// "09:00" / "9:00 AM" / Timestamp → "09:00 AM" ('' if it cannot be read).
+  static String formatTime12(dynamic raw) {
+    final t = parseTimeOnDay(raw, DateTime(2000, 1, 1));
+    return t == null ? '' : DateFormat('hh:mm a').format(t);
+  }
+
+  /// The shift assigned to a person — same rule as the web app: id or NAME match with
+  /// the profile's shift, otherwise the company's first shift.
+  static Map<String, dynamic>? pickShiftFor(
+      Map<String, dynamic> user, List<Map<String, dynamic>> shifts) {
+    if (shifts.isEmpty) return null;
+    final key = (userShiftKey(user) ?? '').trim().toLowerCase();
+    if (key.isNotEmpty) {
+      for (final s in shifts) {
+        final name = (s['name'] ?? s['shiftName'] ?? s['title'] ?? '')
+            .toString()
+            .trim()
+            .toLowerCase();
+        if ((s['id'] ?? '').toString().toLowerCase() == key ||
+            name == key ||
+            '$name shift' == key) {
+          return s;
+        }
+      }
+    }
+    return shifts.first;
+  }
+
+  /// "General Shift · 09:00 AM – 06:00 PM" for a shift document (or the company default
+  /// working hours when the company has no shifts).
+  static String shiftLabel(Map<String, dynamic>? shift) {
+    String name;
+    String cin;
+    String cout;
+    if (shift != null) {
+      name = (shift['name'] ?? shift['shiftName'] ?? shift['title'] ?? 'Shift')
+          .toString()
+          .trim();
+      cin = formatTime12(shift['checkin'] ??
+          shift['checkIn'] ??
+          shift['check_in'] ??
+          shift['checkInTime'] ??
+          shift['startTime'] ??
+          shift['start']);
+      cout = formatTime12(shift['checkout'] ??
+          shift['checkOut'] ??
+          shift['check_out'] ??
+          shift['checkOutTime'] ??
+          shift['endTime'] ??
+          shift['end']);
+    } else {
+      name = AppSession().shiftName.trim();
+      cin = formatTime12(AppSession().shiftStartTime);
+      cout = formatTime12(AppSession().shiftEndTime);
+    }
+    if (!name.toLowerCase().endsWith('shift')) name = '$name Shift';
+    final times = (cin.isNotEmpty && cout.isNotEmpty)
+        ? '$cin – $cout'
+        : (cin.isNotEmpty ? cin : cout);
+    return times.isEmpty ? name : '$name · $times';
+  }
+
+  /// Looks up this person's assigned shift in Firestore and returns its label.
+  static Future<String> shiftLabelForUser(Map<String, dynamic> user) async {
+    try {
+      final qs = await shiftsCol.get();
+      final shifts = qs.docs.map((d) {
+        final m = Map<String, dynamic>.from(d.data());
+        m['id'] = m['id'] ?? d.id;
+        return m;
+      }).toList();
+      return shiftLabel(pickShiftFor(user, shifts));
+    } catch (_) {
+      return shiftLabel(null);
+    }
+  }
+
+  /// Cancels the signed-in employee's own PENDING leave request, like the web Leave page:
+  /// status → Cancelled (+ cancelledAt) on the company queue AND the employee's own copy.
+  static Future<void> cancelLeaveRequest({
+    required String requestId,
+    required String applicantEmail,
+  }) async {
+    final nowIso = DateTime.now().toIso8601String();
+    final payload = {
+      'status': 'Cancelled',
+      'cancelledAt': nowIso,
+      'updatedAt': nowIso,
+    };
+    await leaveRequestsCol.doc(requestId).update(payload);
+    if (applicantEmail.isNotEmpty) {
+      try {
+        await userLeaveRequestsCol(applicantEmail)
+            .doc(requestId)
+            .set(payload, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('cancelLeaveRequest: employee copy not updated: $e');
+      }
+    }
+  }
+
+  // ── Leave policy numbers (shared by every Leave screen) ──────────────────────
+
+  /// Yearly entitlement [annual, sick, casual]: organization leave types → leave policy → defaults.
+  static List<int> leaveLimits(QuerySnapshot? types, Map<String, dynamic>? org) {
+    int? asInt(dynamic v) {
+      if (v is num) return v.toInt();
+      return int.tryParse((v ?? '').toString().replaceAll(RegExp(r'[^0-9]'), ''));
+    }
+
+    int? fromTypes(String key) {
+      for (final d in types?.docs ?? const <QueryDocumentSnapshot>[]) {
+        final m = d.data() as Map<String, dynamic>;
+        final id = d.id.toLowerCase();
+        final name = (m['name'] ?? '').toString().toLowerCase();
+        if (id == key || name.contains(key)) {
+          final days = asInt(m['days']);
+          if (days != null) return days;
+        }
+      }
+      return null;
+    }
+
+    final policy = (org?['leavePolicy'] is Map) ? org!['leavePolicy'] as Map : const {};
+    final annual = fromTypes('annual') ??
+        asInt(policy['annualLeave']) ??
+        (AppSession().paidLeavesPerYear > 0 ? AppSession().paidLeavesPerYear : 12);
+    final sick = fromTypes('sick') ?? asInt(policy['sickLeave']) ?? 7;
+    final casual = fromTypes('casual') ?? asInt(policy['casualLeave']) ?? 5;
+    return [annual, sick, casual];
+  }
+
+  /// Days used [annual, sick, casual] — approved + pending requests, using the number of
+  /// days saved on each request (the web's value).
+  static List<int> leaveUsage(Iterable<Map<String, dynamic>> requests) {
+    int annual = 0, sick = 0, casual = 0;
+    for (final data in requests) {
+      final status = (data['status'] ?? '').toString().toLowerCase();
+      if (status != 'approved' && status != 'pending') continue;
+      final type = (data['leaveType'] ?? data['type'] ?? data['category'] ?? 'Annual Leave')
+          .toString()
+          .toLowerCase();
+      int days;
+      final raw = data['days'] ?? data['durationInDays'];
+      if (raw is num) {
+        days = raw.toInt();
+      } else {
+        final p = int.tryParse((raw ?? '').toString().replaceAll(RegExp(r'[^0-9]'), ''));
+        if (p != null && p > 0) {
+          days = p;
+        } else {
+          final s = parseAnyDate(data['fromDate'] ?? data['from']);
+          final e = parseAnyDate(data['toDate'] ?? data['to']) ?? s;
+          days = (s == null || e == null)
+              ? 1
+              : DateTime(e.year, e.month, e.day)
+                      .difference(DateTime(s.year, s.month, s.day))
+                      .inDays +
+                  1;
+        }
+      }
+      if (type.contains('sick')) {
+        sick += days;
+      } else if (type.contains('casual')) {
+        casual += days;
+      } else {
+        annual += days;
+      }
+    }
+    return [annual, sick, casual];
   }
 }

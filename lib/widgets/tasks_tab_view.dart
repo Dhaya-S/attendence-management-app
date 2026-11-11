@@ -76,6 +76,15 @@ class _TasksTabViewState extends State<TasksTabView> {
     if (raw == 'archived') {
       return 'archived';
     }
+    // A task that was never started and is past its due date counts as overdue
+    // (the web board marks these "Overdue" too).
+    final due = FirestoreService.parseAnyDate(data['dueDate'] ?? data['due']);
+    if (due != null) {
+      final t = DateTime.now();
+      if (DateTime(due.year, due.month, due.day).isBefore(DateTime(t.year, t.month, t.day))) {
+        return 'overdue';
+      }
+    }
     return 'assigned';
   }
 
@@ -134,28 +143,11 @@ class _TasksTabViewState extends State<TasksTabView> {
 
           final docs = snapshot.data?.docs ?? [];
 
-          // Clean up any previously seeded demo tasks so only real database tasks exist
-          const demoTitles = [
-            'Review Q3 Policy Updates',
-            'Prepare Onboarding Docs',
-            'Mobile Flow Design',
-            'Sprint Report Draft',
-            'Onboarding Screens',
-            'Design System Audit',
-            'Audit Leave Records - Q2',
-            'Generate Payroll Report',
-          ];
-
-          final realDocs = docs.where((doc) {
-            if (!FirestoreService.isDocInCurrentCompany(doc)) return false;
-            final data = doc.data() as Map<String, dynamic>;
-            final title = (data['title'] ?? '').toString();
-            if (demoTitles.contains(title)) {
-              doc.reference.delete();
-              return false;
-            }
-            return true;
-          }).toList();
+          // Tasks are created in the web app; the mobile app only reads and updates them.
+          // (It must never delete tasks.)
+          final realDocs = docs
+              .where((doc) => FirestoreService.isDocInCurrentCompany(doc))
+              .toList();
 
           // Filter tasks so that each user ONLY sees real tasks assigned to them
           final userDocs = realDocs.where((doc) {
@@ -307,7 +299,7 @@ class _TasksTabViewState extends State<TasksTabView> {
     final normStatus = _normalizeStatus(data);
     final title = data['title'] ?? data['taskName'] ?? 'Untitled Task';
     final priority = data['priority'] ?? 'Medium';
-    final assignedBy = data['assignedBy'] ?? data['department'] ?? data['reporterName'] ?? 'Unassigned';
+    final assignedBy = data['assignedBy'] ?? data['reporterName'] ?? data['department'] ?? data['dept'] ?? 'Unassigned';
 
     // Dates
     final dueDate = _parseDateTime(data['dueDate'] ?? data['due']);
@@ -397,12 +389,13 @@ class _TasksTabViewState extends State<TasksTabView> {
                 const SizedBox(height: 16),
                 GestureDetector(
                   onTap: () async {
-                    await FirestoreService.tasksCol.doc(id).update({
-                      'status': 'In Progress',
-                      'taskStatus': 'In Progress',
-                      'timerStart': FieldValue.serverTimestamp(),
-                      'isPaused': false,
-                    });
+                    await FirestoreService.updateTaskStatus(
+                        FirestoreService.tasksCol.doc(id), 'In Progress',
+                        extra: {
+                          'taskStatus': 'In Progress',
+                          'timerStart': FieldValue.serverTimestamp(),
+                          'isPaused': false,
+                        });
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
@@ -444,7 +437,8 @@ class _TasksTabViewState extends State<TasksTabView> {
       if (diff > 0) baseElapsed += diff;
     }
 
-    double estHours = (data['estimatedHours'] as num?)?.toDouble() ?? 0.0;
+    double estHours = (data['estimatedHours'] as num?)?.toDouble() ??
+        (((data['originalEstimateMinutes'] as num?)?.toDouble() ?? 0.0) / 60.0);
     int estSeconds = (estHours * 3600).toInt();
     int remainingSeconds = estSeconds > baseElapsed ? estSeconds - baseElapsed : 0;
 
@@ -655,17 +649,9 @@ class _TasksTabViewState extends State<TasksTabView> {
                   child: GestureDetector(
                     onTap: () async {
                       if (isPaused) {
-                        // Resume
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'isPaused': false,
-                          'timerStart': FieldValue.serverTimestamp(),
-                        });
+                        await FirestoreService.resumeTask(FirestoreService.tasksCol.doc(id));
                       } else {
-                        // Pause
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'isPaused': true,
-                          'totalElapsedSeconds': baseElapsed,
-                        });
+                        await FirestoreService.pauseTask(FirestoreService.tasksCol.doc(id));
                       }
                     },
                     child: Container(
@@ -1001,12 +987,13 @@ class _TasksTabViewState extends State<TasksTabView> {
                     child: GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'status': 'Done',
-                          'taskStatus': 'Done',
-                          'completedDate': DateFormat('MMM d, yyyy').format(DateTime.now()),
-                          'completedAt': FieldValue.serverTimestamp(),
-                        });
+                        await FirestoreService.updateTaskStatus(
+                            FirestoreService.tasksCol.doc(id), 'Done',
+                            extra: {
+                              'taskStatus': 'Done',
+                              'completedDate': DateFormat('MMM d, yyyy').format(DateTime.now()),
+                              'completedAt': FieldValue.serverTimestamp(),
+                            });
                       },
                       child: Container(
                         height: 48,
@@ -1094,11 +1081,12 @@ class _TasksTabViewState extends State<TasksTabView> {
                     child: GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'status': 'archived',
-                          'isArchived': true,
-                          'archivedAt': FieldValue.serverTimestamp(),
-                        });
+                        await FirestoreService.updateTaskStatus(
+                            FirestoreService.tasksCol.doc(id), 'Archived',
+                            extra: {
+                              'isArchived': true,
+                              'archivedAt': FieldValue.serverTimestamp(),
+                            });
                       },
                       child: Container(
                         height: 48,

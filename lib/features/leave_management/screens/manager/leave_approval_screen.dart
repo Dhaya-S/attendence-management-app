@@ -195,7 +195,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
     final leaveType = data['leaveType'] ?? 'Leave';
     final from = data['fromDate'] as Timestamp?;
     final to = data['toDate'] as Timestamp?;
-    final status = data['status'] ?? 'pending';
+    final status = (data['status'] ?? 'pending').toString().toLowerCase();
 
     Color typeColor;
     switch (leaveType.toString().toLowerCase()) {
@@ -383,11 +383,10 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
 
   Future<void> _updateLeaveStatus(DocumentReference docRef, String newStatus, Map<String, dynamic> data) async {
     try {
-      // 1. First, update the leave request status
-      await docRef.update({
-        'status': newStatus,
-        'reviewedAt': FieldValue.serverTimestamp(),
-      });
+      // 1. Update the leave request exactly like the web app does
+      //    (Approved/Rejected + approvedBy/At, on both the company and employee copy)
+      await FirestoreService.reviewRequest(
+          ref: docRef, approve: newStatus == 'approved');
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -414,7 +413,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
           await NotificationHelper.notifyEmployee(
             employeeEmail: employeeEmail,
             title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
-            body: 'Your ${data['leaveType']} request for ${DateFormat('MMM dd').format((data['fromDate'] as Timestamp).toDate())} has been $newStatus.',
+            body: 'Your ${data['leaveType'] ?? data['type'] ?? 'leave'} request for ${(() { final d = FirestoreService.parseAnyDate(data['fromDate'] ?? data['from']); return d == null ? '' : DateFormat('MMM dd').format(d); })()} has been $newStatus.',
             type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
             extraData: {
               'userId': data['userId'],

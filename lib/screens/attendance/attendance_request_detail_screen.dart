@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/screens/attendance/attendance_correction_form_screen.dart';
 
@@ -73,7 +74,8 @@ class AttendanceRequestDetailScreen extends StatelessWidget {
           final lastUpdated = parseDate(data['approvedAt']) ?? submittedAt;
           final reason = data['reason'] as String? ?? 'No reason provided';
           final isOwn = data['userId'] == FirebaseAuth.instance.currentUser?.uid ||
-                        data['userEmail'] == FirebaseAuth.instance.currentUser?.email;
+                        FirestoreService.requesterEmail(data) ==
+                            (FirebaseAuth.instance.currentUser?.email ?? '').toLowerCase();
           final isPending = status == 'pending';
 
           return SingleChildScrollView(

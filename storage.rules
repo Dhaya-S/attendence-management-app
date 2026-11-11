@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Workzi – Firebase Storage security rules (multi-tenant)
+//
+// Only company documents are stored here:
+//   organizations/{orgId}/documents/{docId}/{fileName}
+//   organizations/{orgId}/announcements/{annId}/{fileName}   (announcement attachments)
+//
+// Who the user is (company + role) comes from Firestore approved_users/{email}, the same
+// source the Firestore rules use, so web and mobile follow the same permissions:
+//   • read   – members of that company, respecting the document's accessLevel
+//              ("All Employees" · "HR Only" · "Admins Only")
+//   • create – members of that company, max 15 MB
+//   • update / delete – HR Admins and Managers of that company
+// Everything else is denied.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function myEmail() {
+      return request.auth != null ? string(request.auth.token.get("email", "")).lower() : "";
+    }
+
+    function mappingPath() {
+      return /databases/(default)/documents/approved_users/$(myEmail());
+    }
+
+    function hasMapping() {
+      return myEmail() != "" && firestore.exists(mappingPath());
+    }
+
+    function me() {
+      return firestore.get(mappingPath()).data;
+    }
+
+    function isActive() {
+      return !(string(me().get("status", "approved")).lower() in ["suspended", "removed"]);
+    }
+
+    function inOrg(orgId) {
+      return request.auth != null && hasMapping() && isActive() &&
+        (me().get("companyId", "") == orgId || me().get("orgId", "") == orgId);
+    }
+
+    function myRole() {
+      return string(me().get("role", "")).lower();
+    }
+
+    function isHr() {
+      return myRole() in ["super_admin", "superadmin", "admin", "hr_admin", "hradmin", "hr"];
+    }
+
+    function isManagerOrHr() {
+      return isHr() || myRole() == "manager";
+    }
+
+    function docPath(orgId, docId) {
+      return /databases/(default)/documents/organizations/$(orgId)/documents/$(docId);
+    }
+
+    // Respect the accessLevel chosen when the document was published.
+    // (During the very first upload the Firestore record does not exist yet — that is a write, not a read.)
+    function canReadDoc(orgId, docId) {
+      return !firestore.exists(docPath(orgId, docId)) ||
+        string(firestore.get(docPath(orgId, docId)).data.get("accessLevel", "All Employees")) == "All Employees" ||
+        (string(firestore.get(docPath(orgId, docId)).data.get("accessLevel", "")) == "HR Only" && isHr()) ||
+        (string(firestore.get(docPath(orgId, docId)).data.get("accessLevel", "")) == "Admins Only" && isManagerOrHr());
+    }
+
+    // Announcement attachments follow the HR Admin's permission matrix (announcement_creation)
+    function orgDataPath(orgId) {
+      return /databases/(default)/documents/organizations/$(orgId);
+    }
+
+    function canPostAnnouncements(orgId) {
+      return isHr() ||
+        (firestore.exists(orgDataPath(orgId)) &&
+          firestore.get(orgDataPath(orgId)).data.get("featurePermissions", {
+            "manager": ["approval", "task_creation", "announcement_creation", "geofencing"],
+            "employee": ["geofencing"]
+          }).get(myRole() == "manager" ? "manager" : "employee", []).hasAny(["announcement_creation"]));
+    }
+
+    match /organizations/{orgId}/announcements/{annId}/{fileName} {
+      allow read: if inOrg(orgId);
+      allow create: if inOrg(orgId) && canPostAnnouncements(orgId) && request.resource.size < 15 * 1024 * 1024;
+      allow update, delete: if inOrg(orgId) && isManagerOrHr();
+    }
+
+    match /organizations/{orgId}/documents/{docId}/{fileName} {
+      allow read: if inOrg(orgId) && canReadDoc(orgId, docId);
+      allow create: if inOrg(orgId) && request.resource.size < 15 * 1024 * 1024;
+      allow update, delete: if inOrg(orgId) && isManagerOrHr();
+    }
+
+    // Everything else is closed
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

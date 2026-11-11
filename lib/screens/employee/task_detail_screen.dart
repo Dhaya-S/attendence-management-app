@@ -63,6 +63,15 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
     if (raw == 'archived') {
       return 'archived';
     }
+    // A task that was never started and is past its due date counts as overdue
+    // (the web board marks these "Overdue" too).
+    final due = FirestoreService.parseAnyDate(data['dueDate'] ?? data['due']);
+    if (due != null) {
+      final t = DateTime.now();
+      if (DateTime(due.year, due.month, due.day).isBefore(DateTime(t.year, t.month, t.day))) {
+        return 'overdue';
+      }
+    }
     return 'assigned';
   }
 
@@ -107,7 +116,7 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
   Widget _buildContent(Map<String, dynamic> data, String? docId) {
     final title = data['title'] ?? data['taskName'] ?? 'Untitled Task';
     final normStatus = _normalizeStatus(data);
-    final assignedBy = data['assignedBy'] ?? data['department'] ?? data['reporterName'] ?? 'Unassigned';
+    final assignedBy = data['assignedBy'] ?? data['reporterName'] ?? data['department'] ?? data['dept'] ?? 'Unassigned';
 
     // Due Date
     final dueDate = _parseDateTime(data['dueDate'] ?? data['due']);
@@ -116,8 +125,13 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
         : (data['due']?.toString() ?? 'No due date');
 
     // Est Hours
-    double estHours = (data['estimatedHours'] as num?)?.toDouble() ?? 0.0;
-    String estTimeStr = estHours > 0 ? '${estHours.toInt()} hours' : 'Not set';
+    double estHours = (data['estimatedHours'] as num?)?.toDouble() ??
+        (((data['originalEstimateMinutes'] as num?)?.toDouble() ?? 0.0) / 60.0);
+    String estTimeStr = estHours > 0
+        ? (estHours == estHours.roundToDouble()
+            ? '${estHours.toInt()} hours'
+            : '${estHours.toStringAsFixed(1)} hours')
+        : 'Not set';
 
     // Timing data if in progress or started
     final isPaused = data['isPaused'] == true;
@@ -519,11 +533,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     child: ElevatedButton(
                       onPressed: () async {
                         if (docId != null) {
-                          await FirestoreService.tasksCol.doc(docId).update({
-                            'status': 'in_progress',
-                            'timerStart': FieldValue.serverTimestamp(),
-                            'isPaused': false,
-                          });
+                          await FirestoreService.updateTaskStatus(
+                              FirestoreService.tasksCol.doc(docId), 'In Progress',
+                              extra: {
+                                'timerStart': FieldValue.serverTimestamp(),
+                                'isPaused': false,
+                              });
                         }
                       },
                       style: ElevatedButton.styleFrom(
@@ -545,15 +560,9 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                           onTap: () async {
                             if (docId != null) {
                               if (isPaused) {
-                                await FirestoreService.tasksCol.doc(docId).update({
-                                  'isPaused': false,
-                                  'timerStart': FieldValue.serverTimestamp(),
-                                });
+                                await FirestoreService.resumeTask(FirestoreService.tasksCol.doc(docId));
                               } else {
-                                await FirestoreService.tasksCol.doc(docId).update({
-                                  'isPaused': true,
-                                  'totalElapsedSeconds': baseElapsed,
-                                });
+                                await FirestoreService.pauseTask(FirestoreService.tasksCol.doc(docId));
                               }
                             }
                           },
@@ -567,6 +576,58 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                             child: Text(
                               isPaused ? 'Resume' : 'Pause',
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF4B5563)),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            if (docId != null) _showCompleteConfirmation(docId);
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Complete',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else if (normStatus == 'overdue')
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () async {
+                            if (docId != null) {
+                              await FirestoreService.updateTaskStatus(
+                                  FirestoreService.tasksCol.doc(docId), 'In Progress',
+                                  oldStatus: 'Overdue',
+                                  extra: {
+                                    'timerStart': FieldValue.serverTimestamp(),
+                                    'isPaused': false,
+                                  });
+                            }
+                          },
+                          child: Container(
+                            height: 48,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF5C5CFF),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'Start Task',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
                             ),
                           ),
                         ),
@@ -794,11 +855,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     child: GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'status': 'completed',
-                          'completedDate': DateFormat('MMM d, yyyy').format(DateTime.now()),
-                          'completedAt': FieldValue.serverTimestamp(),
-                        });
+                        await FirestoreService.updateTaskStatus(
+                            FirestoreService.tasksCol.doc(id), 'Done',
+                            extra: {
+                              'completedDate': DateFormat('MMM d, yyyy').format(DateTime.now()),
+                              'completedAt': FieldValue.serverTimestamp(),
+                            });
                       },
                       child: Container(
                         height: 48,
@@ -885,11 +947,12 @@ class _TaskDetailScreenState extends State<TaskDetailScreen> {
                     child: GestureDetector(
                       onTap: () async {
                         Navigator.pop(context);
-                        await FirestoreService.tasksCol.doc(id).update({
-                          'status': 'archived',
-                          'isArchived': true,
-                          'archivedAt': FieldValue.serverTimestamp(),
-                        });
+                        await FirestoreService.updateTaskStatus(
+                            FirestoreService.tasksCol.doc(id), 'Archived',
+                            extra: {
+                              'isArchived': true,
+                              'archivedAt': FieldValue.serverTimestamp(),
+                            });
                         if (mounted) Navigator.pop(context);
                       },
                       child: Container(

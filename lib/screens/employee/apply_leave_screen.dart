@@ -21,12 +21,33 @@ class _ApplyLeaveScreenState extends State<ApplyLeaveScreen> {
   final TextEditingController reasonController = TextEditingController();
   bool isLoading = false;
 
-  final List<String> leaveTypes = [
-    'Annual Leave',
-    'Sick Leave',
-    'Casual Leave',
-    'Comp Off'
-  ];
+  // The organization's own leave types (web: Organization setup → Leave types);
+  // these three are used until they have loaded / when none are configured.
+  List<String> leaveTypes = ['Annual Leave', 'Sick Leave', 'Casual Leave'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLeaveTypes();
+  }
+
+  Future<void> _loadLeaveTypes() async {
+    try {
+      final qs = await FirestoreService.companyDoc().collection('leave_types').get();
+      final names = qs.docs
+          .map((d) => d.data())
+          .where((m) => m['enabled'] != false)
+          .map((m) => (m['name'] ?? '').toString().trim())
+          .where((n) => n.isNotEmpty)
+          .toList();
+      if (names.isNotEmpty && mounted) {
+        setState(() {
+          leaveTypes = names;
+          if (!leaveTypes.contains(selectedType)) selectedType = leaveTypes.first;
+        });
+      }
+    } catch (_) {}
+  }
 
   Future<void> _pickDate(BuildContext context, bool isFrom) async {
     final picked = await showDatePicker(

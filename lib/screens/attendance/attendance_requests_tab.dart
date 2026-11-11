@@ -66,8 +66,15 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
 
         for (final doc in correctionReqs) {
           final data = doc.data() as Map<String, dynamic>;
-          final senderRole = (data['senderRole'] ?? 'employee').toString().toLowerCase();
-          final isOwn = data['userId'] == _user?.uid || data['userEmail'] == _user?.email;
+          final senderRole = (data['createdByRole'] ?? data['senderRole'] ?? 'employee')
+              .toString()
+              .toLowerCase();
+          final isOwn = FirestoreService.requesterEmail(data) ==
+                  (_user?.email ?? '').toLowerCase() ||
+              data['userId'] == _user?.uid;
+
+          // Employees only see their own requests (the query returns the whole company).
+          if (_role == 'employee' && !isOwn) continue;
           
           if (_role == 'manager' && senderRole != 'employee' && !isOwn) {
             continue;
@@ -126,12 +133,9 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
   Stream<QuerySnapshot> _getAttendanceIssuesStream() {
     try {
       if (_role == 'employee') {
-        return FirebaseFirestore.instance
-            .collection('organizations')
-            .doc(FirestoreService.companyId)
-            .collection('attendance_issues')
-            .where('userId', isEqualTo: _user?.email ?? '')
-            .snapshots();
+        // Web issues store the requester in "createdBy" (older mobile ones in "userId"),
+        // so read the company's issues and filter by requester in the list above.
+        return FirestoreService.allAttendanceIssuesQuery.snapshots();
       } else {
         return FirestoreService.allAttendanceIssuesQuery.snapshots();
       }
@@ -359,17 +363,8 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
     try {
       // Update the request document
       // The actual path depends on how the request was stored
-      final email = req.data['userId'] as String? ??
-          req.data['employeeEmail'] as String? ??
-          _user?.email ??
-          '';
-      await FirestoreService.userLeaveRequestsCol(email)
-          .doc(req.id)
-          .update({
-        'status': newStatus,
-        'approvedBy': AppSession().userName ?? AppSession().email,
-        'approvedAt': FieldValue.serverTimestamp(),
-      });
+      await FirestoreService.reviewRequest(
+          ref: req.reference, approve: newStatus == 'approved');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(

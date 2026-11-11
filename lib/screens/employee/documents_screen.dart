@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
@@ -364,6 +366,16 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
 
     if (confirmed == true) {
       try {
+        // Remove the stored file too (documents uploaded from the web or mobile app)
+        try {
+          final snap = await FirestoreService.documentDoc(docId).get();
+          final storagePath = (snap.data()?['storagePath'] ?? '').toString();
+          if (storagePath.isNotEmpty) {
+            await FirebaseStorage.instance.ref(storagePath).delete();
+          }
+        } catch (_) {
+          // file already gone / Storage not enabled — still delete the record
+        }
         await FirestoreService.documentDoc(docId).delete();
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -387,7 +399,7 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
   // ── Upload Document Dialog (HR Admin / Manager) ─────────────────────────────
   void _showUploadDialog() {
     final titleCtrl = TextEditingController();
-    final urlCtrl = TextEditingController();
+    PlatformFile? pickedFile;
     String selectedCat = 'Policy';
     String selectedAccess = 'All Employees';
     bool isSaving = false;
@@ -465,17 +477,37 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
                     },
                   ),
                   const SizedBox(height: 14),
-                  const Text('Document File URL / Link', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
+                  const Text('File', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: urlCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'https://... or download URL',
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+                  OutlinedButton.icon(
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            final result = await FilePicker.platform.pickFiles(withData: true);
+                            if (result == null || result.files.isEmpty) return;
+                            final f = result.files.first;
+                            if (f.size > 15 * 1024 * 1024) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('File is too large (maximum 15 MB).')),
+                              );
+                              return;
+                            }
+                            setDialogState(() {
+                              pickedFile = f;
+                              if (titleCtrl.text.trim().isEmpty) {
+                                titleCtrl.text = f.name.replaceAll(RegExp(r'\.[^.]+$'), '');
+                              }
+                            });
+                          },
+                    icon: const Icon(Icons.attach_file_rounded, size: 18),
+                    label: Text(
+                      pickedFile == null ? 'Choose file (max 15 MB)' : pickedFile!.name,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 46),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ],
@@ -503,24 +535,55 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
                           return;
                         }
 
+                        final file = pickedFile;
+                        if (file == null || file.bytes == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please choose a file to upload.')),
+                          );
+                          return;
+                        }
+
                         setDialogState(() => isSaving = true);
                         try {
                           final docId = 'DOC_${DateTime.now().millisecondsSinceEpoch}';
                           final uName = AppSession().userName ?? 'HR Admin';
                           final nowStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+                          final cid = FirestoreService.companyId;
 
+                          // 1. Upload the file to Firebase Storage (same path the web app uses)
+                          final storagePath = 'organizations/$cid/documents/$docId/${file.name}';
+                          final ref = FirebaseStorage.instance.ref(storagePath);
+                          try {
+                            await ref.putData(
+                              file.bytes!,
+                              SettableMetadata(contentType: _mimeForExtension(file.extension)),
+                            );
+                          } on FirebaseException catch (e) {
+                            throw (e.code == 'unauthorized' || e.code == 'unauthenticated')
+                                ? 'You do not have permission to upload files.'
+                                : 'File storage is not available yet. Ask your administrator to enable Firebase Storage. (${e.code})';
+                          }
+                          final downloadUrl = await ref.getDownloadURL();
+
+                          final bytes = file.size;
+                          final sizeStr = bytes >= 1024 * 1024
+                              ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+                              : '${(bytes / 1024).round()} KB';
+
+                          // 2. Save the record exactly like the web Documents page
                           await FirestoreService.documentsCol.doc(docId).set({
                             'id': docId,
-                            'companyId': AppSession().companyId ?? '',
+                            'companyId': cid,
                             'name': title,
                             'category': selectedCat,
                             'accessLevel': selectedAccess,
-                            'size': '1.0 MB',
+                            'size': sizeStr,
                             'updatedBy': uName,
                             'updated': nowStr,
                             'status': 'Published',
-                            'fileUrl': urlCtrl.text.trim(),
-                            'fileName': '$title.pdf',
+                            'fileUrl': downloadUrl,
+                            'storagePath': storagePath,
+                            'fileName': file.name,
                             'createdAt': DateTime.now().toIso8601String(),
                           });
 
@@ -552,6 +615,30 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
         },
       ),
     );
+  }
+
+  String _mimeForExtension(String? ext) {
+    switch ((ext ?? '').toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
   }
 
   // ── Document Card Icon ──────────────────────────────────────────────────────

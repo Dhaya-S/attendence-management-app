@@ -228,7 +228,7 @@ class _ManagerNotificationsScreenState
                 final appliedAt = (data['requestDate'] ?? data['appliedAt']) as Timestamp?;
                 
                 // Only show pending items for clarity (they disappear once reviewed)
-                if (data['status'] != 'pending') continue;
+                if (!FirestoreService.statusIs(data['status'], 'pending')) continue;
 
                 items.add(_NotifItem(
                   type: 'leave',
@@ -334,7 +334,7 @@ class _ManagerNotificationsScreenState
   Widget _buildLeaveNotif(Map<String, dynamic> data, QueryDocumentSnapshot doc) {
     final userId = data['userId'] as String?;
     final reason = data['reason'] ?? 'Leave';
-    final status = data['status'] ?? 'pending';
+    final status = (data['status'] ?? 'pending').toString().toLowerCase();
     final Timestamp? appliedAt = data['appliedAt'];
     final timeStr = _formatTime(appliedAt);
 

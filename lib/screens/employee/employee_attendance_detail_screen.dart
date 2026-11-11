@@ -48,7 +48,13 @@ class _EmployeeAttendanceDetailScreenState
   }
 
   _StatusInfo _resolveStatus(Map<String, dynamic> d) {
-    final checkInTs = d['checkIn'] as Timestamp?;
+    // Records written by the web app (e.g. approved corrections) may only carry the
+    // "09:05 AM" string, so fall back to checkInTime.
+    final rawIn = d['checkIn'];
+    final parsedIn = rawIn is Timestamp
+        ? rawIn.toDate()
+        : FirestoreService.parseTimeOnDay(d['checkInTime'], widget.date);
+    final checkInTs = parsedIn == null ? null : Timestamp.fromDate(parsedIn);
     final hasCheckedIn = checkInTs != null;
     if (!hasCheckedIn) {
       if (d['status'] == 'leave') {
@@ -226,7 +232,11 @@ class _EmployeeAttendanceDetailScreenState
             ),
             child: Column(
               children: [
-                _detailRow('Shift', 'General Shift'),
+                _detailRow(
+                    'Shift',
+                    (d['shift'] ?? '').toString().trim().isNotEmpty
+                        ? d['shift'].toString()
+                        : AppSession().shiftLabel),
                 const Divider(height: 24, color: Color(0xFFF3F4F6)),
                 _detailRow('Work Mode', workMode == 'wfh' ? 'Remote' : (d['status'] == 'leave' ? 'Leave' : 'Office')),
                 const Divider(height: 24, color: Color(0xFFF3F4F6)),

@@ -460,7 +460,7 @@ class _EmployeeLeaveTabState extends State<EmployeeLeaveTab> {
 
         for (var doc in leaves.docs) {
           final d = doc.data();
-          if (d['status'] != 'rejected') {
+          if (!FirestoreService.statusIs(d['status'], 'rejected')) {
             final fromDateValue = d['fromDate'] ?? d['from'] ?? d['startDate'];
             final toDateValue = d['toDate'] ?? d['to'] ?? d['endDate'];
             final start = parseDate(fromDateValue);

@@ -272,8 +272,8 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     } else if (status == 'leave') {
       timeRange = 'On Leave';
     } else if (status == 'present') {
-      timeRange = '09:00 AM – 06:00 PM';
-      workingHrs = '9h 00m';
+      timeRange = AppSession().shiftTimeRange;
+      workingHrs = '';
     }
 
     return GestureDetector(

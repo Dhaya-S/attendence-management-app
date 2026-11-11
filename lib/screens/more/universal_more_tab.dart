@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_service.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/screens/employee/documents_screen.dart';
@@ -20,7 +21,11 @@ class UniversalMoreTab extends StatefulWidget {
 class _UniversalMoreTabState extends State<UniversalMoreTab> {
   Future<void> _handleSignOut() async {
     try {
+      // Stop the previous user's notification listeners and forget their session,
+      // otherwise the next person to log in would inherit this user's role / company.
+      NotificationService().stopFirestoreListener();
       await FirebaseAuth.instance.signOut();
+      AppSession().clear();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (context) => const LoginScreen()),

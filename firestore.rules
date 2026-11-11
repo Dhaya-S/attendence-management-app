@@ -1,160 +1,212 @@
 rules_version = '2';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Workzi HRMS – Firestore security rules (multi-tenant)
+//
+// Principles
+//  • Every company lives in its own tree: organizations/{companyId}/…
+//  • A user's company + role come ONLY from approved_users/{email}. Users can
+//    never change their own company or role (except joining an organization
+//    they themselves created during setup).
+//  • The HR Admin (head of organization) has full access to their company.
+//  • Managers / Employees get features according to the company's
+//    featurePermissions matrix (set by the HR Admin).
+//  • Nobody can read or write another company's data.
+// ─────────────────────────────────────────────────────────────────────────────
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // --- HELPERS ---
-    
+
+    // ── Identity helpers ─────────────────────────────────────────────────────
+
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    function isAdmin() {
-       return isSignedIn() && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid));
+
+    // Safe even for sign-in methods without an email (token.get avoids a missing-key error)
+    function myEmail() {
+      return request.auth != null ? string(request.auth.token.get("email", "")).lower() : "";
     }
-    
-    // Helper to fetch the user's mapping document once
-    function userCompanyId() {
-      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
-      let userPath = /databases/$(database)/documents/approved_users/$(email);
-      return exists(userPath) ? 
-        (get(userPath).data.get('companyId', '') != '' ? get(userPath).data.get('companyId', '') : get(userPath).data.get('orgId', 'NONE')) 
-        : 'NONE';
+
+    function hasEmail() {
+      return myEmail() != "";
+    }
+
+    // Platform super admin (Workzi staff). Only another platform admin can create these.
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/admin_users/$(request.auth.uid));
+    }
+
+    function approvedUserPath() {
+      return /databases/$(database)/documents/approved_users/$(myEmail());
+    }
+
+    // Path is only built when the caller has an email (an empty segment would be an invalid path)
+    function getApprovedUser() {
+      return (hasEmail() && exists(approvedUserPath())) ? get(approvedUserPath()).data : null;
+    }
+
+    // The caller's company. "NONE" when not assigned or suspended/removed.
+    function myCompanyId() {
+      let u = getApprovedUser();
+      let cid = u != null ? u.get("companyId", null) : null;
+      let st = u != null ? string(u.get("status", "approved")).lower() : "";
+      return (cid is string && cid != "" && cid != "default" && st != "suspended" && st != "removed")
+        ? cid : "NONE";
+    }
+
+    function myRole() {
+      let u = getApprovedUser();
+      return u != null ? string(u.get("role", "")).lower() : "";
+    }
+
+    function isHrRole(r) {
+      return r in ["super_admin", "superadmin", "admin", "hr_admin", "hr"];
+    }
+
+    function isManagerRole(r) {
+      return isHrRole(r) || r == "manager";
     }
 
     function isManager() {
-      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
-      let userPath = /databases/$(database)/documents/approved_users/$(email);
-      return exists(userPath) && (
-        get(userPath).data.get('role', '').lower() == "super_admin" ||
-        get(userPath).data.get('role', '').lower() == "superadmin" ||
-        get(userPath).data.get('role', '').lower() == "admin" ||
-        get(userPath).data.get('role', '').lower() == "hr_admin" ||
-        get(userPath).data.get('role', '').lower() == "hradmin" ||
-        get(userPath).data.get('role', '').lower() == "manager"
-      );
+      return isManagerRole(myRole());
     }
 
-    function isOwner(employeeId) {
-      return isSignedIn() && 
-             (request.auth.token != null && request.auth.token.email != null) && 
-             request.auth.token.email.lower() == employeeId.lower();
+    function isOwner(e) {
+      return isSignedIn() && hasEmail() && myEmail() == string(e).lower();
     }
 
-    // Helper to check if current user is an admin of a specific org
-    function isOrgAdmin(orgId) {
-      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
-      let userPath = /databases/$(database)/documents/approved_users/$(email);
-      let isApprovedAdmin = exists(userPath) && (
-        (get(userPath).data.get('companyId', '') == orgId || get(userPath).data.get('orgId', '') == orgId) &&
-        (
-          get(userPath).data.get('role', '').lower() == "admin" ||
-          get(userPath).data.get('role', '').lower() == "hr_admin" ||
-          get(userPath).data.get('role', '').lower() == "hradmin" ||
-          get(userPath).data.get('role', '').lower() == "super_admin" ||
-          get(userPath).data.get('role', '').lower() == "superadmin" ||
-          get(userPath).data.get('role', '').lower() == "manager"
-        )
-      );
-
-      let orgUserPath = /databases/$(database)/documents/organizations/$(orgId)/users/$(email);
-      let isOrgUserAdmin = exists(orgUserPath) && (
-        get(orgUserPath).data.get('role', '').lower() == "admin" ||
-        get(orgUserPath).data.get('role', '').lower() == "hr_admin" ||
-        get(orgUserPath).data.get('role', '').lower() == "hradmin" ||
-        get(orgUserPath).data.get('role', '').lower() == "super_admin" ||
-        get(orgUserPath).data.get('role', '').lower() == "superadmin" ||
-        get(orgUserPath).data.get('role', '').lower() == "manager"
-      );
-
-      let memberDoc = /databases/$(database)/documents/organizations/$(orgId)/members/$(request.auth.uid);
-      let isMemberAdmin = exists(memberDoc) && (
-        get(memberDoc).data.get('role', '').lower() == "admin" ||
-        get(memberDoc).data.get('role', '').lower() == "hr_admin" ||
-        get(memberDoc).data.get('role', '').lower() == "hradmin" ||
-        get(memberDoc).data.get('role', '').lower() == "super_admin" ||
-        get(memberDoc).data.get('role', '').lower() == "superadmin"
-      );
-
-      let orgDocPath = /databases/$(database)/documents/organizations/$(orgId);
-      let isOrgDocAdmin = exists(orgDocPath) && (
-        (get(orgDocPath).data.get('superAdminEmail', '').lower() == email) ||
-        (get(orgDocPath).data.get('managerEmail', '').lower() == email) ||
-        (get(orgDocPath).data.get('contactEmail', '').lower() == email) ||
-        (get(orgDocPath).data.get('adminDetails', {}).get('email', '').lower() == email)
-      );
-
-      return isSignedIn() && (isApprovedAdmin || isOrgUserAdmin || isMemberAdmin || isOrgDocAdmin || orgId == request.auth.uid || isAdmin());
+    function newData() {
+      return request.resource.data;
     }
 
-    function isOrgMember(orgId) {
-      let email = (request.auth.token != null && request.auth.token.email != null) ? request.auth.token.email.lower() : "";
-      let userPath = /databases/$(database)/documents/approved_users/$(email);
-      let isApprovedMember = exists(userPath) && (
-        get(userPath).data.get('companyId', '') == orgId ||
-        get(userPath).data.get('orgId', '') == orgId
+    function unchanged(keys) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(keys);
+    }
+
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // ── Organization helpers ─────────────────────────────────────────────────
+
+    function orgPath(orgId) {
+      return /databases/$(database)/documents/organizations/$(orgId);
+    }
+
+    // The person who created the organization (setup wizard) – head of organization
+    function isOrgOwner(orgId) {
+      return isSignedIn() && hasEmail() && exists(orgPath(orgId)) &&
+        string(get(orgPath(orgId)).data.get("superAdminEmail", "")).lower() == myEmail();
+    }
+
+    // HR Admin of THIS organization (full access)
+    function isOrgHrAdmin(orgId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        isOrgOwner(orgId) ||
+        (myCompanyId() == orgId && isHrRole(myRole()))
       );
-
-      let orgUserPath = /databases/$(database)/documents/organizations/$(orgId)/users/$(email);
-      let isOrgUser = exists(orgUserPath);
-
-      return isSignedIn() && (isApprovedMember || isOrgUser || isOrgAdmin(orgId) || isAdmin() || orgId == request.auth.uid);
     }
 
     function isOrgManager(orgId) {
-      return isSignedIn() && (isOrgAdmin(orgId) || (userCompanyId() == orgId && isManager()) || isAdmin() || orgId == request.auth.uid);
+      return isSignedIn() && (isOrgHrAdmin(orgId) || (myCompanyId() == orgId && isManager()));
     }
 
-    // 1. Global mapping used during login - Force Case-Insensitive Deploy
+    function isOrgMember(orgId) {
+      return isSignedIn() && (myCompanyId() == orgId || isOrgHrAdmin(orgId));
+    }
+
+    // Feature permission matrix set by the HR Admin: organizations/{orgId}.featurePermissions
+    // Defaults mirror DEFAULT_FEATURE_PERMISSIONS in AuthContext.tsx
+    function roleHasFeature(orgId, feature) {
+      let fp = get(orgPath(orgId)).data.get("featurePermissions", {
+        "manager": ["approval", "task_creation", "announcement_creation", "geofencing"],
+        "employee": ["geofencing"]
+      });
+      let roleKey = myRole() == "manager" ? "manager" : "employee";
+      return fp.get(roleKey, []).hasAny([feature]);
+    }
+
+    // HR Admin always; other members only if the HR Admin granted the feature
+    function canUseFeature(orgId, feature) {
+      return isOrgHrAdmin(orgId) || (myCompanyId() == orgId && exists(orgPath(orgId)) && roleHasFeature(orgId, feature));
+    }
+
+    function canApprove(orgId) {
+      return canUseFeature(orgId, "approval");
+    }
+
+    // ── 1. approved_users/{email}: login → company + role mapping ────────────
     match /approved_users/{email} {
-      allow read, write: if isAdmin();
-      allow read: if isSignedIn() && (
-        isOwner(email) || 
-        isManager() ||  // Managers need to check if an email is already registered
-        (resource != null && resource.data.companyId == userCompanyId()) || 
-        (resource != null && resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId)) ||
-        (resource != null && resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(resource.data.companyId)) ||
-        isAdmin()
-      );
-      
-      // Managers, HR Admins and Org Admins can create new employee approved_user mappings;
-      // Signing up users can create their own initial mapping
-      allow create: if isAdmin() || (isSignedIn() && (
+      allow get: if isSignedIn() && (
         isOwner(email) ||
-        (isManager() && request.resource.data.companyId == userCompanyId()) ||
-        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId)) ||
-        (request.resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(request.resource.data.companyId))
-      ));
+        isAdmin() ||
+        resource == null ||                                   // "is this email free?" check
+        (myCompanyId() != "NONE" && resource.data.get("companyId", null) == myCompanyId())
+      );
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        (myCompanyId() != "NONE" && resource.data.companyId == myCompanyId())
+      );
 
-      // Users can update their own entry without changing role/companyId (unless completing initial setup)
-      // Managers, HR Admins and Org Admins can update their employees
-      allow update: if isAdmin() || (isSignedIn() && (
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        // self sign-up: no company yet, or the company this user just created
         (isOwner(email) && (
-          (request.resource.data.role == resource.data.role && request.resource.data.companyId == resource.data.companyId) ||
-          (resource.data.setupComplete == false)
+          newData().get("companyId", null) == null ||
+          newData().get("companyId", null) == "" ||
+          (newData().get("companyId", null) is string && isOrgOwner(newData().companyId))
         )) ||
-        (isManager() && request.resource.data.companyId == userCompanyId() && resource.data.companyId == userCompanyId()) ||
-        (request.resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(request.resource.data.orgId) && resource.data.orgId == request.resource.data.orgId) ||
-        (request.resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(request.resource.data.companyId) && resource.data.companyId == resource.data.companyId)
-      ));
+        // HR / managers adding someone to THEIR company (only HR can create HR admins)
+        (newData().get("companyId", null) is string &&
+          newData().companyId == myCompanyId() &&
+          canUseFeature(newData().companyId, "organization") &&
+          (!isHrRole(string(newData().get("role", "")).lower()) || isOrgHrAdmin(newData().companyId)))
+      );
 
-      allow delete: if isAdmin() || (isSignedIn() && (
-        (isManager() && resource.data.companyId == userCompanyId()) ||
-        (resource.data.keys().hasAll(["orgId"]) && isOrgAdmin(resource.data.orgId)) ||
-        (resource.data.keys().hasAll(["companyId"]) && isOrgAdmin(resource.data.companyId))
-      ));
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        // own record: cannot change company / role / status …
+        (isOwner(email) && (
+          unchanged(["companyId", "orgId", "role", "status"]) ||
+          // … except leaving to "no company" (new-organization onboarding)
+          (newData().get("companyId", null) == null && newData().get("orgId", null) == null) ||
+          // … or joining the organization they created themselves
+          (newData().get("companyId", null) is string && isOrgOwner(newData().companyId))
+        )) ||
+        // HR / managers of the SAME company (cannot move people to another company)
+        (resource.data.get("companyId", null) is string &&
+          resource.data.companyId == myCompanyId() &&
+          newData().get("companyId", null) == resource.data.companyId &&
+          isOrgManager(resource.data.companyId) &&
+          (unchanged(["role", "status"]) || canUseFeature(resource.data.companyId, "organization")) &&
+          (unchanged(["role"]) || isOrgHrAdmin(resource.data.companyId)) &&
+          (!isHrRole(string(resource.data.get("role", "")).lower()) || isOrgHrAdmin(resource.data.companyId)))
+      );
+
+      allow delete: if isAdmin() || (
+        resource.data.get("companyId", null) is string && isOrgHrAdmin(resource.data.companyId)
+      );
     }
-    
+
+    // Platform admins – nobody can make themselves an admin
     match /admin_users/{uid} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
     }
-    
+
     match /audit_logs/{logId} {
-       allow read, write: if isSignedIn();
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
     }
-    
+
     match /company_users/{uid} {
-       allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
+    }
+
+    match /user_preferences/{email} {
+      allow read, write: if isOwner(email) || isAdmin();
     }
 
     // --- MAIL EXTENSION ---
@@ -162,7 +214,7 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // 1.5 Pre-login organization setup requests
+    // Pre-login organization setup requests
     match /organization_setup_requests/{requestId} {
       allow create: if
         request.resource.data.flow == "pre_login_organization_setup" &&
@@ -190,124 +242,218 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
-    // 1.6 Organizations (Secure Multi-Tenant Architecture)
+    // ── 2. organizations/{orgId}: one tree per company ───────────────────────
     match /organizations/{orgId} {
-      allow read, write: if isAdmin();
-      // Allow any signed-in user to READ an org document if their email matches
-      // the org's admin/contact fields. This is required for the login org-discovery
-      // flow — web-registered HR admins are NOT in approved_users yet, so we must
-      // let them query the organizations collection to find their own org.
-      allow read: if isOrgMember(orgId) || (isSignedIn() && request.auth.token.email != null && (
-        resource.data.get('superAdminEmail', '').lower() == request.auth.token.email.lower() ||
-        resource.data.get('managerEmail', '').lower() == request.auth.token.email.lower() ||
-        resource.data.get('contactEmail', '').lower() == request.auth.token.email.lower() ||
-        resource.data.get('adminDetails', {}).get('email', '').lower() == request.auth.token.email.lower()
-      ));
-      allow create: if isSignedIn();
-      allow update: if isOrgManager(orgId);
+      allow get: if isSignedIn() && (
+        resource == null ||                                   // ID availability check during setup
+        isOrgMember(orgId) ||
+        (hasEmail() && string(resource.data.get("superAdminEmail", "")).lower() == myEmail())
+      );
+      allow list: if isAdmin();
+
+      // The creator becomes the head of organization (superAdminEmail = creator)
+      allow create: if isSignedIn() && hasEmail() &&
+        string(newData().get("superAdminEmail", "")).lower() == myEmail();
+
+      allow update: if isAdmin() ||
+        isOrgOwner(orgId) ||
+        (isOrgHrAdmin(orgId) && unchanged(["superAdminEmail"])) ||
+        (canUseFeature(orgId, "organization") &&
+          unchanged(["superAdminEmail", "managerEmail", "featurePermissions", "adminDetails", "smtpConfig"]));
+
       allow delete: if isAdmin();
-      
-      // All nested collections accessible to master super admins
+
       match /{allSubcollections=**} {
         allow read, write: if isAdmin();
       }
-      
-      // Member directory & roles
+
       match /members/{uid} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if isOrgHrAdmin(orgId);
       }
+
+      // Organization structure – HR, or roles granted "organization"
       match /departments/{deptId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /designations/{desigId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /shifts/{shiftId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /policies/{policyId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /locations/{locId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /branches/{branchId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /leave_types/{typeId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
       match /holidays/{holidayId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "organization");
       }
 
-      // Organization users & subcollections
+      // Employee directory
       match /users/{employeeEmail} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId) || (isOrgMember(orgId) && isOwner(employeeEmail));
+        allow create: if canUseFeature(orgId, "organization");
+        allow update: if canUseFeature(orgId, "organization") ||
+          // employees update their own live status (check-in / out) but not job details
+          (isOrgMember(orgId) && isOwner(employeeEmail) &&
+            unchanged(["role", "roleLabel", "status", "companyId", "orgId", "dept", "department",
+                       "designation", "manager", "managerEmail", "branch", "shift", "empType", "isDeptHead", "uid"])) ||
+          // approvers fixing attendance after an approved regularisation
+          (canApprove(orgId) &&
+            onlyChanged(["attendanceStatus", "lastCheckIn", "lastCheckOut", "lastCheckInTime", "lastCheckOutTime", "updatedAt"]));
+        allow delete: if isOrgHrAdmin(orgId);
 
         match /attendance/{docId} {
           allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
-          allow write: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow write: if isOwner(employeeEmail) && isOrgMember(orgId) || canApprove(orgId);
         }
 
         match /leave_requests/{docId} {
           allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
-          allow create: if isOwner(employeeEmail);
-          allow update: if isOrgManager(orgId) || (isOwner(employeeEmail) && request.resource.data.status == resource.data.status);
-          allow delete: if isOrgManager(orgId) || (isOwner(employeeEmail) && resource.data.status == "Pending");
+          allow create: if isOwner(employeeEmail) && isOrgMember(orgId) && newData().get("status", "") == "Pending";
+          allow update: if canApprove(orgId) || (isOwner(employeeEmail) && (
+            unchanged(["status", "approvedBy", "approvedAt", "rejectedBy", "rejectedAt"]) ||
+            (resource.data.get("status", "") == "Pending" && newData().get("status", "") == "Cancelled" &&
+              unchanged(["approvedBy", "approvedAt", "rejectedBy", "rejectedAt"]))
+          ));
+          allow delete: if canApprove(orgId) || (isOwner(employeeEmail) && resource.data.get("status", "") == "Pending");
         }
 
-        match /notifications/{docId} {
-          allow read, write: if isOwner(employeeEmail) || isOrgManager(orgId) || isOrgMember(orgId);
-        }
-
-        match /overtime_requests/{docId} {
-          allow read, write: if isOwner(employeeEmail) || isOrgManager(orgId) || isOrgMember(orgId);
+        match /documents/{docId} {
+          allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow write: if canUseFeature(orgId, "organization");
         }
 
         match /notification_meta/{docId} {
-          allow read, write: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow read, write: if isOwner(employeeEmail) && isOrgMember(orgId) || isOrgHrAdmin(orgId);
+        }
+
+        // Personal notifications (written by the mobile app / managers) + the user's own
+        // settings docs (settings, privacy, security)
+        match /notifications/{docId} {
+          allow read: if isOwner(employeeEmail) || isOrgManager(orgId);
+          allow create: if isOrgMember(orgId);
+          allow update, delete: if isOwner(employeeEmail) || isOrgManager(orgId);
+        }
+
+        // Overtime requests (mobile app) – same approval model as leave_requests
+        match /overtime_requests/{docId} {
+          allow read: if isOrgManager(orgId) || isOwner(employeeEmail);
+          allow create: if isOwner(employeeEmail) && isOrgMember(orgId) && newData().get("status", "") == "Pending";
+          allow update: if canApprove(orgId) || (isOwner(employeeEmail) &&
+            unchanged(["status", "approvedBy", "approvedAt", "rejectedBy", "rejectedAt"]));
+          allow delete: if canApprove(orgId) || (isOwner(employeeEmail) && resource.data.get("status", "") == "Pending");
         }
       }
 
-      // Top-level Organization Collections
-      match /global_notifications/{docId} {
-        allow read, write: if isOrgMember(orgId);
-      }
+      // Company-wide attendance feed (one doc per employee per day)
       match /attendance/{docId} {
-        allow read, write: if isOrgMember(orgId);
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId) && (isOwner(newData().get("email", "")) || canApprove(orgId));
+        allow update: if isOrgMember(orgId) && (isOwner(resource.data.get("email", "")) || canApprove(orgId)) &&
+          unchanged(["email", "companyId"]);
+        allow delete: if isOrgHrAdmin(orgId);
       }
 
+      // Company-wide leave queue
       match /leave_requests/{docId} {
         allow read: if isOrgMember(orgId);
-        allow create: if isOrgMember(orgId);
-        allow update: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.userId == request.auth.uid || isOwner(resource.data.applicantEmail)) && request.resource.data.status == resource.data.status);
-        allow delete: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.userId == request.auth.uid || isOwner(resource.data.applicantEmail)) && resource.data.status == "Pending");
+        allow create: if isOrgMember(orgId) &&
+          isOwner(newData().get("applicantEmail", "")) &&
+          newData().get("status", "") == "Pending";
+        allow update: if canApprove(orgId) || (
+          isOrgMember(orgId) &&
+          (resource.data.get("userId", "") == request.auth.uid || isOwner(resource.data.get("applicantEmail", ""))) &&
+          unchanged(["applicantEmail", "userId", "approvedBy", "approvedAt", "rejectedBy", "rejectedAt"]) &&
+          (unchanged(["status"]) ||
+            (resource.data.get("status", "") == "Pending" && newData().get("status", "") == "Cancelled"))
+        );
+        allow delete: if canApprove(orgId) || (
+          isOrgMember(orgId) &&
+          (resource.data.get("userId", "") == request.auth.uid || isOwner(resource.data.get("applicantEmail", ""))) &&
+          resource.data.get("status", "") == "Pending"
+        );
+      }
+
+      match /attendance_issues/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId) && isOwner(newData().get("createdBy", "")) &&
+          newData().get("status", "") == "Pending";
+        allow update: if canApprove(orgId) || (
+          isOrgMember(orgId) && isOwner(resource.data.get("createdBy", "")) &&
+          unchanged(["status", "createdBy", "approvedBy", "approvedAt", "rejectedBy", "rejectedAt"])
+        );
+        allow delete: if isOrgHrAdmin(orgId);
       }
 
       match /announcements/{docId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if canUseFeature(orgId, "announcement_creation");
+        // any member may like / comment / count a view (engagement fields only)
+        allow update: if isOrgMember(orgId) &&
+          onlyChanged(["likes", "likedBy", "commentsCount", "views"]);
+
+        match /comments/{commentId} {
+          allow read: if isOrgMember(orgId);
+          allow create: if isOrgMember(orgId);
+          allow update, delete: if isOrgManager(orgId) ||
+            (isOrgMember(orgId) && isOwner(resource.data.get("authorEmail", "")));
+        }
+      }
+
+      match /team_announcements/{docId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if canUseFeature(orgId, "announcement_creation");
+        allow update: if isOrgMember(orgId) &&
+          onlyChanged(["likes", "likedBy", "commentsCount", "views"]);
+
+        match /comments/{commentId} {
+          allow read: if isOrgMember(orgId);
+          allow create: if isOrgMember(orgId);
+          allow update, delete: if isOrgManager(orgId) ||
+            (isOrgMember(orgId) && isOwner(resource.data.get("authorEmail", "")));
+        }
+      }
+
+      // Alerts for managers (e.g. "new leave request") – anyone can raise one, managers read them
+      match /global_notifications/{docId} {
+        allow read: if isOrgManager(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update, delete: if isOrgManager(orgId);
       }
 
       match /tasks/{docId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgMember(orgId);
+        allow create: if canUseFeature(orgId, "task_creation");
+        allow update: if isOrgMember(orgId);                  // assignees move their own tasks
+        allow delete: if canUseFeature(orgId, "task_creation");
       }
 
       match /documents/{docId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId);
+        allow update, delete: if isOrgManager(orgId);
+      }
+
+      match /team_feed/{docId} {
+        allow read, write: if isOrgMember(orgId);
       }
 
       match /support_tickets/{docId} {
@@ -317,14 +463,14 @@ service cloud.firestore {
       }
 
       match /audit_logs/{docId} {
-        allow read: if isOrgManager(orgId);
+        allow read: if isOrgHrAdmin(orgId);
         allow create: if isOrgMember(orgId);
         allow update, delete: if isAdmin();
       }
 
       match /settings/{docId} {
         allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
+        allow write: if isOrgHrAdmin(orgId);
       }
 
       match /notifications/{docId} {
@@ -332,400 +478,283 @@ service cloud.firestore {
         allow write: if isOrgManager(orgId);
       }
 
-      match /attendance_issues/{docId} {
-        allow read: if isOrgMember(orgId);
-        allow create: if isOrgMember(orgId);
-        allow update: if isOrgManager(orgId) || (isOrgMember(orgId) && (resource.data.createdBy == request.auth.token.email || isOwner(resource.data.createdBy)));
-        allow delete: if isOrgManager(orgId);
-      }
-
-      match /team_announcements/{docId} {
-        allow read: if isOrgMember(orgId);
-        allow write: if isOrgManager(orgId);
-      }
-
-      match /team_feed/{docId} {
-        allow read, write: if isOrgMember(orgId);
-      }
-
       match /outgoing_emails/{docId} {
-        allow read, write: if isOrgMember(orgId);
+        allow create: if isOrgMember(orgId);
+        allow read, update, delete: if isOrgManager(orgId);
       }
     }
 
-
-    // 2. Company master data + ALL subcollections
+    // ── 3. Legacy company tree (kept for the mobile app) ─────────────────────
     match /approved_companies/{companyId} {
-      // Company document itself
       allow read: if isSignedIn() && (
-        userCompanyId() == companyId || 
-        isOwner(resource.data.managerEmail) ||
+        myCompanyId() == companyId ||
+        (resource != null && isOwner(resource.data.get("managerEmail", ""))) ||
         isAdmin()
       );
-      allow create: if isSignedIn() && isOwner(request.resource.data.managerEmail);
-      allow update, delete: if isAdmin() || (isSignedIn() && userCompanyId() == companyId && isManager());
+      allow create: if isSignedIn() && isOwner(request.resource.data.get("managerEmail", ""));
+      allow update, delete: if isAdmin() || isOrgHrAdmin(companyId);
 
-      // ── Users subcollection ──────────────────────────────────────
       match /users/{employeeId} {
         allow read: if isSignedIn() && (
           isOwner(employeeId) ||
-          (resource != null && isOwner(resource.data.email)) ||
-          userCompanyId() == companyId ||
+          (resource != null && isOwner(resource.data.get("email", ""))) ||
+          myCompanyId() == companyId ||
           isAdmin()
         );
         allow write: if isSignedIn() && (
-          ((isOwner(employeeId) || isOwner(request.resource.data.email)) && (resource == null || request.resource.data.role == resource.data.role)) ||
-          (userCompanyId() == companyId && isManager()) ||
+          ((isOwner(employeeId) || isOwner(request.resource.data.get("email", ""))) &&
+            (resource == null || request.resource.data.get("role", "") == resource.data.get("role", ""))) &&
+            myCompanyId() == companyId ||
+          (myCompanyId() == companyId && isManager()) ||
           isAdmin()
         );
 
-        // ── User Attendance ─────────────────────────────────────────
-        // Attendance docs stored at users/{email}/attendance/{date}
         match /attendance/{docId} {
-          allow read: if isSignedIn() && (
-            isOwner(employeeId) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
-          );
-          allow write: if isSignedIn() && (
-            isOwner(employeeId) ||
-            (userCompanyId() == companyId && isManager()) ||
+          allow read, write: if isSignedIn() && (
+            (isOwner(employeeId) && myCompanyId() == companyId) ||
+            (myCompanyId() == companyId && isManager()) ||
             isAdmin()
           );
         }
 
-        // ── User Leave Requests ─────────────────────────────────────
         match /leave_requests/{docId} {
           allow read: if isSignedIn() && (
-            isOwner(employeeId) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            isOwner(employeeId) || (myCompanyId() == companyId && isManager()) || isAdmin()
           );
-          allow create: if isSignedIn() && isOwner(employeeId);
+          allow create: if isSignedIn() && isOwner(employeeId) && myCompanyId() == companyId;
           allow update: if isSignedIn() && (
             (isOwner(employeeId) && request.resource.data.status == resource.data.status) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            (myCompanyId() == companyId && isManager()) || isAdmin()
           );
           allow delete: if isSignedIn() && (
-            (isOwner(employeeId) && resource.data.status == 'pending') ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            (isOwner(employeeId) && resource.data.status in ["pending", "Pending"]) ||
+            (myCompanyId() == companyId && isManager()) || isAdmin()
           );
         }
 
-        // ── User Notifications ──────────────────────────────────────
         match /notifications/{docId} {
-          allow read: if isSignedIn() && (
-            isOwner(employeeId) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
-          );
-          allow write: if isSignedIn() && (
-            isOwner(employeeId) ||   // Employee marks as read
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+          allow read, write: if isSignedIn() && (
+            isOwner(employeeId) || (myCompanyId() == companyId && isManager()) || isAdmin()
           );
         }
 
-        // ── User Overtime Requests ──────────────────────────────────
         match /overtime_requests/{docId} {
           allow read: if isSignedIn() && (
-            isOwner(employeeId) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            isOwner(employeeId) || (myCompanyId() == companyId && isManager()) || isAdmin()
           );
-          allow create: if isSignedIn() && isOwner(employeeId);
+          allow create: if isSignedIn() && isOwner(employeeId) && myCompanyId() == companyId;
           allow update: if isSignedIn() && (
             (isOwner(employeeId) && request.resource.data.status == resource.data.status) ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            (myCompanyId() == companyId && isManager()) || isAdmin()
           );
           allow delete: if isSignedIn() && (
-            (isOwner(employeeId) && resource.data.status == 'pending') ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            (isOwner(employeeId) && resource.data.status in ["pending", "Pending"]) ||
+            (myCompanyId() == companyId && isManager()) || isAdmin()
           );
         }
       }
 
-
-      // ── Attendance subcollection ─────────────────────────────────────
       match /attendance/{targetUid} {
         allow read, write: if isSignedIn() && (
-          request.auth.uid == targetUid ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (request.auth.uid == targetUid && myCompanyId() == companyId) ||
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
-
-        // Attendance records (daily check-in/out)
         match /records/{recordId} {
           allow read, write: if isSignedIn() && (
-            request.auth.uid == targetUid ||
-            (userCompanyId() == companyId && isManager()) ||
-            isAdmin()
+            (request.auth.uid == targetUid && myCompanyId() == companyId) ||
+            (myCompanyId() == companyId && isManager()) || isAdmin()
           );
         }
       }
 
-      // ── Leave requests subcollection ─────────────────────────────────
       match /leave_requests/{id} {
         allow read: if isSignedIn() && (
           (resource != null && resource.data.userId == request.auth.uid) ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
-        allow create: if isSignedIn() && (
-          request.resource.data.userId == request.auth.uid &&
-          userCompanyId() == companyId
-        );
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && myCompanyId() == companyId;
         allow update: if isSignedIn() && (
           (resource != null && resource.data.userId == request.auth.uid && request.resource.data.status == resource.data.status) ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
         allow delete: if isSignedIn() && (
-          (resource != null && resource.data.userId == request.auth.uid && resource.data.status == "pending") ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (resource != null && resource.data.userId == request.auth.uid && resource.data.status in ["pending", "Pending"]) ||
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
       }
 
-      // ── Overtime requests subcollection ──────────────────────────────
       match /overtime_requests/{id} {
         allow read: if isSignedIn() && (
           (resource != null && resource.data.userId == request.auth.uid) ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
-        allow create: if isSignedIn() && (
-          request.resource.data.userId == request.auth.uid &&
-          userCompanyId() == companyId
-        );
+        allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && myCompanyId() == companyId;
         allow update: if isSignedIn() && (
           (resource != null && resource.data.userId == request.auth.uid && request.resource.data.status == resource.data.status) ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
         allow delete: if isSignedIn() && (
-          (resource != null && resource.data.userId == request.auth.uid && resource.data.status == "pending") ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (resource != null && resource.data.userId == request.auth.uid && resource.data.status in ["pending", "Pending"]) ||
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
       }
 
-      // ── Notifications subcollection ──────────────────────────────────
       match /notifications/{id} {
         allow read: if isSignedIn() && (
           (resource != null && resource.data.userId == request.auth.uid) ||
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
+          (myCompanyId() == companyId && isManager()) || isAdmin()
         );
-        allow write: if isSignedIn() && (
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
-        );
+        allow write: if isSignedIn() && ((myCompanyId() == companyId && isManager()) || isAdmin());
       }
 
-      // ── Company Calendar ─────────────────────────────────────────────
-      // Manager marks holidays / WFH days; all company members can read.
       match /company_calendar/{eventId} {
-        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        allow write: if isSignedIn() && (
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
-        );
+        allow read: if isSignedIn() && (myCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && ((myCompanyId() == companyId && isManager()) || isAdmin());
       }
 
-            // ── Global Notifications ─────────────────────────────────────────
       match /global_notifications/{id} {
-        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        
-        // Allows employees to CREATE (send) notifications to the manager
-        allow create: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        
-        // Only managers/admins can UPDATE (mark as read) or DELETE notifications
-        allow update, delete: if isSignedIn() && (
-          (userCompanyId() == companyId && isManager()) ||
-          isAdmin()
-        );
+        allow read, create: if isSignedIn() && (myCompanyId() == companyId || isAdmin());
+        allow update, delete: if isSignedIn() && ((myCompanyId() == companyId && isManager()) || isAdmin());
       }
 
-      // ── Announcements ─────────────────────────────────────────────
       match /announcements/{id} {
-        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        allow write: if isSignedIn() && (
-          (userCompanyId() == companyId && (isManager() || isOrgAdmin(companyId))) ||
-          isAdmin()
-        );
+        allow read: if isSignedIn() && (myCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && ((myCompanyId() == companyId && isManager()) || isAdmin());
       }
 
-      // ── Tasks ─────────────────────────────────────────────────────
       match /tasks/{id} {
-        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        allow write: if isSignedIn() && (
-          (userCompanyId() == companyId && (isManager() || isOrgAdmin(companyId))) ||
-          isAdmin()
-        );
+        allow read: if isSignedIn() && (myCompanyId() == companyId || isAdmin());
+        allow write: if isSignedIn() && ((myCompanyId() == companyId && isManager()) || isAdmin());
       }
 
-      // ── Feed Posts ────────────────────────────────────────────────
       match /feed_posts/{id} {
-        allow read: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
-        allow write: if isSignedIn() && (userCompanyId() == companyId || isAdmin());
+        allow read, write: if isSignedIn() && (myCompanyId() == companyId || isAdmin());
       }
-
-    } // end match /approved_companies/{companyId}
-
-    // 3. Collection Group Queries (Essential for Managers using collectionGroup) — v2 fix: 2026-05-18
-    // Also used for org-discovery login: a user can read their own user doc via collectionGroup
-    match /{path=**}/users/{userId} {
-      allow read: if isSignedIn() && (
-        isAdmin() ||
-        isOwner(userId) ||
-        // Allow reading own doc via email match (for login org-discovery)
-        (request.auth.token.email != null && request.auth.token.email.lower() == userId.lower()) ||
-        // Managers can read users in their company
-        (isManager() && userCompanyId() != "NONE")
-      );
-      allow write: if isSignedIn() && (
-        isAdmin() ||
-        (isManager() && userCompanyId() != "NONE")
-      );
     }
+
+    // ── 4. Collection-group access – ALWAYS scoped to the caller's company ───
+    // (Collection-group queries must filter: where("companyId", "==", myCompanyId))
     match /{path=**}/records/{recordId} {
       allow read: if isSignedIn() && (
-        // Managers: auth-token check only (no resource.data needed for list queries)
-        (isManager() && userCompanyId() != "NONE") ||
-        // Employees: own records only
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        isAdmin()
-      );
-      allow write: if isSignedIn() && (
-        (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
+        isAdmin() ||
+        resource.data.get("userId", "") == request.auth.uid ||
+        (isManager() && myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId())
       );
     }
-    
-    // Collection group for user-scoped attendance subcollections
-    // e.g. approved_companies/{cid}/users/{email}/attendance/{docId}
+
     match /{path=**}/attendance/{docId} {
       allow read: if isSignedIn() && (
-        // Managers: auth-token check only (no resource.data needed for list queries)
-        (isManager() && userCompanyId() != "NONE") ||
-        // Employees: own records only
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        isAdmin()
+        isAdmin() ||
+        resource.data.get("userId", "") == request.auth.uid ||
+        (isManager() && myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId())
       );
-      allow write: if isSignedIn() && (
-        (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
-      );
+      // Writes for paths that have no company in their path (e.g. users/{email}/attendance/{date})
+      allow create: if isSignedIn() && myCompanyId() != "NONE" &&
+        request.resource.data.get("companyId", "") == myCompanyId() &&
+        (request.resource.data.get("userId", "") == request.auth.uid || isManager() || canApprove(myCompanyId()));
+      allow update: if isSignedIn() && myCompanyId() != "NONE" &&
+        resource.data.get("companyId", "") == myCompanyId() &&
+        request.resource.data.get("companyId", "") == myCompanyId() &&
+        (resource.data.get("userId", "") == request.auth.uid || isManager() || canApprove(myCompanyId()));
     }
 
     match /{path=**}/leave_requests/{requestId} {
       allow read: if isSignedIn() && (
-        // Managers: auth-token check only (no resource.data needed for list queries)
-        (isManager() && userCompanyId() != "NONE") ||
-        // Employees: own records only
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        isAdmin()
-      );
-      allow write: if isSignedIn() && (
-        (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
+        isAdmin() ||
+        resource.data.get("userId", "") == request.auth.uid ||
+        (isManager() && myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId())
       );
     }
 
     match /{path=**}/attendance_corrections/{requestId} {
       allow read: if isSignedIn() && (
-        (isManager() && userCompanyId() != "NONE") ||
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        isAdmin()
+        isAdmin() ||
+        resource.data.get("userId", "") == request.auth.uid ||
+        (isManager() && myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId())
       );
-      allow write: if isSignedIn() && (
-        (resource == null && request.resource.data.userId == request.auth.uid && request.resource.data.companyId == userCompanyId()) ||
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
-      );
+      allow create: if isSignedIn() && myCompanyId() != "NONE" &&
+        request.resource.data.get("userId", "") == request.auth.uid &&
+        request.resource.data.get("companyId", "") == myCompanyId();
+      allow update: if isSignedIn() && myCompanyId() != "NONE" &&
+        resource.data.get("companyId", "") == myCompanyId() &&
+        request.resource.data.get("companyId", "") == myCompanyId() &&
+        (isManager() || (resource.data.get("userId", "") == request.auth.uid &&
+                         request.resource.data.get("status", "") == resource.data.get("status", "")));
     }
 
     match /{path=**}/tasks/{taskId} {
       allow read: if isSignedIn() && (
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
-      );
-      allow write: if isSignedIn() && (
-        (isManager() && userCompanyId() != "NONE") ||
-        isAdmin()
+        isAdmin() ||
+        (myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId())
       );
     }
 
-    // 4. Legacy top-level collections (kept for backward compat during migration)
+    // Login org-discovery (mobile app): collectionGroup("users").where("email", "==", myEmail)
+    match /{path=**}/users/{userId} {
+      allow read: if isSignedIn() && hasEmail() &&
+        string(resource.data.get("email", "")).lower() == myEmail();
+    }
+
+    // ── 5. Legacy top-level collections ──────────────────────────────────────
     match /companies/{companyId} {
-      allow read, write: if isAdmin();
-      // Allow creators, designated managers, and admins to read
       allow read: if isSignedIn() && (
-        (resource != null && resource.data.registeredBy == request.auth.uid) || 
-        (resource != null && resource.data.managerEmail == request.auth.token.email) ||
+        (resource != null && resource.data.get("registeredBy", "") == request.auth.uid) ||
+        (resource != null && isOwner(resource.data.get("managerEmail", ""))) ||
+        (resource != null && isOwner(resource.data.get("superAdminEmail", ""))) ||
+        myCompanyId() == companyId ||
         isAdmin()
       );
-
-      // Allow any signed-in user to submit a NEW registration
-      allow create: if isSignedIn() && 
-        request.resource.data.status == "pending" &&
-        request.resource.data.registeredBy == request.auth.uid;
-
-      // Only admins can update status or delete
-      allow update: if isAdmin() || (
-        isSignedIn() && resource.data.registeredBy == request.auth.uid &&
-        request.resource.data.status == resource.data.status // Prevent self-approval
+      allow create: if isSignedIn() && (
+        isOrgOwner(companyId) ||
+        (request.resource.data.get("status", "") == "pending" && request.resource.data.get("registeredBy", "") == request.auth.uid)
       );
-      
+      allow update: if isAdmin() || isOrgHrAdmin(companyId) || (
+        isSignedIn() && resource.data.get("registeredBy", "") == request.auth.uid &&
+        request.resource.data.get("status", "") == resource.data.get("status", "")
+      );
       allow delete: if isAdmin();
     }
 
     match /users/{userId} {
       allow read: if isSignedIn() && (
         request.auth.uid == userId ||
-        request.auth.token.email == userId || 
-        (resource != null && resource.data.email == request.auth.token.email) ||
-        (resource != null && resource.data.companyId == userCompanyId()) ||
+        isOwner(userId) ||
+        (resource != null && isOwner(resource.data.get("email", ""))) ||
+        (myCompanyId() != "NONE" && resource != null && resource.data.get("companyId", "") == myCompanyId()) ||
         isAdmin()
       );
       allow write: if isSignedIn() && (
-        request.auth.uid == userId ||
-        (request.auth.token.email == userId && (resource == null || request.resource.data.role == resource.data.role)) ||
-        (resource == null && request.resource.data.companyId == userCompanyId() && isManager()) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        ((request.auth.uid == userId || isOwner(userId)) &&
+          (resource == null || unchanged(["role", "companyId", "orgId"]))) ||
+        (myCompanyId() != "NONE" && isManager() && request.resource.data.get("companyId", "") == myCompanyId() &&
+          (resource == null || resource.data.get("companyId", "") == myCompanyId())) ||
         isAdmin()
       );
     }
 
     match /user/{userEmail} {
-      allow read, write: if isSignedIn() && (
+      allow read: if isSignedIn() && (
         isOwner(userEmail) ||
-        (isManager() && userCompanyId() != "NONE") ||
+        (myCompanyId() != "NONE" && isManager() && resource != null && resource.data.get("companyId", "") == myCompanyId()) ||
+        isAdmin()
+      );
+      allow write: if isSignedIn() && (
+        (isOwner(userEmail) && (resource == null || unchanged(["role", "companyId", "orgId"]))) ||
+        (myCompanyId() != "NONE" && isManager() && request.resource.data.get("companyId", "") == myCompanyId() &&
+          (resource == null || resource.data.get("companyId", "") == myCompanyId())) ||
         isAdmin()
       );
     }
 
     match /notifications/{id} {
       allow read: if isSignedIn() && (
-        (resource != null && resource.data.userId == request.auth.uid) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && resource.data.get("userId", "") == request.auth.uid) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.get("companyId", "") == myCompanyId() && isManager()) ||
         isAdmin()
       );
       allow write: if isSignedIn() && (
-        (resource == null && request.resource.data.companyId == userCompanyId() && isManager()) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (myCompanyId() != "NONE" && request.resource.data.get("companyId", "") == myCompanyId() && isManager() &&
+          (resource == null || resource.data.get("companyId", "") == myCompanyId())) ||
         isAdmin()
       );
     }
@@ -733,21 +762,20 @@ service cloud.firestore {
     match /leave_requests/{id} {
       allow read: if isSignedIn() && (
         (resource != null && resource.data.userId == request.auth.uid) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
-      allow create: if isSignedIn() && (
+      allow create: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.companyId == userCompanyId()
-      );
+        request.resource.data.companyId == myCompanyId();
       allow update: if isSignedIn() && (
         (resource != null && resource.data.userId == request.auth.uid && request.resource.data.status == resource.data.status) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
       allow delete: if isSignedIn() && (
-        (resource != null && resource.data.userId == request.auth.uid && resource.data.status == "pending") ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && resource.data.userId == request.auth.uid && resource.data.status in ["pending", "Pending"]) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
     }
@@ -755,26 +783,25 @@ service cloud.firestore {
     match /overtime_requests/{id} {
       allow read: if isSignedIn() && (
         (resource != null && resource.data.userId == request.auth.uid) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
-      allow create: if isSignedIn() && (
+      allow create: if isSignedIn() &&
         request.resource.data.userId == request.auth.uid &&
-        request.resource.data.companyId == userCompanyId()
-      );
+        request.resource.data.companyId == myCompanyId();
       allow update: if isSignedIn() && (
         (resource != null && resource.data.userId == request.auth.uid && request.resource.data.status == resource.data.status) ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
       allow delete: if isSignedIn() && (
-        (resource != null && resource.data.userId == request.auth.uid && resource.data.status == "pending") ||
-        (resource != null && resource.data.companyId == userCompanyId() && isManager()) ||
+        (resource != null && resource.data.userId == request.auth.uid && resource.data.status in ["pending", "Pending"]) ||
+        (resource != null && myCompanyId() != "NONE" && resource.data.companyId == myCompanyId() && isManager()) ||
         isAdmin()
       );
     }
 
-    // 5. Fallbacks (Closed)
+    // ── 6. Everything else: platform admins only ─────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
     }

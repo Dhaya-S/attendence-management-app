@@ -103,13 +103,26 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
                 final userName = AppSession().userName ?? 'User';
 
                 try {
-                  await FirestoreService.companyDoc().collection('support_tickets').add({
-                    'title': titleCtrl.text.trim(),
-                    'description': descCtrl.text.trim(),
+                  // Same ticket document the web Support page creates
+                  final ticketId =
+                      'TKT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+                  await FirestoreService.companyDoc()
+                      .collection('support_tickets')
+                      .doc(ticketId)
+                      .set({
+                    'id': ticketId,
+                    'companyId': FirestoreService.companyId,
+                    'userId': FirebaseAuth.instance.currentUser?.uid ?? AppSession().uid ?? '',
                     'userEmail': userEmail,
                     'userName': userName,
-                    'status': 'open',
-                    'createdAt': FieldValue.serverTimestamp(),
+                    'type': 'ticket',
+                    'subject': titleCtrl.text.trim(),
+                    'title': titleCtrl.text.trim(),
+                    'priority': 'Medium',
+                    'category': 'Technical',
+                    'description': descCtrl.text.trim(),
+                    'status': 'Open',
+                    'createdAt': DateTime.now().toIso8601String(),
                   });
                   if (!mounted) return;
                   Navigator.pop(context);

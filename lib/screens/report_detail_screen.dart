@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/report_exporter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry Point
@@ -11,6 +12,47 @@ import 'package:attendance_app/utils/firestore_service.dart';
 class ReportDetailScreen extends StatelessWidget {
   final String reportType;
   const ReportDetailScreen({super.key, required this.reportType});
+
+  /// Top-bar Export: pick CSV / Excel / PDF, then build the file from live data.
+  void _chooseFormat(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Export $reportType Report',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Color(0xFF1F2937))),
+                ),
+              ),
+              for (final f in const [
+                [ReportFormat.csv, 'CSV', 'Opens in Excel, Google Sheets and more', Icons.table_chart_outlined],
+                [ReportFormat.excel, 'Excel (.xlsx)', 'Summary and one sheet per table', Icons.grid_on_rounded],
+                [ReportFormat.pdf, 'PDF', 'Print-ready report', Icons.picture_as_pdf_outlined],
+              ])
+                ListTile(
+                  leading: Icon(f[3] as IconData, color: const Color(0xFF5C5CFF)),
+                  title: Text(f[1] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  subtitle: Text(f[2] as String, style: const TextStyle(fontSize: 12)),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    ReportExporter.run(context, reportType, f[0] as ReportFormat);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,7 +94,7 @@ class ReportDetailScreen extends StatelessWidget {
           Container(
             margin: const EdgeInsets.only(right: 16),
             child: TextButton.icon(
-              onPressed: () {},
+              onPressed: () => _chooseFormat(context),
               icon: const Icon(Icons.download_rounded, size: 14, color: Color(0xFF5C5CFF)),
               label: const Text('Export',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF5C5CFF))),
@@ -161,12 +203,35 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-class _ExportButtons extends StatelessWidget {
-  final bool showExcel;
-  const _ExportButtons({this.showExcel = true});
+class _ExportButtons extends StatefulWidget {
+  final String reportType;
+  const _ExportButtons({required this.reportType});
+
+  @override
+  State<_ExportButtons> createState() => _ExportButtonsState();
+}
+
+class _ExportButtonsState extends State<_ExportButtons> {
+  bool _busy = false;
+
+  Future<void> _export(ReportFormat format) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await ReportExporter.run(context, widget.reportType, format);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final outlined = OutlinedButton.styleFrom(
+      foregroundColor: const Color(0xFF5C5CFF),
+      side: const BorderSide(color: Color(0xFFE5E7EB)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      padding: const EdgeInsets.symmetric(vertical: 12),
+    );
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
@@ -175,43 +240,41 @@ class _ExportButtons extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Export Report',
-              style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Export Report',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF5C5CFF))),
+              ),
+              if (_busy)
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text('Uses the latest live data when you tap a format.',
+              style: TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
           const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF5C5CFF),
-                    side: const BorderSide(color: Color(0xFFE5E7EB)),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
+                  onPressed: _busy ? null : () => _export(ReportFormat.csv),
+                  style: outlined,
                   child: const Text('CSV', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
-              if (showExcel) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {},
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF5C5CFF),
-                      side: const BorderSide(color: Color(0xFFE5E7EB)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    child: const Text('Excel', style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _busy ? null : () => _export(ReportFormat.excel),
+                  style: outlined,
+                  child: const Text('Excel', style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
-              ],
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _busy ? null : () => _export(ReportFormat.pdf),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5C5CFF),
                     foregroundColor: Colors.white,
@@ -465,7 +528,12 @@ class _EmployeeReportBody extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.employeesCol.snapshots(),
       builder: (context, empSnap) {
-        final empDocs = empSnap.data?.docs ?? [];
+        final allEmpDocs = (empSnap.data?.docs ?? [])
+            .where((d) => FirestoreService.isDocInCurrentCompany(d))
+            .toList();
+        final empDocs = allEmpDocs
+            .where((d) => FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
+            .toList();
         final now = DateTime.now();
 
         final monthLabels = _last6MonthLabels();
@@ -483,7 +551,7 @@ class _EmployeeReportBody extends StatelessWidget {
         final thisMonthStart = DateTime(now.year, now.month, 1);
         int newJoiners = empDocs.where((d) {
           final data = d.data() as Map<String, dynamic>;
-          final ts = _parseTs(data['createdAt'] ?? data['joinedAt']);
+          final ts = _parseTs(data['joinDate'] ?? data['joiningDate'] ?? data['createdAt'] ?? data['joinedAt']);
           if (ts == null) return false;
           return ts.toDate().isAfter(thisMonthStart);
         }).length;
@@ -491,7 +559,7 @@ class _EmployeeReportBody extends StatelessWidget {
         final Map<String, int> deptCount = {};
         for (final d in empDocs) {
           final data = d.data() as Map<String, dynamic>;
-          final dept = (data['department'] ?? 'Unknown').toString();
+          final dept = (data['dept'] ?? data['department'] ?? 'Unknown').toString();
           deptCount[dept] = (deptCount[dept] ?? 0) + 1;
         }
 
@@ -522,8 +590,8 @@ class _EmployeeReportBody extends StatelessWidget {
                   bgColor: const Color(0xFFFFFBEB)),
               const SizedBox(width: 10),
               _StatCard(
-                  value: '0',
-                  label: 'Exits This Month',
+                  value: '${allEmpDocs.length - empDocs.length}',
+                  label: 'Inactive Employees',
                   valueColor: const Color(0xFFEF4444),
                   bgColor: const Color(0xFFFEF2F2)),
             ]),
@@ -546,7 +614,7 @@ class _EmployeeReportBody extends StatelessWidget {
                 const _SummaryRow(label: 'Format', value: 'Summary + Detail'),
               ]),
             ),
-            const _ExportButtons(showExcel: false),
+            const _ExportButtons(reportType: 'Employee'),
             const SizedBox(height: 40),
           ],
         );
@@ -567,13 +635,18 @@ class _DepartmentReportBody extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.employeesCol.snapshots(),
       builder: (context, empSnap) {
-        final empDocs = empSnap.data?.docs ?? [];
+        final allEmpDocs = (empSnap.data?.docs ?? [])
+            .where((d) => FirestoreService.isDocInCurrentCompany(d))
+            .toList();
+        final empDocs = allEmpDocs
+            .where((d) => FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
+            .toList();
         final now = DateTime.now();
 
         final Map<String, int> deptCount = {};
         for (final d in empDocs) {
           final data = d.data() as Map<String, dynamic>;
-          final dept = (data['department'] ?? 'Unknown').toString();
+          final dept = (data['dept'] ?? data['department'] ?? 'Unknown').toString();
           deptCount[dept] = (deptCount[dept] ?? 0) + 1;
         }
 
@@ -662,7 +735,7 @@ class _DepartmentReportBody extends StatelessWidget {
                 const _SummaryRow(label: 'Format', value: 'Summary + Detail'),
               ]),
             ),
-            const _ExportButtons(),
+            const _ExportButtons(reportType: 'Department'),
             const SizedBox(height: 40),
           ],
         );
@@ -687,7 +760,12 @@ class _AttendanceReportBody extends StatelessWidget {
           stream: FirestoreService.employeesCol.snapshots(),
           builder: (context, empSnap) {
             final attDocs = attSnap.data?.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList() ?? [];
-            final empDocs = empSnap.data?.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList() ?? [];
+            final empDocs = empSnap.data?.docs
+                    .where((d) =>
+                        FirestoreService.isDocInCurrentCompany(d) &&
+                        FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
+                    .toList() ??
+                [];
             final now = DateTime.now();
             final totalEmp = empDocs.length;
 
@@ -816,7 +894,7 @@ class _AttendanceReportBody extends StatelessWidget {
                         label: 'Working Days', value: '${thisMonthEnd.day}'),
                   ]),
                 ),
-                const _ExportButtons(),
+                const _ExportButtons(reportType: 'Attendance'),
                 const SizedBox(height: 40),
               ],
             );
@@ -968,7 +1046,7 @@ class _LeaveReportBody extends StatelessWidget {
                     label: 'Avg per Employee', value: '$avgPerEmp days'),
               ]),
             ),
-            const _ExportButtons(),
+            const _ExportButtons(reportType: 'Leave'),
             const SizedBox(height: 40),
           ],
         );
@@ -1172,7 +1250,7 @@ class _AnnouncementReportBody extends StatelessWidget {
                     const _SummaryRow(label: 'Channels', value: 'App + Email'),
                   ]),
                 ),
-                const _ExportButtons(),
+                const _ExportButtons(reportType: 'Announcement'),
                 const SizedBox(height: 40),
               ],
             );

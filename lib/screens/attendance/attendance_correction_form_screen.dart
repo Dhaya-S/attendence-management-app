@@ -54,22 +54,31 @@ class _AttendanceCorrectionFormScreenState extends State<AttendanceCorrectionFor
       
       // Load Correction data
       if (isCorrection) {
-        final date = data['date'] as Timestamp? ?? data['requestedDate'] as Timestamp?;
-        if (date != null) _attendanceDate = date.toDate();
+        final date = FirestoreService.parseAnyDate(
+            data['date'] ?? data['attendanceDate'] ?? data['requestedDate']);
+        if (date != null) _attendanceDate = date;
 
-        final ci = data['checkInTime'] as Timestamp?;
-        if (ci != null) _checkInTime = TimeOfDay.fromDateTime(ci.toDate());
+        final ci = FirestoreService.parseTimeOnDay(
+            data['requestedCheckIn'] ?? data['correctedCheckIn'] ?? data['checkInTime'],
+            _attendanceDate);
+        if (ci != null) _checkInTime = TimeOfDay.fromDateTime(ci);
 
-        final co = data['checkOutTime'] as Timestamp?;
-        if (co != null) _checkOutTime = TimeOfDay.fromDateTime(co.toDate());
+        final co = FirestoreService.parseTimeOnDay(
+            data['requestedCheckOut'] ?? data['correctedCheckOut'] ?? data['checkOutTime'],
+            _attendanceDate);
+        if (co != null) _checkOutTime = TimeOfDay.fromDateTime(co);
       } else {
         // Load Leave/WFH data
-        final fDate = data['fromDate'] as Timestamp? ?? data['requestedDate'] as Timestamp?;
-        if (fDate != null) _fromDate = fDate.toDate();
+        final fDate = FirestoreService.parseAnyDate(
+            data['fromDate'] ?? data['from'] ?? data['requestedDate']);
+        if (fDate != null) _fromDate = fDate;
 
-        final tDate = data['toDate'] as Timestamp?;
-        if (tDate != null) _toDate = tDate.toDate();
-        else _toDate = _fromDate; // fallback
+        final tDate = FirestoreService.parseAnyDate(data['toDate'] ?? data['to']);
+        if (tDate != null) {
+          _toDate = tDate;
+        } else {
+          _toDate = _fromDate; // fallback
+        }
 
         if (data['leaveType'] != null) {
           _leaveType = data['leaveType'];
@@ -160,55 +169,65 @@ class _AttendanceCorrectionFormScreenState extends State<AttendanceCorrectionFor
       final user = FirebaseAuth.instance.currentUser;
       final email = user?.email ?? '';
       
-      Map<String, dynamic> data = {
-        'companyId': FirestoreService.companyId,
-        'userId': user?.uid,
-        'userEmail': email,
-        'userName': AppSession().userName ?? user?.displayName ?? 'Employee',
-        'reason': _reasonController.text.trim(),
-        'status': 'pending',
-      };
+      final fmt12 = DateFormat('hh:mm a'); // web format: "09:00 AM"
+      DateTime onDay(DateTime d, TimeOfDay t) =>
+          DateTime(d.year, d.month, d.day, t.hour, t.minute);
+      final reasonText = _reasonController.text.trim();
 
       if (isCorrection) {
-        final checkInDateTime = DateTime(
-          _attendanceDate.year, _attendanceDate.month, _attendanceDate.day,
-          _checkInTime.hour, _checkInTime.minute,
-        );
-        final checkOutDateTime = DateTime(
-          _attendanceDate.year, _attendanceDate.month, _attendanceDate.day,
-          _checkOutTime.hour, _checkOutTime.minute,
-        );
-
-        data.addAll({
-          'type': 'Attendance Correction',
-          'date': Timestamp.fromDate(_attendanceDate),
-          'checkInTime': Timestamp.fromDate(checkInDateTime),
-          'checkOutTime': Timestamp.fromDate(checkOutDateTime),
-          'requestDate': FieldValue.serverTimestamp(),
-        });
+        // Attendance corrections live in organizations/{cid}/attendance_issues (web shape)
+        final inStr = fmt12.format(onDay(_attendanceDate, _checkInTime));
+        final outStr = fmt12.format(onDay(_attendanceDate, _checkOutTime));
+        if (widget.existingRef != null) {
+          // status / createdBy are never changed when editing
+          await widget.existingRef!.update({
+            'date': DateFormat('yyyy-MM-dd').format(_attendanceDate),
+            'requestedCheckIn': inStr,
+            'requestedCheckOut': outStr,
+            'reason': reasonText,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        } else {
+          await FirestoreService.submitAttendanceIssue(
+            date: _attendanceDate,
+            requestedCheckIn: inStr,
+            requestedCheckOut: outStr,
+            reason: reasonText,
+          );
+        }
       } else {
         final diff = _toDate.difference(_fromDate).inDays + 1;
-        data.addAll({
-          'type': isWfh ? 'Work From Home' : _leaveType,
-          'leaveType': isWfh ? 'Work From Home' : _leaveType,
-          'fromDate': Timestamp.fromDate(_fromDate),
-          'toDate': Timestamp.fromDate(_toDate),
-          'durationInDays': diff,
-          'requestDate': FieldValue.serverTimestamp(),
-        });
-      }
-
-      if (widget.existingRef != null) {
-        // We do NOT update requestDate or status when editing an existing request 
-        // to avoid wiping out the original submission time, but we reset status to pending 
-        // just in case they are re-submitting. Usually, if it's pending, it stays pending.
-        data.remove('requestDate');
-        await widget.existingRef!.update(data);
-      } else {
-        if (isCorrection) {
-          await FirestoreService.userOvertimeRequestsCol(email).add(data);
+        final typeName = isWfh ? 'Work From Home' : _leaveType;
+        if (widget.existingRef != null) {
+          final edit = <String, dynamic>{
+            'type': typeName,
+            'leaveType': typeName,
+            'from': DateFormat('yyyy-MM-dd').format(_fromDate),
+            'to': DateFormat('yyyy-MM-dd').format(_toDate),
+            'fromDate': Timestamp.fromDate(_fromDate),
+            'toDate': Timestamp.fromDate(_toDate),
+            'days': diff,
+            'durationInDays': diff,
+            'reason': reasonText,
+            'updatedAt': DateTime.now().toIso8601String(),
+          };
+          await widget.existingRef!.update(edit);
+          // keep the company-queue copy in sync
+          try {
+            await FirestoreService.leaveRequestsCol
+                .doc(widget.existingRef!.id)
+                .set(edit, SetOptions(merge: true));
+          } catch (_) {}
         } else {
-          await FirestoreService.userLeaveRequestsCol(email).add(data);
+          // Leave / WFH → same dual write as the web Leave page
+          await FirestoreService.submitLeaveRequest(data: {
+            'type': typeName,
+            'leaveType': typeName,
+            'fromDate': _fromDate,
+            'toDate': _toDate,
+            'days': diff,
+            'reason': reasonText,
+          });
         }
       }
 

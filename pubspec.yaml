@@ -24,7 +24,6 @@ dependencies:
   google_maps_flutter: ^2.10.0
   shimmer: ^3.0.0
   confetti: ^0.8.0
-  lottie: ^3.3.2
   haptic_feedback: ^0.6.4+3
   csv: ^7.1.0
   path_provider: ^2.1.5
@@ -42,6 +41,9 @@ dependencies:
   timezone: ^0.11.0
   onesignal_flutter: ^5.5.4
   url_launcher: ^6.3.0
+  file_picker: ^8.0.7
+  pdf: ^3.12.0
+  excel: ^4.0.6
   
 
 dev_dependencies:

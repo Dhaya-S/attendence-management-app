@@ -123,6 +123,11 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
   Future<bool> _checkAndRequestLocation() async {
     try {
+      // Geofencing off (organization policy or this role's permission) → the web app does not
+      // ask for location at all, so neither do we.
+      if (AppSession().isReady && !AppSession().hasPermission('geofencing')) {
+        return true;
+      }
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) return false;
 
@@ -208,9 +213,14 @@ class _AuthWrapperState extends State<AuthWrapper> {
       // â”€â”€ Fast path: session already populated during registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       // This happens when a new admin just created their account via the setup
       // flow. AppSession is already populated; no Firestore read needed.
-      if (AppSession().isReady) {
+      if (AppSession().isReady && AppSession().uid == user.uid) {
         if (mounted) setState(() { _sessionLoaded = true; _error = null; });
         return;
+      }
+      // A session left over from a DIFFERENT user (e.g. the previous person on this device
+      // logged out without it being cleared) must never be reused — load this user's own.
+      if (AppSession().isReady && AppSession().uid != user.uid) {
+        AppSession().clear();
       }
 
       // â”€â”€ Look up approved_users global mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -429,7 +439,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final ud = userDoc.data()!;
         userName = ud['name'] as String?;
         department = ud['department'] as String?;
-        userShiftId = (ud['shiftId'] ?? ud['shift']) as String?;
+        userShiftId = FirestoreService.userShiftKey(ud);
       } else {
         final q = await FirestoreService.companyDoc(companyId)
             .collection('users')
@@ -440,7 +450,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           final ud = q.docs.first.data();
           userName = ud['name'] as String?;
           department = ud['department'] as String?;
-          userShiftId = (ud['shiftId'] ?? ud['shift']) as String?;
+          userShiftId = FirestoreService.userShiftKey(ud);
         }
       }
 
@@ -484,6 +494,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       AppSession().updateOfficeLocationFromMap(cd);
+      await FirestoreService.resolveOfficeForCurrentUser(orgData: cd);
 
       NotificationService().onUserLogin();
 
@@ -531,6 +542,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             newGeofencingEnabled: newGeo,
           );
           AppSession().updateOfficeLocationFromMap(liveData);
+          FirestoreService.resolveOfficeForCurrentUser(orgData: liveData);
           if (mounted) setState(() {});
         }
       });
@@ -561,7 +573,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         final md = memberDoc.data()!;
         userName = (md['fullName'] ?? md['name']) as String?;
         department = (md['department'] ?? md['dept']) as String?;
-        userShiftId = (md['shiftId'] ?? md['shift']) as String?;
+        userShiftId = FirestoreService.userShiftKey(md);
       }
 
       // Check users subcollection if not found in members
@@ -574,7 +586,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
           final ud = userDoc.data()!;
           userName ??= (ud['name'] ?? ud['fullName'] ?? '${ud['firstName'] ?? ''} ${ud['lastName'] ?? ''}'.trim()) as String?;
           department ??= (ud['department'] ?? ud['dept']) as String?;
-          userShiftId ??= (ud['shiftId'] ?? ud['shift']) as String?;
+          userShiftId ??= FirestoreService.userShiftKey(ud);
         } else {
           final q = await FirestoreService.companyDoc(orgId)
               .collection('users')
@@ -585,7 +597,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             final ud = q.docs.first.data();
             userName ??= (ud['name'] ?? ud['fullName'] ?? '${ud['firstName'] ?? ''} ${ud['lastName'] ?? ''}'.trim()) as String?;
             department ??= (ud['department'] ?? ud['dept']) as String?;
-            userShiftId ??= (ud['shiftId'] ?? ud['shift']) as String?;
+            userShiftId ??= FirestoreService.userShiftKey(ud);
           }
         }
       }
@@ -651,6 +663,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
       }
 
       AppSession().updateOfficeLocationFromMap(od);
+      await FirestoreService.resolveOfficeForCurrentUser(orgData: od);
 
       NotificationService().onUserLogin();
 
@@ -696,6 +709,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
             newGeofencingEnabled: newGeo,
           );
           AppSession().updateOfficeLocationFromMap(liveData);
+          FirestoreService.resolveOfficeForCurrentUser(orgData: liveData);
           if (mounted) setState(() {});
         }
       });

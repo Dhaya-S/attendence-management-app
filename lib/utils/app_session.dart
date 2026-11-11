@@ -98,6 +98,26 @@ class AppSession {
   /// Annual paid leave entitlement per employee (days)
   int paidLeavesPerYear = 12;
 
+  /// "General Shift" (name of MY assigned shift, loaded live from Firestore)
+  String get shiftLabel {
+    final n = shiftName.trim();
+    return n.toLowerCase().endsWith('shift') ? n : '$n Shift';
+  }
+
+  /// "09:00 AM – 06:00 PM" (hours of MY assigned shift)
+  String get shiftTimeRange {
+    String f(String t) {
+      final parts = normalizeTimeString(t).split(':');
+      final h = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0;
+      return DateFormat('hh:mm a').format(DateTime(2000, 1, 1, h, m));
+    }
+    return '${f(shiftStartTime)} – ${f(shiftEndTime)}';
+  }
+
+  /// "General Shift · 09:00 AM – 06:00 PM"
+  String get shiftDisplay => '$shiftLabel · $shiftTimeRange';
+
   /// Whether geofencing is enabled at the organization level.
   /// This is read from organizations/{companyId}.isGeofencingEnabled.
   /// Defaults to true (enforce geofencing when featurePermissions says so).
@@ -482,28 +502,26 @@ class AppSession {
       allowedRadius = parseDouble(data['allowedRadius']) ?? 500;
     }
 
-    // Read org-level geofencing master switch
-    // Checks root isGeofencingEnabled, attendancePolicy.isGeofencingEnabled, and wfhPolicy.geofenceRequired
-    if (data.containsKey('isGeofencingEnabled')) {
-      final v = data['isGeofencingEnabled'];
-      if (v is bool) {
-        isGeofencingEnabled = v;
-      } else if (v is String) {
-        isGeofencingEnabled = v.toLowerCase() == 'true';
-      }
-    } else if (data['attendancePolicy'] is Map &&
-        (data['attendancePolicy'] as Map).containsKey('isGeofencingEnabled')) {
-      final v = (data['attendancePolicy'] as Map)['isGeofencingEnabled'];
-      if (v is bool) {
-        isGeofencingEnabled = v;
-      } else if (v is String) {
-        isGeofencingEnabled = v.toLowerCase() == 'true';
-      }
-    } else if (data['wfhPolicy'] is Map &&
-        (data['wfhPolicy'] as Map).containsKey('geofenceRequired')) {
-      final v = (data['wfhPolicy'] as Map)['geofenceRequired'];
-      isGeofencingEnabled = (v?.toString().toLowerCase() == 'yes');
+    // Org-level geofencing master switch — SAME rule as the web app (AuthContext.hasPermission):
+    // enabled when ANY of these is on; absent / all off means geofencing is disabled.
+    isGeofencingEnabled = geofencePolicyEnabled(data);
+  }
+
+  /// True when the organization turned geofencing on, in any of the three places the
+  /// web app checks: isGeofencingEnabled, attendancePolicy.isGeofencingEnabled or
+  /// wfhPolicy.geofenceRequired == "Yes".
+  static bool geofencePolicyEnabled(Map<dynamic, dynamic> data) {
+    bool isTrue(dynamic v) =>
+        v == true || (v is String && v.trim().toLowerCase() == 'true');
+    if (isTrue(data['isGeofencingEnabled'])) return true;
+    final att = data['attendancePolicy'];
+    if (att is Map && isTrue(att['isGeofencingEnabled'])) return true;
+    final wfh = data['wfhPolicy'];
+    if (wfh is Map &&
+        (wfh['geofenceRequired']?.toString().trim().toLowerCase() == 'yes')) {
+      return true;
     }
+    return false;
   }
 
   // ── Session Lifecycle ─────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
@@ -84,7 +85,8 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
 
   void _showEditBottomSheet(BuildContext context, Map<String, dynamic> currentData) {
     final titleController = TextEditingController(text: currentData['title']);
-    final messageController = TextEditingController(text: currentData['message']);
+    final messageController = TextEditingController(
+        text: (currentData['body'] ?? currentData['message'] ?? currentData['content'] ?? '').toString());
     String selectedCategory = currentData['category'] ?? 'General';
     
     DateTime? selectedExpiry;
@@ -255,7 +257,9 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                               try {
                                 await widget.reference.update({
                                   'title': title,
+                                  'body': message, // web field
                                   'message': message,
+                                  'content': message,
                                   'category': selectedCategory,
                                   'expiry': selectedExpiry != null ? Timestamp.fromDate(selectedExpiry!) : null,
                                 });
@@ -401,11 +405,12 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                         await widget.reference.collection('comments').add({
                           'userName': AppSession().userName ?? 'User',
                           'userEmail': AppSession().email ?? '',
+                          'authorName': AppSession().userName ?? 'User',
+                          'authorEmail': (AppSession().email ?? '').toLowerCase(),
                           'text': text,
                           'timestamp': FieldValue.serverTimestamp(),
                         });
                         await widget.reference.update({
-                          'comments': FieldValue.increment(1),
                           'commentsCount': FieldValue.increment(1),
                         });
                       },
@@ -446,16 +451,17 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
 
         final isOurs = _checkIsOurs(data);
         final title = data['title'] ?? 'No Title';
-        final message = data['message'] ?? '';
+        final message = data['body'] ?? data['message'] ?? data['content'] ?? '';
         final category = data['category'] ?? 'General';
         final likes = data['likes'] ?? 0;
         final commentsCount = data['commentsCount'] ?? 0;
-        final authorName = data['authorName'] ?? 'Admin';
+        final authorName = data['authorName'] ?? data['author'] ?? 'Admin';
         final authorRole = data['authorRole'] ?? 'admin';
         final audience = data['audience'] ?? 'all';
-        final status = data['status'] ?? 'published';
-        
-        DateTime timestamp = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+        final status = (data['status'] ?? 'published').toString().toLowerCase();
+
+        DateTime timestamp =
+            FirestoreService.parseAnyDate(data['timestamp'] ?? data['createdAt']) ?? DateTime.now();
         final expiryVal = data['expiry'];
         DateTime? expiryDate;
         if (expiryVal is Timestamp) {
@@ -712,6 +718,58 @@ class _AnnouncementDetailScreenState extends State<AnnouncementDetailScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        if (data['attachments'] is List && (data['attachments'] as List).isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Attachments',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF9CA3AF),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          for (final att in (data['attachments'] as List).whereType<Map>())
+                            GestureDetector(
+                              onTap: () async {
+                                final url = (att['url'] ?? '').toString();
+                                if (url.isEmpty) return;
+                                final ok = await launchUrl(Uri.parse(url),
+                                    mode: LaunchMode.externalApplication);
+                                if (!ok && mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Could not open the file')),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF9FAFB),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                                ),
+                                child: Row(children: [
+                                  const Icon(Icons.attach_file_rounded,
+                                      size: 16, color: Color(0xFF5C5CFF)),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text((att['name'] ?? 'Attachment').toString(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF5C5CFF))),
+                                  ),
+                                  Text((att['size'] ?? '').toString(),
+                                      style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+                                ]),
+                              ),
+                            ),
+                        ],
                       ],
                     ),
                   ),

@@ -110,7 +110,7 @@ class _EmployeeAttendanceCorrectionScreenState
         if (t == null) return null;
         final now = DateTime.now();
         final dt = DateTime(now.year, now.month, now.day, t.hour, t.minute);
-        return DateFormat('HH:mm').format(dt);
+        return DateFormat('hh:mm a').format(dt); // web format: "09:00 AM"
       }
 
       final rawSenderRole = (AppSession().role ?? 'employee').toLowerCase().trim();
@@ -124,26 +124,13 @@ class _EmployeeAttendanceCorrectionScreenState
               ? 'manager'
               : 'employee';
       
-      await FirebaseFirestore.instance
-          .collection('organizations')
-          .doc(FirestoreService.companyId)
-          .collection('attendance_issues')
-          .add({
-        'userId': user.email,
-        'attendanceDate': Timestamp.fromDate(_selectedDate),
-        'correctedCheckIn': formatTime(_checkInTime),
-        'correctedCheckOut': formatTime(_checkOutTime),
-        'reason': _reasonController.text.trim(),
-        'status': 'pending',
-        'createdAt': FieldValue.serverTimestamp(),
-        'senderRole': senderRole,
-        'targetRoles': (senderRole == 'hr_admin' || senderRole == 'manager')
-            ? ['hr_admin']
-            : ['manager', 'hr_admin'],
-        'approver': (senderRole == 'hr_admin' || senderRole == 'manager')
-            ? 'HR Admin'
-            : 'Reporting Manager',
-      });
+      // Same document the web app creates (organizations/{cid}/attendance_issues/ISS<ts>)
+      await FirestoreService.submitAttendanceIssue(
+        date: _selectedDate,
+        requestedCheckIn: formatTime(_checkInTime) ?? '09:00 AM',
+        requestedCheckOut: formatTime(_checkOutTime) ?? '06:00 PM',
+        reason: _reasonController.text.trim(),
+      );
 
       // Send notifications based on senderRole
       final title = 'Attendance Correction Request';

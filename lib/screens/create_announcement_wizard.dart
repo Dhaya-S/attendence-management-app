@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 
@@ -24,6 +26,7 @@ class _CreateAnnouncementWizardState extends State<CreateAnnouncementWizard> {
   final _titleController = TextEditingController();
   final _messageController = TextEditingController();
   DateTime? _expiryDate;
+  final List<PlatformFile> _files = []; // attachments picked for this announcement
   bool _notifyAll = false;
   final _othersController = TextEditingController();
   Set<String> _selectedEmails = {};
@@ -56,6 +59,82 @@ class _CreateAnnouncementWizardState extends State<CreateAnnouncementWizard> {
   bool _isPublishing = false;
   final int _reachCount = 12; // Mock value for the design
 
+  String _fileSize(int bytes) => bytes >= 1024 * 1024
+      ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
+      : '${(bytes / 1024).round().clamp(1, 1 << 30)} KB';
+
+  Future<void> _pickAttachments() async {
+    final result = await FilePicker.platform.pickFiles(allowMultiple: true, withData: true);
+    if (result == null) return;
+    final tooBig = <String>[];
+    setState(() {
+      for (final f in result.files) {
+        if (f.bytes == null) continue;
+        if (f.size > 15 * 1024 * 1024) {
+          tooBig.add(f.name);
+          continue;
+        }
+        _files.add(f);
+      }
+    });
+    if (tooBig.isNotEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Too large (max 15 MB): ${tooBig.join(', ')}')),
+      );
+    }
+  }
+
+  String _mimeFor(String? ext) {
+    switch ((ext ?? '').toLowerCase()) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'png':
+        return 'image/png';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'doc':
+        return 'application/msword';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+        return 'application/vnd.ms-excel';
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+
+  /// Uploads the picked files to Firebase Storage (same path the web app uses) and returns
+  /// the attachment metadata saved on the announcement.
+  Future<List<Map<String, dynamic>>> _uploadAttachments(String annId) async {
+    final out = <Map<String, dynamic>>[];
+    final cid = FirestoreService.companyId;
+    for (final f in _files) {
+      final safe = f.name.replaceAll(RegExp(r'[^\w.\- ]+'), '_');
+      final path = 'organizations/$cid/announcements/$annId/$safe';
+      final ref = FirebaseStorage.instance.ref(path);
+      try {
+        await ref.putData(f.bytes!, SettableMetadata(contentType: _mimeFor(f.extension)));
+      } on FirebaseException catch (e) {
+        throw (e.code == 'unauthorized' || e.code == 'unauthenticated')
+            ? 'You do not have permission to upload attachments.'
+            : 'File storage is not available yet. Ask your administrator to enable Firebase Storage. (${e.code})';
+      }
+      out.add({
+        'name': f.name,
+        'size': _fileSize(f.size),
+        'type': (f.extension ?? '').toLowerCase().contains(RegExp(r'png|jpe?g|gif|webp')) ? 'image' : 'file',
+        'url': await ref.getDownloadURL(),
+        'storagePath': path,
+      });
+    }
+    return out;
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -72,48 +151,92 @@ class _CreateAnnouncementWizardState extends State<CreateAnnouncementWizard> {
       final user = session.userName ?? 'Admin';
       final List<String> targetTeams = _selectedTeams.toList();
       
-      String audience = 'all';
-      if (!_notifyAll) {
-        if (targetTeams.isNotEmpty) {
-          audience = targetTeams.join(', ');
-        } else if (_selectedEmails.isNotEmpty) {
-          audience = 'specific';
-        }
-      }
-
       final otherEmails = _othersController.text
           .split(',')
           .map((e) => e.trim().toLowerCase())
           .where((e) => e.isNotEmpty)
           .toList();
+      final targetEmails = <String>{
+        ..._selectedEmails.map((e) => e.trim().toLowerCase()),
+        ...otherEmails,
+      }.where((e) => e.contains('@')).toList();
 
-      final announcementData = {
+      final now = DateTime.now();
+      final myEmail = (session.email ?? '').toLowerCase();
+      final bodyText = _messageController.text.trim();
+
+      // Same audience model as the web app:
+      //   all                → organizations/{cid}/announcements        (audienceType "all")
+      //   departments        → organizations/{cid}/announcements        (audienceType "departments")
+      //   particular members → organizations/{cid}/team_announcements   (audienceType "particular")
+      String audienceType = 'all';
+      List<String> targetDepts = [];
+      if (!_notifyAll) {
+        if (targetEmails.isNotEmpty) {
+          audienceType = 'particular';
+        } else if (targetTeams.isNotEmpty) {
+          audienceType = 'departments';
+          targetDepts = targetTeams
+              .map((t) => t.replaceAll(RegExp(r'\s+Team$'), '').trim())
+              .toList();
+        }
+      }
+
+      final annId = audienceType == 'particular'
+          ? 'T_ANN_${now.millisecondsSinceEpoch}'
+          : 'ANN_${now.millisecondsSinceEpoch}';
+      final attachments = await _uploadAttachments(annId);
+
+      final base = <String, dynamic>{
+        'attachments': attachments,
         'companyId': FirestoreService.companyId,
         'title': _titleController.text.trim(),
-        'message': _messageController.text.trim(),
-        'content': _messageController.text.trim(),
+        'body': bodyText, // web field
+        'message': bodyText,
+        'content': bodyText,
+        'priority': 'Normal',
         'category': _selectedCategory,
-        'audience': audience,
-        'departmentId': targetTeams.isNotEmpty ? targetTeams.first : 'all',
-        'targetTeams': targetTeams,
+        'author': user,
         'authorName': user,
         'authorId': session.uid,
-        'authorEmail': session.email,
+        'authorEmail': myEmail,
         'authorRole': session.role ?? 'employee',
+        'status': 'Published', // web: Published / Draft
         'timestamp': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
         'expiry': _expiryDate != null ? Timestamp.fromDate(_expiryDate!) : null,
-        'notifyOthers': _othersController.text.trim(),
-        'targetEmails': otherEmails,
         'likes': 0,
+        'likedBy': <String>[],
         'commentsCount': 0,
-        'status': 'published',
       };
 
-      if (audience == 'all') {
-        await FirestoreService.announcementsCol.add(announcementData);
+      if (audienceType == 'particular') {
+        await FirestoreService.teamAnnouncementsCol.add({
+          ...base,
+          'id': annId,
+          'audienceType': 'particular',
+          'audience': 'particular',
+          'targetMemberIds': targetEmails,
+          'publishMode': 'Immediately',
+          'dept':
+              '${targetEmails.length} Team Member${targetEmails.length == 1 ? '' : 's'}',
+          'pinned': false,
+          'isDraft': false,
+          'time': 'Today',
+        });
       } else {
-        await FirestoreService.teamAnnouncementsCol.add(announcementData);
+        await FirestoreService.announcementsCol.add({
+          ...base,
+          'id': annId,
+          'audienceType': audienceType,
+          'targetDepartments': targetDepts,
+          'targetEmployeeIds': <String>[],
+          'audience': audienceType == 'all'
+              ? 'All Employees'
+              : (targetDepts.isEmpty ? 'All Departments' : targetDepts.join(', ')),
+          'date': DateFormat('MMM d').format(now),
+          'views': 0,
+        });
       }
 
       if (mounted) {
@@ -343,31 +466,59 @@ class _CreateAnnouncementWizardState extends State<CreateAnnouncementWizard> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: const Color(0xFFE2E8F0),
-                              style: BorderStyle.none),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.attach_file,
-                                size: 16, color: Color(0xFF94A3B8)),
-                            SizedBox(width: 8),
-                            Text('Add attachment',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF94A3B8))),
-                          ],
+                      GestureDetector(
+                        onTap: _pickAttachments,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.attach_file,
+                                  size: 16, color: Color(0xFF5C5CFF)),
+                              SizedBox(width: 8),
+                              Text('Add attachment (max 15 MB each)',
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF5C5CFF))),
+                            ],
+                          ),
                         ),
                       ),
+                      for (var i = 0; i < _files.length; i++)
+                        Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.insert_drive_file_outlined,
+                                size: 16, color: Color(0xFF64748B)),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${_files[i].name}  ·  ${_fileSize(_files[i].size)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155), fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: _isPublishing ? null : () => setState(() => _files.removeAt(i)),
+                              child: const Icon(Icons.close_rounded, size: 16, color: Color(0xFF94A3B8)),
+                            ),
+                          ]),
+                        ),
                     ],
                   ),
                 ),

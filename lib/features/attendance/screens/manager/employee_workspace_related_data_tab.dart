@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:attendance_app/utils/firestore_service.dart';
 
 class EmployeeWorkspaceRelatedDataTab extends StatefulWidget {
   final Map<String, dynamic> employeeData;
@@ -135,7 +136,12 @@ class _EmployeeWorkspaceRelatedDataTabState extends State<EmployeeWorkspaceRelat
                 _buildDivider(),
                 _buildInfoRow('Overtime', '7 min'),
                 _buildDivider(),
-                _buildInfoRow('Assigned Shift', 'General · 09:00–18:00'),
+                FutureBuilder<String>(
+                  future: FirestoreService.shiftLabelForUser(
+                      Map<String, dynamic>.from(widget.employeeData)),
+                  builder: (context, snap) =>
+                      _buildInfoRow('Assigned Shift', snap.data ?? 'Loading…'),
+                ),
                 const SizedBox(height: 8),
               ],
             ),

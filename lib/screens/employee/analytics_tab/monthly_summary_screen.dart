@@ -551,7 +551,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     // Count leave from leave_requests for this month
     for (final doc in leaveDocs) {
       final data = doc.data() as Map<String, dynamic>;
-      final status = data['status'] as String? ?? '';
+      final status = (data['status'] as String? ?? '').toLowerCase();
       if (status != 'approved') continue;
       final startTs = data['startDate'] as Timestamp?;
       if (startTs != null) {

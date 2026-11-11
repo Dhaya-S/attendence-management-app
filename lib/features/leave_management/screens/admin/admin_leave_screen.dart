@@ -512,11 +512,15 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
   int _historyFilter = 0;
 
   late Stream<QuerySnapshot> _leaveStream;
+  late Stream<QuerySnapshot> _typesStream; // organization leave types – live
+  late Stream<DocumentSnapshot> _orgStream; // organization leave policy – live
 
   @override
   void initState() {
     super.initState();
     _leaveStream = FirestoreService.leaveRequestsCol.snapshots();
+    _typesStream = FirestoreService.companyDoc().collection('leave_types').snapshots();
+    _orgStream = FirestoreService.companyDoc().snapshots();
   }
 
   @override
@@ -539,16 +543,14 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
           return e1 == userEmail || e2 == userEmail || e3 == userEmail;
         }).toList();
         // Sort by requestDate desc
-        final sorted = List.of(docs)
-          ..sort((a, b) {
-            final aDate =
-                (a.data() as Map)['requestDate'] as Timestamp?;
-            final bDate =
-                (b.data() as Map)['requestDate'] as Timestamp?;
-            if (aDate == null) return 1;
-            if (bDate == null) return -1;
-            return bDate.compareTo(aDate);
-          });
+        DateTime made(QueryDocumentSnapshot d) {
+          final m = d.data() as Map;
+          return FirestoreService.parseAnyDate(m['createdAt'] ?? m['requestDate']) ??
+              FirestoreService.parseAnyDate(m['fromDate'] ?? m['from']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+        }
+
+        final sorted = List.of(docs)..sort((a, b) => made(b).compareTo(made(a)));
 
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
@@ -580,98 +582,77 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
 
   // ── Overview & Apply Section ─────────────────────────────
   Widget _buildOverviewAndApplySection(List<QueryDocumentSnapshot> docs) {
-    final int usedCount = docs
-        .where((d) => (d.data() as Map)['status'].toString().toLowerCase() == 'approved')
-        .length;
+    // Same numbers as the Overview of the employee Leave tab: approved + pending days,
+    // against the organization's live leave policy.
+    final usage = FirestoreService.leaveUsage(docs.map((d) => d.data() as Map<String, dynamic>));
+    final usedTotal = usage[0] + usage[1] + usage[2];
 
-    final annual = _countByType(docs, 'Annual Leave');
-    final sick = _countByType(docs, 'Sick Leave');
-    final casual = _countByType(docs, 'Casual Leave');
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF3F4F6)),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          // Header row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'LEAVE OVERVIEW — FY ${DateTime.now().year}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF6B7280),
-                  letterSpacing: 0.5,
+    return StreamBuilder<QuerySnapshot>(
+      stream: _typesStream,
+      builder: (context, typesSnap) => StreamBuilder<DocumentSnapshot>(
+        stream: _orgStream,
+        builder: (context, orgSnap) {
+          final limits = FirestoreService.leaveLimits(
+              typesSnap.data, orgSnap.data?.data() as Map<String, dynamic>?);
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFF3F4F6)),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // Header row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'LEAVE OVERVIEW — FY ${DateTime.now().year}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF6B7280),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEEF2FF),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFC7D2FE)),
+                      ),
+                      child: Text(
+                        '$usedTotal used',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF5C5CFF),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEEF2FF),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFC7D2FE)),
+                const SizedBox(height: 16),
+                // Balance chips row
+                Row(
+                  children: [
+                    _leaveBalanceTile('Annual', usage[0], limits[0], const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)),
+                    const SizedBox(width: 8),
+                    _leaveBalanceTile('Sick', usage[1], limits[1], const Color(0xFF1F2937), const Color(0xFFF3F4F6)),
+                    const SizedBox(width: 8),
+                    _leaveBalanceTile('Casual', usage[2], limits[2], const Color(0xFFD946EF), const Color(0xFFFDF4FF)),
+                  ],
                 ),
-                child: Text(
-                  '$usedCount used',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF5C5CFF),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Balance chips row
-          Row(
-            children: [
-              _leaveBalanceTile('Annual', annual.$1, annual.$2, const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)),
-              const SizedBox(width: 8),
-              _leaveBalanceTile('Sick', sick.$1, sick.$2, const Color(0xFF1F2937), const Color(0xFFF3F4F6)),
-              const SizedBox(width: 8),
-              _leaveBalanceTile('Casual', casual.$1, casual.$2, const Color(0xFFD946EF), const Color(0xFFFDF4FF)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildApplyButton(),
-        ],
+                const SizedBox(height: 16),
+                _buildApplyButton(),
+              ],
+            ),
+          );
+        },
       ),
     );
-  }
-
-  (int, int) _countByType(
-      List<QueryDocumentSnapshot> docs, String type) {
-    final target = type.toLowerCase().replaceAll(' leave', '');
-    final used = docs
-        .where((d) {
-          final data = d.data() as Map<String, dynamic>;
-          final leaveType = (data['leaveType'] ?? data['type'] ?? 'Annual Leave').toString().toLowerCase();
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          final isApproved = status == 'approved';
-          bool matchesType = leaveType.contains(target);
-          if (!matchesType && (leaveType == 'leave' || leaveType.isEmpty)) {
-            if (target == 'annual') matchesType = true;
-          }
-          return isApproved && matchesType;
-        })
-        .fold<int>(0, (sum, d) {
-          final data = d.data() as Map<String, dynamic>;
-          final int days = ((data['durationInDays'] ?? data['days']) as num?)?.toInt() ?? 1;
-          return sum + days;
-        });
-    final total = type == 'Annual Leave'
-        ? (AppSession().paidLeavesPerYear > 0 ? AppSession().paidLeavesPerYear : 18)
-        : type == 'Sick Leave'
-            ? 7
-            : 5;
-    return (used, total);
   }
 
   Widget _leaveBalanceTile(
@@ -1238,14 +1219,11 @@ class _TeamLeaveTabState extends State<_TeamLeaveTab> {
                             final de = (dd['applicantEmail'] ?? dd['employeeEmail'] ?? dd['email'] ?? (pathE.contains('@') ? pathE : null) ?? '').toString().toLowerCase().trim();
                             final ds = (dd['status'] as String? ?? '').toLowerCase();
                             if (de != email || ds != 'approved') return false;
-                            final fromTs =
-                                dd['fromDate'] as Timestamp?;
-                            final toTs =
-                                dd['toDate'] as Timestamp?;
-                            if (fromTs == null || toTs == null)
-                              return false;
-                            final from = fromTs.toDate();
-                            final to = toTs.toDate();
+                            final from0 = FirestoreService.parseAnyDate(dd['fromDate'] ?? dd['from']);
+                            final to0 = FirestoreService.parseAnyDate(dd['toDate'] ?? dd['to']) ?? from0;
+                            if (from0 == null || to0 == null) return false;
+                            final from = from0;
+                            final to = to0;
                             final fromDate = DateTime(
                                 from.year, from.month, from.day);
                             final toDate = DateTime(
@@ -1256,12 +1234,12 @@ class _TeamLeaveTabState extends State<_TeamLeaveTab> {
                           })
                           .fold<int>(0, (sum, d) {
                             final dd = d.data() as Map;
-                            final fromTs = dd['fromDate'] as Timestamp?;
-                            final toTs = dd['toDate'] as Timestamp?;
+                            final fromTs = FirestoreService.parseAnyDate(dd['fromDate'] ?? dd['from']);
+                            final toTs = FirestoreService.parseAnyDate(dd['toDate'] ?? dd['to']) ?? fromTs;
                             int days = 1;
                             if (fromTs != null && toTs != null) {
-                              final start = fromTs.toDate();
-                              final end = toTs.toDate();
+                              final start = fromTs;
+                              final end = toTs;
                               int count = 0;
                               DateTime current = DateTime(start.year, start.month, start.day);
                               final limitEnd = DateTime(end.year, end.month, end.day);

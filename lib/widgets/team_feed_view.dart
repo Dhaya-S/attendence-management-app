@@ -55,27 +55,30 @@ class _TeamFeedViewState extends State<TeamFeedView> {
     final userName = AppSession().userName ?? 'Admin';
     final userEmail = AppSession().email ?? 'admin@company.com';
 
+    // Same document the web Feed creates: team_feed/F_<ms>_<rand>, createdAt = epoch millis
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final postId = 'F_${nowMs}_${(nowMs % 1679616).toRadixString(36)}';
+    final dept = AppSession().userDepartment ?? '';
     final postMap = {
-      'companyId': FirestoreService.companyId,
-      'name': userName,
-      'userName': userName,
-      'authorName': userName,
-      'sender': userName,
-      'userEmail': userEmail,
-      'authorEmail': userEmail,
-      'senderEmail': userEmail,
-      'department': AppSession().userDepartment ?? '',
+      'id': postId,
+      'author': userName,
+      'authorEmail': userEmail.toLowerCase(),
+      'initials': _getInitials(userName),
+      'color': '#5C5CFF',
+      'time': DateFormat('hh:mm a').format(DateTime.now()),
+      'createdAt': nowMs,
       'text': text,
-      'content': text,
-      'message': text,
-      'timestamp': FieldValue.serverTimestamp(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'likes': 0,
-      'comments': [],
+      'dept': dept.isEmpty ? 'All' : dept,
+      'designation': AppSession().displayRole,
+      'pinned': false,
+      'saved': false,
+      'resolved': false,
       'reactions': [],
+      'comments': [],
+      'followers': [userName],
     };
 
-    await FirestoreService.companyDoc().collection('team_feed').add(postMap);
+    await FirestoreService.companyDoc().collection('team_feed').doc(postId).set(postMap);
 
     _postController.clear();
   }
@@ -102,42 +105,86 @@ class _TeamFeedViewState extends State<TeamFeedView> {
     }
   }
 
-  Future<void> _updatePostReaction(DocumentReference docRef, List reactionsList, String emoji) async {
-    final myEmail = AppSession().email ?? '';
-    if (myEmail.isEmpty) return;
+  // ── Web-compatible reaction model ───────────────────────────────────────────
+  // Web stores reactions as [{emoji: "👍", users: ["Display Name", ...]}].
+  // Older mobile data used [{email, emoji}]; both are read here, web format is written.
 
-    List updated = List.from(reactionsList);
-    updated.removeWhere((r) => r is Map && r['email'] == myEmail);
-    
-    final alreadyHadSame = reactionsList.any((r) => r is Map && r['email'] == myEmail && r['emoji'] == emoji);
-    if (!alreadyHadSame) {
-      updated.add({
-        'email': myEmail,
-        'emoji': emoji,
-      });
+  String get _myReactionId =>
+      (AppSession().userName ?? AppSession().email ?? 'Member').toString();
+
+  bool _isMine(dynamic id) {
+    final v = id.toString().toLowerCase();
+    return v == _myReactionId.toLowerCase() ||
+        v == (AppSession().email ?? '').toLowerCase();
+  }
+
+  Map<String, int> _reactionCounts(List reactions) {
+    final counts = <String, int>{};
+    for (final rx in reactions) {
+      if (rx is! Map) continue;
+      final emoji = rx['emoji']?.toString() ?? '';
+      if (emoji.isEmpty) continue;
+      final users = rx['users'];
+      final n = users is List ? users.length : 1; // legacy {email, emoji} = 1 person
+      if (n > 0) counts[emoji] = (counts[emoji] ?? 0) + n;
     }
+    return counts;
+  }
 
-    await docRef.update({'reactions': updated});
+  /// The reaction the current user has already given (or null).
+  Map<String, dynamic>? _myReaction(List reactions) {
+    for (final rx in reactions) {
+      if (rx is! Map) continue;
+      final users = rx['users'];
+      final mine = users is List
+          ? users.any(_isMine)
+          : (rx['email'] != null && _isMine(rx['email']));
+      if (mine) return {'emoji': rx['emoji']};
+    }
+    return null;
+  }
+
+  /// Toggles [emoji] for the current user and returns the list in web format.
+  List<Map<String, dynamic>> _toggleReaction(List reactions, String emoji) {
+    final out = <Map<String, dynamic>>[];
+    for (final rx in reactions) {
+      if (rx is! Map) continue;
+      final e = rx['emoji']?.toString() ?? '';
+      if (e.isEmpty) continue;
+      final users = rx['users'] is List
+          ? List<String>.from((rx['users'] as List).map((u) => u.toString()))
+          : <String>[(rx['email'] ?? '').toString()]; // legacy entry
+      out.add({'emoji': e, 'users': users});
+    }
+    final idx = out.indexWhere((r) => r['emoji'] == emoji);
+    if (idx == -1) {
+      out.add({'emoji': emoji, 'users': [_myReactionId]});
+    } else {
+      final users = List<String>.from(out[idx]['users'] as List);
+      if (users.any(_isMine)) {
+        users.removeWhere(_isMine);
+      } else {
+        users.add(_myReactionId);
+      }
+      out[idx] = {'emoji': emoji, 'users': users};
+    }
+    out.removeWhere((r) => (r['users'] as List).isEmpty);
+    return out;
+  }
+
+  Future<void> _updatePostReaction(DocumentReference docRef, List reactionsList, String emoji) async {
+    if ((AppSession().email ?? '').isEmpty) return;
+    await docRef.update({'reactions': _toggleReaction(reactionsList, emoji)});
   }
 
   Future<void> _updateCommentReaction(DocumentReference postDocRef, List allComments, String commentId, String emoji) async {
-    final myEmail = AppSession().email ?? '';
-    if (myEmail.isEmpty) return;
+    if ((AppSession().email ?? '').isEmpty) return;
 
     List updatedComments = allComments.map((comment) {
       final cMap = Map<String, dynamic>.from(comment);
       if (cMap['id'] == commentId) {
-        final List commentReactions = List.from(cMap['reactions'] ?? []);
-        commentReactions.removeWhere((r) => r is Map && r['email'] == myEmail);
-        
-        final alreadyHadSame = (cMap['reactions'] ?? []).any((r) => r is Map && r['email'] == myEmail && r['emoji'] == emoji);
-        if (!alreadyHadSame) {
-          commentReactions.add({
-            'email': myEmail,
-            'emoji': emoji,
-          });
-        }
-        cMap['reactions'] = commentReactions;
+        cMap['reactions'] = _toggleReaction(
+            cMap['reactions'] is List ? cMap['reactions'] as List : [], emoji);
       }
       return cMap;
     }).toList();
@@ -271,21 +318,8 @@ class _TeamFeedViewState extends State<TeamFeedView> {
                               final commentId = cData['id'] ?? '';
 
                               // Render comment reactions
-                              Map<String, int> rxCounts = {};
-                              for (var rx in reactionsList) {
-                                if (rx is Map) {
-                                  final emoji = rx['emoji']?.toString() ?? '';
-                                  if (emoji.isNotEmpty) {
-                                    rxCounts[emoji] = (rxCounts[emoji] ?? 0) + 1;
-                                  }
-                                }
-                              }
-
-                              final myEmail = AppSession().email ?? '';
-                              final myReaction = reactionsList.firstWhere(
-                                (r) => r is Map && r['email'] == myEmail,
-                                orElse: () => null,
-                              );
+                              final Map<String, int> rxCounts = _reactionCounts(reactionsList);
+                              final myReaction = _myReaction(reactionsList);
 
                               return Container(
                                 margin: const EdgeInsets.only(bottom: 12),
@@ -405,7 +439,9 @@ class _TeamFeedViewState extends State<TeamFeedView> {
                               'createdAt': timestamp,
                               'id': 'FC_${timestamp}_${initials.toLowerCase()}',
                               'initials': initials,
+                              'time': DateFormat('hh:mm a').format(DateTime.now()),
                               'reactions': [],
+                              'replies': [],
                               'text': text,
                             };
 
@@ -445,20 +481,27 @@ class _TeamFeedViewState extends State<TeamFeedView> {
     final myDept = (AppSession().userDepartment ?? '').toString().trim().toLowerCase();
 
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.companyDoc().collection('team_feed')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream: FirestoreService.companyDoc().collection('team_feed').snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
+        DateTime postTime(QueryDocumentSnapshot d) {
+          final m = d.data() as Map<String, dynamic>;
+          return FirestoreService.parseAnyDate(m['createdAt'] ?? m['timestamp']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+        }
+
         final docs = (snapshot.data?.docs ?? []).where((doc) {
           final data = doc.data() as Map<String, dynamic>;
-          final dept = (data['department'] ?? '').toString().trim().toLowerCase();
-          if (myDept.isEmpty || AppSession().hasAdminAccess) return true;
-          return dept == myDept || dept.isEmpty;
-        }).toList();
+          final dept = (data['dept'] ?? data['department'] ?? '').toString().trim().toLowerCase();
+          final isMine = (data['authorEmail'] ?? '').toString().toLowerCase() ==
+              (AppSession().email ?? '').toLowerCase();
+          if (myDept.isEmpty || AppSession().hasAdminAccess || isMine) return true;
+          return dept == myDept || dept.isEmpty || dept == 'all';
+        }).toList()
+          ..sort((a, b) => postTime(b).compareTo(postTime(a)));
 
         if (docs.isEmpty) {
           return const Center(child: Text('No posts yet for your department.', style: TextStyle(color: Color(0xFF6B7280))));
@@ -491,21 +534,8 @@ class _TeamFeedViewState extends State<TeamFeedView> {
             final timeStr = tsVal != null ? _formatTimeAgo(tsVal) : 'Just now';
 
             // Post reactions grouping
-            Map<String, int> rxCounts = {};
-            for (var rx in reactionsList) {
-              if (rx is Map) {
-                final emoji = rx['emoji']?.toString() ?? '';
-                if (emoji.isNotEmpty) {
-                  rxCounts[emoji] = (rxCounts[emoji] ?? 0) + 1;
-                }
-              }
-            }
-
-            final myEmail = AppSession().email ?? '';
-            final myPostReaction = reactionsList.firstWhere(
-              (r) => r is Map && r['email'] == myEmail,
-              orElse: () => null,
-            );
+            final Map<String, int> rxCounts = _reactionCounts(reactionsList);
+            final myPostReaction = _myReaction(reactionsList);
 
             return Container(
               margin: const EdgeInsets.only(bottom: 12),
