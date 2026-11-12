@@ -390,14 +390,6 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
-      floatingActionButton: isAdminOrManager
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddEditPolicyDialog(),
-              backgroundColor: const Color(0xFF5C5CFF),
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Add Policy', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )
-          : null,
       body: StreamBuilder<QuerySnapshot>(
         stream: FirestoreService.policiesCol.snapshots(),
         builder: (context, snapshot) {
@@ -478,27 +470,6 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
                         ),
                       ),
                     ),
-                    if (isAdminOrManager) ...[
-                      const SizedBox(width: 10),
-                      GestureDetector(
-                        onTap: () => _showAddEditPolicyDialog(),
-                        child: Container(
-                          height: 48,
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF5C5CFF),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Row(
-                            children: [
-                              Icon(Icons.add, color: Colors.white, size: 18),
-                              SizedBox(width: 4),
-                              Text('New', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -559,7 +530,7 @@ class _OrgPoliciesTabState extends State<OrgPoliciesTab> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _searchQuery.isNotEmpty ? 'Try adjusting your search criteria' : 'Tap + New to create your first policy',
+                          _searchQuery.isNotEmpty ? 'Try adjusting your search criteria' : 'Policies added by HR on the web will appear here',
                           style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF)),
                         ),
                       ],

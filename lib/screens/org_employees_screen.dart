@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/widgets/user_avatar.dart';
 import 'package:attendance_app/features/attendance/screens/manager/employee_workspace_screen.dart';
 
 class OrgEmployeesScreen extends StatefulWidget {
@@ -81,15 +82,15 @@ class _OrgEmployeesScreenState extends State<OrgEmployeesScreen> {
           }
 
           final docs = (snapshot.data?.docs ?? [])
-              .where((d) => FirestoreService.isDocInCurrentCompany(d))
+              .where((d) =>
+                  FirestoreService.isDocInCurrentCompany(d) &&
+                  FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
               .toList();
 
           // Extract departments for filter chips
           final Set<String> depts = {'All'};
           for (final doc in docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final d = (data['department'] as String?)?.trim();
-            if (d != null && d.isNotEmpty) depts.add(d);
+            depts.add(FirestoreService.deptOf(doc.data() as Map<String, dynamic>));
           }
 
           // Filter by search & selected department
@@ -102,8 +103,8 @@ class _OrgEmployeesScreenState extends State<OrgEmployeesScreen> {
                 .trim()
                 .toLowerCase();
             final email = (data['email'] ?? doc.id).toString().toLowerCase();
-            final dept = (data['department'] ?? 'General').toString();
-            final role = (data['role'] ?? data['designation'] ?? '').toString();
+            final dept = FirestoreService.deptOf(data);
+            final role = (data['designation'] ?? data['roleLabel'] ?? data['role'] ?? '').toString();
 
             final matchesSearch = _searchQuery.isEmpty ||
                 name.contains(_searchQuery.toLowerCase()) ||
@@ -286,11 +287,10 @@ class _OrgEmployeesScreenState extends State<OrgEmployeesScreen> {
                             displayName = email.split('@').first;
                           }
 
-                          final department =
-                              (data['department'] as String?)?.trim() ??
-                                  'General';
+                          final department = FirestoreService.deptOf(data);
                           final designation = (data['designation'] ??
                                   data['jobTitle'] ??
+                                  data['roleLabel'] ??
                                   data['role'] ??
                                   'Employee')
                               .toString();
@@ -330,9 +330,6 @@ class _OrgEmployeesScreenState extends State<OrgEmployeesScreen> {
                                           ...data,
                                           'name': displayName,
                                           'email': email,
-                                          'department': department,
-                                          'role': designation,
-                                          'id': doc.id,
                                         },
                                       ),
                                     ),
@@ -342,27 +339,11 @@ class _OrgEmployeesScreenState extends State<OrgEmployeesScreen> {
                                   padding: const EdgeInsets.all(16),
                                   child: Row(
                                     children: [
-                                      // Avatar with initials
-                                      Container(
-                                        width: 48,
-                                        height: 48,
-                                        decoration: BoxDecoration(
-                                          color: avatarColor.withOpacity(0.12),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: avatarColor.withOpacity(0.3),
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          _getInitials(displayName),
-                                          style: TextStyle(
-                                            color: avatarColor,
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 16,
-                                          ),
-                                        ),
+                                      UserAvatar(
+                                        name: displayName,
+                                        imageData: (data['profileImageUrl'] ?? '').toString(),
+                                        radius: 24,
+                                        color: avatarColor,
                                       ),
                                       const SizedBox(width: 14),
 

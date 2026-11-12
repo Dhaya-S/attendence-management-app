@@ -210,7 +210,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     try {
       final email = user.email?.toLowerCase() ?? '';
 
-      // â”€â”€ Fast path: session already populated during registration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Fast path: session already populated during registration ────────────
       // This happens when a new admin just created their account via the setup
       // flow. AppSession is already populated; no Firestore read needed.
       if (AppSession().isReady && AppSession().uid == user.uid) {
@@ -223,7 +223,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
         AppSession().clear();
       }
 
-      // â”€â”€ Look up approved_users global mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Look up approved_users global mapping ────────────────────────────────
       String? role;
       String? companyId;
 

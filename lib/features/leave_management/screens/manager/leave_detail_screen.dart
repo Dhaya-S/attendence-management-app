@@ -104,7 +104,7 @@ class LeaveDetailScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
-                      'â— Active',
+                      '● Active',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -309,7 +309,7 @@ class LeaveDetailScreen extends StatelessWidget {
       if (employeeEmail.isNotEmpty) {
         await NotificationHelper.notifyEmployee(
           employeeEmail: employeeEmail,
-          title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
+          title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
           body: 'Your ${leaveData['leaveType'] ?? leaveData['type'] ?? 'leave'} request from ${(() { final d = FirestoreService.parseAnyDate(leaveData['fromDate'] ?? leaveData['from']); return d == null ? '' : DateFormat('MMM dd').format(d); })()} has been $newStatus.',
           type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
           extraData: {

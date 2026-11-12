@@ -76,7 +76,23 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && user.email != null) {
+      if (user == null || user.email == null) {
+        setState(() {
+          _isLoading = false;
+          _bannerMessage = 'You are not signed in. Please sign in again';
+          _isBannerError = true;
+        });
+        return;
+      }
+      if (currentPass == newPass) {
+        setState(() {
+          _isLoading = false;
+          _bannerMessage = 'The new password must be different from the current one';
+          _isBannerError = true;
+        });
+        return;
+      }
+      {
         // Re-authenticate user first
         final cred = EmailAuthProvider.credential(email: user.email!, password: currentPass);
         await user.reauthenticateWithCredential(cred);
@@ -111,29 +127,38 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         });
       }
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
-          _bannerMessage = 'Incorrect current password';
-        } else {
-          _bannerMessage = e.message ?? 'Failed to update password';
+        switch (e.code) {
+          case 'wrong-password':
+          case 'invalid-credential':
+          case 'invalid-login-credentials':
+            _bannerMessage = 'Your current password is incorrect';
+            break;
+          case 'weak-password':
+            _bannerMessage = 'The new password is too weak';
+            break;
+          case 'too-many-requests':
+            _bannerMessage = 'Too many attempts. Please wait a few minutes and try again';
+            break;
+          case 'requires-recent-login':
+            _bannerMessage = 'For security, please sign out, sign in again and retry';
+            break;
+          case 'network-request-failed':
+            _bannerMessage = 'No internet connection. Please try again';
+            break;
+          default:
+            _bannerMessage = e.message ?? 'Failed to update password';
         }
         _isBannerError = true;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _bannerMessage = 'Password updated for your account';
-        _isBannerError = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password update request processed.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (mounted) Navigator.pop(context);
+        _bannerMessage = 'Could not update the password. Please try again';
+        _isBannerError = true;
       });
     }
   }

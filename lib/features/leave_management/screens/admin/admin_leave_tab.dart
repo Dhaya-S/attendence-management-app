@@ -171,16 +171,6 @@ class _AdminLeaveTabState extends State<AdminLeaveTab> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Empty space placeholder
-                  Row(
-                    children: [
-                      Expanded(child: Container(height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)))),
-                      const SizedBox(width: 12),
-                      Expanded(child: Container(height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)))),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
                   if (filteredDocs.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 40),

@@ -771,10 +771,11 @@ class _CalendarTabViewState extends State<CalendarTabView> {
   Widget _buildTopControls() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         // Month / Week Pill Switcher
         Container(
-          height: 38,
+          height: 40,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: const Color(0xFFF3F4F6),
@@ -791,13 +792,16 @@ class _CalendarTabViewState extends State<CalendarTabView> {
         GestureDetector(
           onTap: () => _showFiltersBottomSheet(context),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFF5F3FF),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: const Color(0xFFC7D2FE)),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.filter_list_rounded, size: 16, color: Color(0xFF5C5CFF)),
                 const SizedBox(width: 6),
@@ -822,7 +826,8 @@ class _CalendarTabViewState extends State<CalendarTabView> {
     return GestureDetector(
       onTap: () => setState(() => _calendarFormat = format),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF5C5CFF) : Colors.transparent,
           borderRadius: BorderRadius.circular(18),
@@ -853,7 +858,12 @@ class _CalendarTabViewState extends State<CalendarTabView> {
           ),
         ],
       ),
-      child: TableCalendar(
+      child: Padding(
+       padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+       child: TableCalendar(
+        rowHeight: 48,
+        daysOfWeekHeight: 28,
+        startingDayOfWeek: StartingDayOfWeek.monday,
         firstDay: DateTime.utc(2020, 1, 1),
         lastDay: DateTime.utc(2030, 12, 31),
         focusedDay: _focusedDay,
@@ -876,7 +886,8 @@ class _CalendarTabViewState extends State<CalendarTabView> {
           leftChevronIcon: Icon(Icons.chevron_left_rounded, color: Color(0xFF4B5563), size: 24),
           rightChevronIcon: Icon(Icons.chevron_right_rounded, color: Color(0xFF4B5563), size: 24),
           titleTextStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1F2937)),
-          headerMargin: EdgeInsets.only(bottom: 12, top: 8),
+          headerPadding: EdgeInsets.symmetric(vertical: 6),
+          headerMargin: EdgeInsets.only(bottom: 8, top: 4),
         ),
         daysOfWeekStyle: const DaysOfWeekStyle(
           weekdayStyle: TextStyle(color: Color(0xFF9CA3AF), fontSize: 11, fontWeight: FontWeight.w700),
@@ -892,7 +903,12 @@ class _CalendarTabViewState extends State<CalendarTabView> {
           todayBuilder: (context, day, focusedDay) {
             return _buildCustomDayCell(day, eventMap, isSelected: isSameDay(_selectedDay, day), isToday: true);
           },
+          outsideBuilder: (context, day, focusedDay) => Center(
+            child: Text('${day.day}',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFFD1D5DB))),
+          ),
         ),
+       ),
       ),
     );
   }
@@ -944,12 +960,6 @@ class _CalendarTabViewState extends State<CalendarTabView> {
 
     return Container(
       margin: const EdgeInsets.all(2),
-      decoration: isSelected
-          ? BoxDecoration(
-              color: const Color(0xFFEFF6FF), // Soft background highlight
-              borderRadius: BorderRadius.circular(12),
-            )
-          : null,
       alignment: Alignment.center,
       child: Stack(
         alignment: Alignment.center,
@@ -959,7 +969,9 @@ class _CalendarTabViewState extends State<CalendarTabView> {
             height: 32,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isSelected ? const Color(0xFF5C5CFF) : Colors.transparent,
+              color: isSelected
+                  ? const Color(0xFF5C5CFF)
+                  : (isToday ? const Color(0xFFEEF2FF) : Colors.transparent),
               border: ringColor != Colors.transparent && !isSelected
                   ? Border.all(color: ringColor, width: 1.8)
                   : null,

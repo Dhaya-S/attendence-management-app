@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
@@ -49,7 +50,9 @@ class OrgOverviewTab extends StatelessWidget {
           }
 
           final docs = (snapshot.data?.docs ?? [])
-              .where((d) => FirestoreService.isDocInCurrentCompany(d))
+              .where((d) =>
+                  FirestoreService.isDocInCurrentCompany(d) &&
+                  FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
               .toList();
 
           int totalEmployees = docs.length;
@@ -57,27 +60,38 @@ class OrgOverviewTab extends StatelessWidget {
           Map<String, int> deptCounts = {};
 
           for (var doc in docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            final dept = (data['department'] ?? 'General').toString().trim();
-            if (dept.isNotEmpty) {
-              departments.add(dept);
-              deptCounts[dept] = (deptCounts[dept] ?? 0) + 1;
-            }
+            final dept = FirestoreService.deptOf(doc.data() as Map<String, dynamic>);
+            departments.add(dept);
+            deptCounts[dept] = (deptCounts[dept] ?? 0) + 1;
           }
 
           return StreamBuilder<QuerySnapshot>(
             stream: FirestoreService.tasksCol.snapshots(),
             builder: (context, tasksSnap) {
-              final tasks = tasksSnap.data?.docs ?? [];
-              final openTasks = tasks.where((t) {
-                final d = t.data() as Map<String, dynamic>;
-                return (d['status'] ?? '') != 'completed';
-              }).length;
+              final tasks = (tasksSnap.data?.docs ?? [])
+                  .where((t) => FirestoreService.isDocInCurrentCompany(t))
+                  .toList();
+              int openTasks = 0, doneTasks = 0;
+              for (final t in tasks) {
+                final b = FirestoreService.taskBucket(t.data() as Map<String, dynamic>);
+                if (b == 'Archived') continue;
+                if (b == 'Completed') {
+                  doneTasks++;
+                } else {
+                  openTasks++;
+                }
+              }
 
               return StreamBuilder<QuerySnapshot>(
                 stream: FirestoreService.announcementsCol.snapshots(),
-                builder: (context, annSnap) {
-                  final announcements = annSnap.data?.docs ?? [];
+                builder: (context, annSnap) => StreamBuilder<QuerySnapshot>(
+                stream: FirestoreService.allAttendanceRecordsCol.snapshots(),
+                builder: (context, attSnap) {
+                  final announcements = (annSnap.data?.docs ?? [])
+                      .where((a) => FirestoreService.isDocInCurrentCompany(a))
+                      .toList();
+                  final health = _computeHealth(docs, attSnap.data?.docs ?? const [], openTasks, doneTasks);
+                  final growth = _headcountByMonth(docs);
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
@@ -91,9 +105,9 @@ class OrgOverviewTab extends StatelessWidget {
                             announcements.length,
                             openTasks),
                         const SizedBox(height: 16),
-                        _buildOrgInfoCard(context),
+                        _buildOrgInfoCard(context, health),
                         const SizedBox(height: 16),
-                        _buildHeadcountGrowthCard(context, totalEmployees),
+                        _buildHeadcountGrowthCard(context, growth),
                         const SizedBox(height: 16),
                         _buildDepartmentDistributionCard(context, deptCounts),
                         const SizedBox(height: 16),
@@ -103,6 +117,7 @@ class OrgOverviewTab extends StatelessWidget {
                     ),
                   );
                 },
+                ),
               );
             },
           );
@@ -110,6 +125,65 @@ class OrgOverviewTab extends StatelessWidget {
       ),
     );
   }
+
+  // ── Real numbers (no placeholders) ────────────────────────────────────────
+
+  /// Org health from live data: today's attendance, on-time arrivals and task completion.
+  /// Entries are null when there is nothing to measure yet.
+  static Map<String, double?> _computeHealth(List<QueryDocumentSnapshot> people,
+      List<QueryDocumentSnapshot> attendance, int openTasks, int doneTasks) {
+    final emails = people.map((p) => p.id.toLowerCase()).toSet();
+    final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final checkedIn = <String>{};
+    int late = 0;
+    for (final doc in attendance) {
+      if (!FirestoreService.isDocInCurrentCompany(doc)) continue;
+      final d = doc.data() as Map<String, dynamic>;
+      final isToday = doc.id == today ||
+          doc.id.endsWith('_$today') ||
+          d['recordDate'] == today ||
+          d['date'] == today ||
+          (FirestoreService.parseAnyDate(d['date']) != null &&
+              DateFormat('yyyy-MM-dd').format(FirestoreService.parseAnyDate(d['date'])!) == today);
+      if (!isToday) continue;
+      final who = FirestoreService.requesterEmail(d).isNotEmpty
+          ? FirestoreService.requesterEmail(d)
+          : doc.id.split('_').first.toLowerCase();
+      if (!emails.contains(who)) continue;
+      final hasIn = d['checkIn'] != null || d['checkInTime'] != null || d['lastCheckIn'] != null;
+      if (!hasIn) continue;
+      if (checkedIn.add(who)) {
+        final st = (d['status'] ?? d['attendanceStatus'] ?? '').toString().toLowerCase();
+        if (st.contains('late') || d['isLate'] == true) late++;
+      }
+    }
+    final attendanceRate = emails.isEmpty ? null : checkedIn.length / emails.length;
+    final onTime = checkedIn.isEmpty ? null : (checkedIn.length - late) / checkedIn.length;
+    final totalTasks = openTasks + doneTasks;
+    final taskRate = totalTasks == 0 ? null : doneTasks / totalTasks;
+    final parts = [attendanceRate, onTime, taskRate].whereType<double>().toList();
+    final overall = parts.isEmpty ? null : parts.reduce((a, b) => a + b) / parts.length;
+    return {'overall': overall, 'attendance': attendanceRate, 'ontime': onTime, 'tasks': taskRate};
+  }
+
+  /// Headcount at the end of each of the last 4 months, from real joining dates.
+  static List<int> _headcountByMonth(List<QueryDocumentSnapshot> people) {
+    final now = DateTime.now();
+    final out = <int>[];
+    for (var back = 3; back >= 0; back--) {
+      final end = DateTime(now.year, now.month - back + 1, 0, 23, 59, 59);
+      var n = 0;
+      for (final p in people) {
+        final m = p.data() as Map<String, dynamic>;
+        final j = FirestoreService.parseAnyDate(m['joinDate'] ?? m['joiningDate'] ?? m['createdAt']);
+        if (j == null || !j.isAfter(end)) n++;
+      }
+      out.add(n);
+    }
+    return out;
+  }
+
+  static String _pct(double? v) => v == null ? '—' : '${(v * 100).round()}%';
 
   Widget _buildTopGrid(BuildContext context, int employees, int departments,
       int announcements, int openTasks) {
@@ -311,7 +385,7 @@ class OrgOverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildOrgInfoCard(BuildContext context) {
+  Widget _buildOrgInfoCard(BuildContext context, Map<String, double?> health) {
     return StreamBuilder<DocumentSnapshot>(
       stream: FirestoreService.companyDoc().snapshots(),
       builder: (context, snap) {
@@ -344,13 +418,13 @@ class OrgOverviewTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(16),
-                    onTap: () => _showOrgHealthDialog(context),
-                    child: const Padding(
-                      padding: EdgeInsets.all(16),
+                    onTap: () => _showOrgHealthDialog(context, health),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text('Org Health',
@@ -362,15 +436,19 @@ class OrgOverviewTab extends StatelessWidget {
                                   color: Color(0xFF94A3B8), size: 16),
                             ],
                           ),
-                          SizedBox(height: 8),
-                          Text('87%',
+                          const SizedBox(height: 8),
+                          Text(_pct(health['overall']),
                               style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.w800,
-                                  color: Color(0xFF10B981))),
-                          SizedBox(height: 4),
-                          Text('Good standing',
-                              style: TextStyle(
+                                  color: (health['overall'] ?? 0) >= 0.8
+                                      ? const Color(0xFF10B981)
+                                      : (health['overall'] ?? 0) >= 0.5
+                                          ? const Color(0xFFF59E0B)
+                                          : const Color(0xFFEF4444))),
+                          const SizedBox(height: 4),
+                          Text(health['overall'] == null ? 'Not enough data yet' : 'Live from today',
+                              style: const TextStyle(
                                   fontSize: 10, color: Color(0xFF9CA3AF))),
                         ],
                       ),
@@ -448,7 +526,7 @@ class OrgOverviewTab extends StatelessWidget {
     );
   }
 
-  void _showOrgHealthDialog(BuildContext context) {
+  void _showOrgHealthDialog(BuildContext context, Map<String, double?> health) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
@@ -484,7 +562,7 @@ class OrgOverviewTab extends StatelessWidget {
                           color: Color(0xFF1F2937)),
                     ),
                     Text(
-                      'Calculated across attendance and policies',
+                      'Calculated live from attendance and tasks',
                       style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
                     ),
                   ],
@@ -492,14 +570,12 @@ class OrgOverviewTab extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 20),
-            _buildHealthItem(
-                'On-Time Attendance', '94%', 0.94, const Color(0xFF10B981)),
-            _buildHealthItem(
-                'Shift Coverage', '98%', 0.98, const Color(0xFF5C5CFF)),
-            _buildHealthItem(
-                'Task Completion Rate', '85%', 0.85, const Color(0xFFF59E0B)),
-            _buildHealthItem(
-                'Policy Acknowledgment', '100%', 1.0, const Color(0xFF10B981)),
+            _buildHealthItem("Today's Attendance", _pct(health['attendance']),
+                health['attendance'] ?? 0, const Color(0xFF5C5CFF)),
+            _buildHealthItem('On-Time Arrivals Today', _pct(health['ontime']),
+                health['ontime'] ?? 0, const Color(0xFF10B981)),
+            _buildHealthItem('Task Completion Rate', _pct(health['tasks']),
+                health['tasks'] ?? 0, const Color(0xFFF59E0B)),
             const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
@@ -560,13 +636,14 @@ class OrgOverviewTab extends StatelessWidget {
     );
   }
 
-  Widget _buildHeadcountGrowthCard(BuildContext context, int total) {
+  Widget _buildHeadcountGrowthCard(BuildContext context, List<int> series) {
+    final total = series.last;
     final double maxHeadcount = (total < 10) ? 10.0 : (total * 1.25).ceilToDouble();
     final double intervalVal = (maxHeadcount / 2).ceilToDouble();
-    final double s0 = (total * 0.5).roundToDouble().clamp(1.0, total.toDouble());
-    final double s1 = (total * 0.7).roundToDouble().clamp(s0, total.toDouble());
-    final double s2 = (total * 0.85).roundToDouble().clamp(s1, total.toDouble());
-    final double s3 = total.toDouble();
+    final double s0 = series[0].toDouble();
+    final double s1 = series[1].toDouble();
+    final double s2 = series[2].toDouble();
+    final double s3 = series[3].toDouble();
 
     final now = DateTime.now();
     final monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -574,7 +651,7 @@ class OrgOverviewTab extends StatelessWidget {
       monthNames[(now.month - 4 + 12) % 12],
       monthNames[(now.month - 3 + 12) % 12],
       monthNames[(now.month - 2 + 12) % 12],
-      monthNames[(now.month - 1) % 12],
+      monthNames[(now.month - 1 + 12) % 12],
     ];
 
     return Container(
@@ -845,7 +922,16 @@ class OrgOverviewTab extends StatelessWidget {
 
   Widget _buildRecentActivityCard(
       BuildContext context, List<QueryDocumentSnapshot> employees) {
-    final recent = employees.take(4).toList();
+    final sorted = [...employees]..sort((a, b) {
+        DateTime when(QueryDocumentSnapshot q) {
+          final m = q.data() as Map<String, dynamic>;
+          return FirestoreService.parseAnyDate(m['joinDate'] ?? m['joiningDate'] ?? m['createdAt']) ??
+              DateTime(2000);
+        }
+
+        return when(b).compareTo(when(a));
+      });
+    final recent = sorted.take(4).toList();
 
     return Container(
       width: double.infinity,
@@ -912,8 +998,8 @@ class OrgOverviewTab extends StatelessWidget {
                 if (name.isEmpty) {
                   name = (data['email'] ?? 'Member').toString();
                 }
-                final role = data['role'] ?? data['designation'] ?? 'Employee';
-                final dept = data['department'] ?? '';
+                final role = data['designation'] ?? data['roleLabel'] ?? data['role'] ?? 'Employee';
+                final dept = (data['dept'] ?? data['department'] ?? '').toString();
 
                 return InkWell(
                   onTap: () {
@@ -924,9 +1010,7 @@ class OrgOverviewTab extends StatelessWidget {
                           employeeData: {
                             ...data,
                             'name': name,
-                            'role': role,
-                            'department': dept,
-                            'id': entry.value.id,
+                            'email': (data['email'] ?? entry.value.id).toString().toLowerCase(),
                           },
                         ),
                       ),

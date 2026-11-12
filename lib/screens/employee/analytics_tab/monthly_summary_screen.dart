@@ -11,7 +11,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 
-/// Screen 2 â€” Monthly Summary (matches center panel in mockup)
+/// Screen 2 — Monthly Summary (matches center panel in mockup)
 class MonthlySummaryScreen extends StatefulWidget {
   const MonthlySummaryScreen({super.key});
 
@@ -123,7 +123,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     );
   }
 
-  // â”€â”€â”€ Month Navigator â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Month Navigator ──────────────────────────────────────────────────────
 
   Widget _buildMonthNavigator() {
     return Row(
@@ -146,7 +146,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     );
   }
 
-  // â”€â”€â”€ Rate Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Rate Card ───────────────────────────────────────────────────────────
 
   Widget _buildRateCard(Map<String, dynamic> metrics) {
     return Container(
@@ -160,7 +160,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Monthly Summary Â· ${DateFormat('MMM yyyy').format(_focusedMonth)}',
+            'Monthly Summary · ${DateFormat('MMM yyyy').format(_focusedMonth)}',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
           ),
           const SizedBox(height: 10),
@@ -170,7 +170,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
                 color: Colors.white, fontSize: 38, fontWeight: FontWeight.w800, letterSpacing: -1),
           ),
           Text(
-            'Attendance Rate Â· ${metrics['workingDays']} working days',
+            'Attendance Rate · ${metrics['workingDays']} working days',
             style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 12),
           ),
         ],
@@ -178,7 +178,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     );
   }
 
-  // â”€â”€â”€ Stats Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Stats Grid ───────────────────────────────────────────────────────────
 
   Widget _buildStatsGrid(Map<String, dynamic> metrics) {
     return GridView.count(
@@ -244,7 +244,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     );
   }
 
-  // â”€â”€â”€ Day-by-Day Calendar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Day-by-Day Calendar ──────────────────────────────────────────────────
 
   Widget _buildDayByDayCalendar(Map<int, String> statusMap) {
     final daysInMonth = DateTimeUtils.daysInMonth(_focusedMonth);
@@ -366,7 +366,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     ]);
   }
 
-  // â”€â”€â”€ Distribution Pie Chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Distribution Pie Chart ───────────────────────────────────────────────
 
   Widget _buildDistributionCard(Map<String, dynamic> metrics) {
     final present = (metrics['present'] as int).toDouble();
@@ -471,7 +471,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     ]);
   }
 
-  // â”€â”€â”€ Download Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Download Button ──────────────────────────────────────────────────────
 
   Widget _buildDownloadButton() {
     return SizedBox(
@@ -492,7 +492,7 @@ class _MonthlySummaryScreenState extends State<MonthlySummaryScreen> {
     );
   }
 
-  // â”€â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Data helpers ─────────────────────────────────────────────────────────
 
   Map<String, dynamic> _computeMonthMetrics(
       List<QueryDocumentSnapshot> monthDocs, List<QueryDocumentSnapshot> leaveDocs) {

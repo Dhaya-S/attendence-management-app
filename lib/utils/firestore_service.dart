@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'app_session.dart';
 
-/// FirestoreService â€” Single source of truth for all Firestore collection
+/// FirestoreService — Single source of truth for all Firestore collection
 /// and document references.
 ///
 /// **Company-Centric Model:**
@@ -13,17 +13,17 @@ import 'app_session.dart';
 /// see all related employees, attendance, and leave data nested under it.
 ///
 /// Never call `FirebaseFirestore.instance.collection(...)` directly in UI code
-/// â€” use the static helpers here instead.
+/// — use the static helpers here instead.
 class FirestoreService {
-  FirestoreService._(); // No instances needed â€” all members are static.
+  FirestoreService._(); // No instances needed — all members are static.
 
   static final _db = FirebaseFirestore.instance;
 
-  // â”€â”€ Convenience accessor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Convenience accessor ─────────────────────────────────────────────────
 
   static String get _cid {
     final id = AppSession().companyId;
-    assert(id != null, 'AppSession.companyId is null â€” was login completed?');
+    assert(id != null, 'AppSession.companyId is null — was login completed?');
     return id!;
   }
 
@@ -70,47 +70,47 @@ class FirestoreService {
     return path.contains('/organizations/$currentCid/');
   }
 
-  // â”€â”€ Global (cross-company) refs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Global (cross-company) refs ──────────────────────────────────────────
 
-  /// `approved_users/{email}` â€” global login / company mapping.
+  /// `approved_users/{email}` — global login / company mapping.
   static DocumentReference<Map<String, dynamic>> approvedUserDoc(
           String email) =>
       _db.collection('approved_users').doc(email.toLowerCase());
 
-  /// `organizations/{companyId}` â€” company master document.
+  /// `organizations/{companyId}` — company master document.
   static DocumentReference<Map<String, dynamic>> companyDoc(
           [String? companyId]) =>
       _db.collection('organizations').doc(companyId ?? _cid);
 
-  /// `organization_setup_requests/{requestId}` â€” pre-login organization setup submissions.
+  /// `organization_setup_requests/{requestId}` — pre-login organization setup submissions.
   static CollectionReference<Map<String, dynamic>>
       get organizationSetupRequestsCol =>
           _db.collection('organization_setup_requests');
 
-  // â”€â”€ New: Organizations (self-registration flow) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── New: Organizations (self-registration flow) ──────────────────────────
   // Used when a company admin registers directly via the app.
   // Structure: organizations/{orgId}/members/{uid}
   //                                /departments/{deptId}
 
-  /// `organizations` â€” top-level collection for self-registered companies.
+  /// `organizations` — top-level collection for self-registered companies.
   static CollectionReference<Map<String, dynamic>> get orgCol =>
       _db.collection('organizations');
 
-  /// `organizations/{orgId}` â€” company master document.
+  /// `organizations/{orgId}` — company master document.
   static DocumentReference<Map<String, dynamic>> orgDoc(String orgId) =>
       orgCol.doc(orgId);
 
-  /// `organizations/{orgId}/members` â€” all admin/employee profiles for this org.
+  /// `organizations/{orgId}/members` — all admin/employee profiles for this org.
   static CollectionReference<Map<String, dynamic>> orgMembersCol(
           String orgId) =>
       orgDoc(orgId).collection('members');
 
-  /// `organizations/{orgId}/members/{uid}` â€” a single member's profile.
+  /// `organizations/{orgId}/members/{uid}` — a single member's profile.
   static DocumentReference<Map<String, dynamic>> orgMemberDoc(
           String orgId, String uid) =>
       orgMembersCol(orgId).doc(uid);
 
-  /// `organizations/{orgId}/departments` â€” department list for this org.
+  /// `organizations/{orgId}/departments` — department list for this org.
   static CollectionReference<Map<String, dynamic>> orgDepartmentsCol(
           String orgId) =>
       orgDoc(orgId).collection('departments');
@@ -319,11 +319,11 @@ class FirestoreService {
           String orgId, String docId) =>
       orgDocumentsCol(orgId).doc(docId);
 
-  // â”€â”€ Company-Scoped Subcollections â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Company-Scoped Subcollections ────────────────────────────────────────
   // All operational data lives UNDER the company document so that
   // Firestore console shows everything nested per company.
 
-  /// `/organizations/{companyId}/users` â€” user profiles
+  /// `/organizations/{companyId}/users` — user profiles
   static CollectionReference<Map<String, dynamic>> get employeesCol =>
       companyDoc().collection('users');
 
@@ -386,7 +386,7 @@ class FirestoreService {
   static DocumentReference<Map<String, dynamic>> documentDoc(String docId) =>
       documentsCol.doc(docId);
 
-  // â”€â”€ Collection Group Queries (Manager Access) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Collection Group Queries (Manager Access) ──────────────────────────────
   // These allow managers to query all records across all employees in the company.
 
   /// All attendance records for the current company (strictly scoped)
@@ -443,7 +443,7 @@ class FirestoreService {
   static Query<Map<String, dynamic>> get companyLeaveRequestsQuery =>
       leaveRequestsCol;
 
-  // â”€â”€ Global Company Notifications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Global Company Notifications ──────────────────────────────────────────
   // These are notifications meant for the entire company, not a specific user.
 
   /// `/organizations/{companyId}/global_notifications`
@@ -478,7 +478,7 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get teamFeedCol =>
       companyDoc().collection('team_feed');
 
-  // â”€â”€ Legacy / Flat Collections (To be removed after migration) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Legacy / Flat Collections (To be removed after migration) ───────────
 
   /// @deprecated Use [userAttendanceCol]
   static CollectionReference<Map<String, dynamic>> attendanceRecordsCol(
@@ -492,17 +492,17 @@ class FirestoreService {
   static CollectionReference<Map<String, dynamic>> get notificationsCol =>
       companyDoc().collection('notifications');
 
-  // â”€â”€ Legacy Compatibility Aliases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Legacy Compatibility Aliases ─────────────────────────────────────────
   // These aliases keep existing UI code working without mass renames.
 
-  /// Alias for `employeesCol` â€” backward compatible with old `usersCol` calls
+  /// Alias for `employeesCol` — backward compatible with old `usersCol` calls
   static CollectionReference<Map<String, dynamic>> get usersCol => employeesCol;
 
-  /// Alias for `employeeDoc(uid)` â€” backward compatible
+  /// Alias for `employeeDoc(uid)` — backward compatible
   static DocumentReference<Map<String, dynamic>> userDoc(String uid) =>
       employeesCol.doc(uid);
 
-  /// Alias for `employeeDoc(email)` â€” backward compatible
+  /// Alias for `employeeDoc(email)` — backward compatible
   static DocumentReference<Map<String, dynamic>> userDocByEmail(String email) =>
       employeesCol.doc(email.toLowerCase());
 
@@ -1323,11 +1323,15 @@ class FirestoreService {
 
   /// Days used [annual, sick, casual] — approved + pending requests, using the number of
   /// days saved on each request (the web's value).
-  static List<int> leaveUsage(Iterable<Map<String, dynamic>> requests) {
+  static List<int> leaveUsage(Iterable<Map<String, dynamic>> requests,
+      {int? year, bool approvedOnly = false}) {
+    final y = year ?? DateTime.now().year;
     int annual = 0, sick = 0, casual = 0;
     for (final data in requests) {
       final status = (data['status'] ?? '').toString().toLowerCase();
-      if (status != 'approved' && status != 'pending') continue;
+      if (status != 'approved' && !(status == 'pending' && !approvedOnly)) continue;
+      final start = parseAnyDate(data['fromDate'] ?? data['from']);
+      if (start != null && start.year != y) continue;
       final type = (data['leaveType'] ?? data['type'] ?? data['category'] ?? 'Annual Leave')
           .toString()
           .toLowerCase();
@@ -1360,4 +1364,187 @@ class FirestoreService {
     }
     return [annual, sick, casual];
   }
+
+  /// Days carried into the CURRENT year [annual, sick, casual]: last year's unused days,
+  /// limited by each leave type's carry-forward rule ("No", "Yes", "Yes, max N").
+  /// Employees who joined this year have nothing to carry.
+  static List<int> leaveCarry(QuerySnapshot? types, Map<String, dynamic>? org,
+      Iterable<Map<String, dynamic>> requests, DateTime? joinDate, List<int> limits) {
+    final year = DateTime.now().year;
+    if (joinDate == null || joinDate.year >= year) return [0, 0, 0];
+    final prevUsed = leaveUsage(requests, year: year - 1, approvedOnly: true);
+    final policy = (org?['leavePolicy'] is Map) ? org!['leavePolicy'] as Map : const {};
+
+    int capFor(String key, int idx) {
+      dynamic carry;
+      for (final d in types?.docs ?? const <QueryDocumentSnapshot>[]) {
+        final m = d.data() as Map<String, dynamic>;
+        if (d.id.toLowerCase() == key || (m['name'] ?? '').toString().toLowerCase().contains(key)) {
+          carry = m['carry'];
+          break;
+        }
+      }
+      if (carry == null) {
+        final allowed = (policy['carryoverAllowed'] ?? '').toString().toLowerCase();
+        return (idx == 0 && allowed.startsWith('y')) ? 9999 : 0;
+      }
+      if (carry is num) return carry.toInt();
+      if (carry == true) return 9999;
+      if (carry == false) return 0;
+      final t = carry.toString().toLowerCase().trim();
+      if (!t.startsWith('y')) return 0;
+      final n = int.tryParse(RegExp(r'(d+)').firstMatch(t)?.group(1) ?? '');
+      return n ?? 9999;
+    }
+
+    final keys = ['annual', 'sick', 'casual'];
+    return [
+      for (var i = 0; i < 3; i++)
+        () {
+          final unused = limits[i] - prevUsed[i];
+          if (unused <= 0) return 0;
+          final cap = capFor(keys[i], i);
+          return unused < cap ? unused : cap;
+        }(),
+    ];
+  }
+
+  /// Everything a Leave screen needs for one employee, current year.
+  static LeaveBalance leaveBalance(QuerySnapshot? types, Map<String, dynamic>? org,
+      Iterable<Map<String, dynamic>> requests, DateTime? joinDate) {
+    final reqs = requests.toList();
+    final base = leaveLimits(types, org);
+    final carry = leaveCarry(types, org, reqs, joinDate, base);
+    return LeaveBalance(base: base, carried: carry, used: leaveUsage(reqs));
+  }
+
+  /// Department name of a person (web saves both dept and department); "Unassigned" if blank.
+  static String deptOf(Map<String, dynamic> d) {
+    final v = (d['dept'] ?? d['department'] ?? '').toString().trim();
+    return v.isEmpty ? 'Unassigned' : v;
+  }
+
+  /// UI bucket of a task: Assigned | In Progress | Completed | Overdue | Archived.
+  /// Reads the web board statuses (Todo / In Progress / Overdue / Done / Archived) and the
+  /// older mobile ones; an unstarted task past its due date counts as Overdue (like the web).
+  static String taskBucket(Map<String, dynamic> d) {
+    final raw = (d['status'] ?? d['taskStatus'] ?? 'todo').toString().trim().toLowerCase();
+    if (raw == 'archived') return 'Archived';
+    if (raw == 'done' || raw == 'completed' || raw == 'finished' || d['done'] == true) return 'Completed';
+    if (raw == 'in progress' || raw == 'in_progress' || raw == 'working' || raw == 'active') return 'In Progress';
+    if (raw == 'overdue') return 'Overdue';
+    final due = parseAnyDate(d['dueDate'] ?? d['due']);
+    if (due != null) {
+      final t = DateTime.now();
+      if (DateTime(due.year, due.month, due.day).isBefore(DateTime(t.year, t.month, t.day))) {
+        return 'Overdue';
+      }
+    }
+    return 'Assigned';
+  }
+
+  /// Whether a task (web or mobile shape) is assigned to this person.
+  static bool taskAssignedTo(Map<String, dynamic> d, String email, {String name = '', String uid = ''}) {
+    final e = email.trim().toLowerCase();
+    final n = name.trim().toLowerCase();
+    final u = uid.trim().toLowerCase();
+    bool hit(dynamic v) {
+      final s = (v ?? '').toString().trim().toLowerCase();
+      return s.isNotEmpty && ((e.isNotEmpty && s == e) || (u.isNotEmpty && s == u));
+    }
+
+    if (d['assignees'] is List) {
+      for (final a in d['assignees'] as List) {
+        if (a is Map) {
+          if (hit(a['email'] ?? a['userEmail']) || hit(a['uid'] ?? a['userId'])) return true;
+        } else if (hit(a)) {
+          return true;
+        }
+      }
+    }
+    if (d['assignee'] is Map) {
+      final a = d['assignee'] as Map;
+      if (hit(a['email'] ?? a['userEmail']) || hit(a['uid'] ?? a['userId'])) return true;
+    }
+    if (hit(d['assigneeEmail']) ||
+        hit(d['assignedToEmail']) ||
+        hit(d['employeeEmail']) ||
+        hit(d['assignedTo']) ||
+        hit(d['assignee']) ||
+        hit(d['userId']) ||
+        hit(d['assigneeId']) ||
+        hit(d['assignedToUid'])) {
+      return true;
+    }
+    final hasEmailField = (d['assigneeEmail'] ?? d['assignedToEmail'] ?? '').toString().trim().isNotEmpty;
+    final nameField = (d['assignee'] is String ? d['assignee'] : (d['assigneeName'] ?? d['assignedToName'] ?? ''))
+        .toString()
+        .trim()
+        .toLowerCase();
+    return n.isNotEmpty && !hasEmailField && nameField == n;
+  }
+
+  /// Working weekdays (1 = Mon … 7 = Sun) from a shift's "Mon–Fri" / "Mon-Sat" / list value.
+  static Set<int> workingWeekdays(dynamic v) {
+    const names = {'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7};
+    int? day(String s) {
+      final k = s.trim().toLowerCase();
+      return k.length >= 3 ? names[k.substring(0, 3)] : null;
+    }
+
+    if (v is List) {
+      final out = v.map((e) => day(e.toString())).whereType<int>().toSet();
+      if (out.isNotEmpty) return out;
+    } else if (v is String && v.trim().isNotEmpty) {
+      final m = RegExp(r'^\s*([A-Za-z]{3,})\s*[–—-]\s*([A-Za-z]{3,})\s*$').firstMatch(v);
+      if (m != null) {
+        final a = day(m.group(1)!), b = day(m.group(2)!);
+        if (a != null && b != null) {
+          final out = <int>{};
+          var d = a;
+          for (var i = 0; i < 7; i++) {
+            out.add(d);
+            if (d == b) break;
+            d = d % 7 + 1;
+          }
+          return out;
+        }
+      }
+      final out = v.split(RegExp(r'[,/ ]+')).map(day).whereType<int>().toSet();
+      if (out.isNotEmpty) return out;
+    }
+    return {1, 2, 3, 4, 5};
+  }
+
+  /// Holiday date: rawDate "yyyy-MM-dd" (web wizard), `date` (Organization page) or year/month/day.
+  static DateTime? holidayDate(Map<String, dynamic> m) {
+    final iso = parseAnyDate(m['rawDate'] ?? m['date']);
+    if (iso != null) return iso;
+    final text = (m['date'] ?? m['rawDate'] ?? '').toString().trim();
+    for (final f in ['MMM d, yyyy', 'MMMM d, yyyy', 'd MMM yyyy', 'dd/MM/yyyy', 'dd-MM-yyyy']) {
+      try {
+        return DateFormat(f).parseStrict(text);
+      } catch (_) {}
+    }
+    final y = int.tryParse('${m['year'] ?? ''}');
+    final mo = int.tryParse('${m['month'] ?? ''}');
+    final d = int.tryParse('${m['day'] ?? ''}');
+    return (y != null && mo != null && d != null) ? DateTime(y, mo, d) : null;
+  }
+}
+
+/// Leave numbers for the current year: allocated by the company, carried in from last year,
+/// used (approved + pending) and what is left — per type [annual, sick, casual].
+class LeaveBalance {
+  final List<int> base;
+  final List<int> carried;
+  final List<int> used;
+  const LeaveBalance({required this.base, required this.carried, required this.used});
+
+  int total(int i) => base[i] + carried[i];
+  int left(int i) => (total(i) - used[i]) < 0 ? 0 : total(i) - used[i];
+  int get totalAll => total(0) + total(1) + total(2);
+  int get usedAll => used[0] + used[1] + used[2];
+  int get carriedAll => carried[0] + carried[1] + carried[2];
+  int get leftAll => left(0) + left(1) + left(2);
 }

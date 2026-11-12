@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
@@ -169,7 +167,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
     final status = (data['status'] ?? 'Published').toString();
     final fileUrl = (data['fileUrl'] ?? '').toString();
     final fileName = (data['fileName'] ?? '').toString();
-    final isManagerOrAdmin = AppSession().isHrAdmin || AppSession().isManagerOrAbove;
 
     showModalBottomSheet(
       context: context,
@@ -287,24 +284,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
                       ),
                     ),
                   ],
-                  if (isManagerOrAdmin) ...[
-                    const SizedBox(width: 10),
-                    IconButton(
-                      tooltip: 'Delete Document',
-                      style: IconButton.styleFrom(
-                        backgroundColor: const Color(0xFFFEF2F2),
-                        padding: const EdgeInsets.all(12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      icon: const Icon(Icons.delete_outline, color: Color(0xFFDC2626)),
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        _confirmDeleteDocument(doc.id, title);
-                      },
-                    ),
-                  ],
                 ],
               ),
             ],
@@ -338,307 +317,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
         ],
       ),
     );
-  }
-
-  // ── Delete Document ─────────────────────────────────────────────────────────
-  Future<void> _confirmDeleteDocument(String docId, String title) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Document'),
-        content: Text('Are you sure you want to delete "$title"? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        // Remove the stored file too (documents uploaded from the web or mobile app)
-        try {
-          final snap = await FirestoreService.documentDoc(docId).get();
-          final storagePath = (snap.data()?['storagePath'] ?? '').toString();
-          if (storagePath.isNotEmpty) {
-            await FirebaseStorage.instance.ref(storagePath).delete();
-          }
-        } catch (_) {
-          // file already gone / Storage not enabled — still delete the record
-        }
-        await FirestoreService.documentDoc(docId).delete();
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Deleted "$title" successfully.'),
-            backgroundColor: const Color(0xFF059669),
-          ),
-        );
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to delete document: $e'),
-            backgroundColor: const Color(0xFFDC2626),
-          ),
-        );
-      }
-    }
-  }
-
-  // ── Upload Document Dialog (HR Admin / Manager) ─────────────────────────────
-  void _showUploadDialog() {
-    final titleCtrl = TextEditingController();
-    PlatformFile? pickedFile;
-    String selectedCat = 'Policy';
-    String selectedAccess = 'All Employees';
-    bool isSaving = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: const Text('Upload Document', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Document Name', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
-                  const SizedBox(height: 6),
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'e.g. Employee Handbook 2026',
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Category', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedCat,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'Policy', child: Text('Company Policy')),
-                      DropdownMenuItem(value: 'Template', child: Text('Template / Form')),
-                      DropdownMenuItem(value: 'Legal', child: Text('Legal / Compliance')),
-                      DropdownMenuItem(value: 'Handbook', child: Text('Employee Handbook')),
-                      DropdownMenuItem(value: 'Certificate', child: Text('Certificate')),
-                      DropdownMenuItem(value: 'Salary', child: Text('Salary Document')),
-                      DropdownMenuItem(value: 'Letters', child: Text('Letters / Notices')),
-                      DropdownMenuItem(value: 'Other', child: Text('Other')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setDialogState(() => selectedCat = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('Access Level', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
-                  const SizedBox(height: 6),
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedAccess,
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: const Color(0xFFF9FAFB),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'All Employees', child: Text('All Employees')),
-                      DropdownMenuItem(value: 'HR Only', child: Text('HR Only')),
-                      DropdownMenuItem(value: 'Admins Only', child: Text('Management / Admins Only')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) setDialogState(() => selectedAccess = val);
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  const Text('File', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF4B5563))),
-                  const SizedBox(height: 6),
-                  OutlinedButton.icon(
-                    onPressed: isSaving
-                        ? null
-                        : () async {
-                            final result = await FilePicker.platform.pickFiles(withData: true);
-                            if (result == null || result.files.isEmpty) return;
-                            final f = result.files.first;
-                            if (f.size > 15 * 1024 * 1024) {
-                              if (!mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('File is too large (maximum 15 MB).')),
-                              );
-                              return;
-                            }
-                            setDialogState(() {
-                              pickedFile = f;
-                              if (titleCtrl.text.trim().isEmpty) {
-                                titleCtrl.text = f.name.replaceAll(RegExp(r'\.[^.]+$'), '');
-                              }
-                            });
-                          },
-                    icon: const Icon(Icons.attach_file_rounded, size: 18),
-                    label: Text(
-                      pickedFile == null ? 'Choose file (max 15 MB)' : pickedFile!.name,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 46),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: isSaving ? null : () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Color(0xFF6B7280))),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4F46E5),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: isSaving
-                    ? null
-                    : () async {
-                        final title = titleCtrl.text.trim();
-                        if (title.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please enter a document name.')),
-                          );
-                          return;
-                        }
-
-                        final file = pickedFile;
-                        if (file == null || file.bytes == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Please choose a file to upload.')),
-                          );
-                          return;
-                        }
-
-                        setDialogState(() => isSaving = true);
-                        try {
-                          final docId = 'DOC_${DateTime.now().millisecondsSinceEpoch}';
-                          final uName = AppSession().userName ?? 'HR Admin';
-                          final nowStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                          final cid = FirestoreService.companyId;
-
-                          // 1. Upload the file to Firebase Storage (same path the web app uses)
-                          final storagePath = 'organizations/$cid/documents/$docId/${file.name}';
-                          final ref = FirebaseStorage.instance.ref(storagePath);
-                          try {
-                            await ref.putData(
-                              file.bytes!,
-                              SettableMetadata(contentType: _mimeForExtension(file.extension)),
-                            );
-                          } on FirebaseException catch (e) {
-                            throw (e.code == 'unauthorized' || e.code == 'unauthenticated')
-                                ? 'You do not have permission to upload files.'
-                                : 'File storage is not available yet. Ask your administrator to enable Firebase Storage. (${e.code})';
-                          }
-                          final downloadUrl = await ref.getDownloadURL();
-
-                          final bytes = file.size;
-                          final sizeStr = bytes >= 1024 * 1024
-                              ? '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB'
-                              : '${(bytes / 1024).round()} KB';
-
-                          // 2. Save the record exactly like the web Documents page
-                          await FirestoreService.documentsCol.doc(docId).set({
-                            'id': docId,
-                            'companyId': cid,
-                            'name': title,
-                            'category': selectedCat,
-                            'accessLevel': selectedAccess,
-                            'size': sizeStr,
-                            'updatedBy': uName,
-                            'updated': nowStr,
-                            'status': 'Published',
-                            'fileUrl': downloadUrl,
-                            'storagePath': storagePath,
-                            'fileName': file.name,
-                            'createdAt': DateTime.now().toIso8601String(),
-                          });
-
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Document "$title" published successfully.'),
-                              backgroundColor: const Color(0xFF059669),
-                            ),
-                          );
-                        } catch (e) {
-                          setDialogState(() => isSaving = false);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Error uploading document: $e'),
-                              backgroundColor: const Color(0xFFDC2626),
-                            ),
-                          );
-                        }
-                      },
-                child: isSaving
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Publish'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  String _mimeForExtension(String? ext) {
-    switch ((ext ?? '').toLowerCase()) {
-      case 'pdf':
-        return 'application/pdf';
-      case 'png':
-        return 'image/png';
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'doc':
-        return 'application/msword';
-      case 'docx':
-        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      case 'xls':
-        return 'application/vnd.ms-excel';
-      case 'xlsx':
-        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      case 'txt':
-        return 'text/plain';
-      default:
-        return 'application/octet-stream';
-    }
   }
 
   // ── Document Card Icon ──────────────────────────────────────────────────────
@@ -788,7 +466,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isManagerOrAdmin = AppSession().isHrAdmin || AppSession().isManagerOrAbove;
     final cid = AppSession().companyId;
 
     return Scaffold(
@@ -805,14 +482,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
           'Documents',
           style: TextStyle(color: Color(0xFF111827), fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        actions: [
-          if (isManagerOrAdmin)
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF4F46E5), size: 24),
-              tooltip: 'Upload Document',
-              onPressed: _showUploadDialog,
-            ),
-        ],
       ),
       body: cid == null || cid.isEmpty
           ? const Center(
@@ -985,21 +654,6 @@ class _EmployeeDocumentsScreenState extends State<EmployeeDocumentsScreen> {
                                       textAlign: TextAlign.center,
                                       style: TextStyle(fontSize: 13, color: Color(0xFF6B7280), height: 1.4),
                                     ),
-                                    if (isManagerOrAdmin) ...[
-                                      const SizedBox(height: 20),
-                                      ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(0xFF4F46E5),
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                          elevation: 0,
-                                        ),
-                                        onPressed: _showUploadDialog,
-                                        icon: const Icon(Icons.upload_file, size: 18),
-                                        label: const Text('Upload Document', style: TextStyle(fontWeight: FontWeight.w600)),
-                                      ),
-                                    ],
                                   ],
                                 ),
                               ),

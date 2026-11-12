@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/notification_service.dart';
+import 'package:attendance_app/widgets/user_avatar.dart';
 import 'package:attendance_app/screens/login_screen.dart';
 import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/screens/employee/documents_screen.dart';
@@ -60,9 +61,11 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
             final userName = data['name'] ?? AppSession().userName ?? 'User';
             final initials = userName.split(' ').take(2).map((e) => e.isNotEmpty ? e[0].toUpperCase() : '').join();
             
-            final roleDisplay = data['designation'] ?? AppSession().displayRole;
-            final department = data['department'] ?? 'Not provided';
-            final employeeId = data['employeeId'] ?? AppSession().uid?.substring(0, 8).toUpperCase() ?? 'Not provided';
+            final roleDisplay = (data['designation'] ?? data['roleLabel'] ?? AppSession().displayRole).toString();
+            final department = (data['dept'] ?? data['department'] ?? '').toString();
+            final rawId = (data['employeeId'] ?? data['id'] ?? '').toString();
+            final employeeId = rawId.contains('@') ? '' : rawId;
+            final photo = (data['profileImageUrl'] ?? '').toString();
 
             return Column(
               children: [
@@ -72,7 +75,7 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                     child: Column(
                       children: [
                         // Profile Header Card
-                        _buildProfileHeader(userName, initials, roleDisplay, department, employeeId),
+                        _buildProfileHeader(userName, photo, roleDisplay, department, employeeId),
                         const SizedBox(height: 16),
                         
                         // Menu Items
@@ -166,7 +169,7 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
 );
   }
 
-  Widget _buildProfileHeader(String name, String initials, String role, String department, String employeeId) {
+  Widget _buildProfileHeader(String name, String photo, String role, String department, String employeeId) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -187,22 +190,12 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
       child: Row(
         children: [
           Container(
-            width: 64,
-            height: 64,
+            padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.white.withOpacity(0.2),
-              border: Border.all(color: Colors.white.withOpacity(0.5), width: 1.5),
+              border: Border.all(color: Colors.white.withOpacity(0.6), width: 1.5),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            child: UserAvatar(name: name, imageData: photo, radius: 31, color: Colors.white.withOpacity(0.2)),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -219,7 +212,7 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '$role Â· $employeeId',
+                  employeeId.isEmpty ? role : '$role · $employeeId',
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 13,
@@ -227,13 +220,14 @@ class _UniversalMoreTabState extends State<UniversalMoreTab> {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  department,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 12,
+                if (department.isNotEmpty)
+                  Text(
+                    department,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 12,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

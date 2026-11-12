@@ -5,6 +5,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/features/settings/screens/manager/manager_notifications_screen.dart';
 import 'package:attendance_app/screens/employee/notifications_screen.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_prefs.dart';
 
 class NotificationAction extends StatelessWidget {
   final bool isManager;
@@ -117,12 +118,19 @@ class NotificationAction extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return const SizedBox.shrink();
 
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<NotificationPrefs>(
+      stream: NotificationPrefs.stream(user.email ?? ''),
+      builder: (context, prefsSnap) => StreamBuilder<QuerySnapshot>(
       stream: FirestoreService.userNotificationsCol(user.email ?? '')
           .where('isRead', isEqualTo: false)
           .snapshots(),
       builder: (context, snapshot) {
-        final count = snapshot.data?.docs.length ?? 0;
+        final prefs = prefsSnap.data ?? NotificationPrefs.defaults;
+        final count = (snapshot.data?.docs ?? const <QueryDocumentSnapshot>[])
+            .where((d) =>
+                !NotificationPrefs.isMetaDoc(d.id) &&
+                prefs.allows(((d.data() as Map<String, dynamic>)['type'] ?? '').toString()))
+            .length;
 
         return Stack(
           clipBehavior: Clip.none,
@@ -179,6 +187,7 @@ class NotificationAction extends StatelessWidget {
           ],
         );
       },
+      ),
     );
   }
 }

@@ -64,7 +64,9 @@ class OrgDepartmentsScreen extends StatelessWidget {
           }
 
           final docs = (snapshot.data?.docs ?? [])
-              .where((d) => FirestoreService.isDocInCurrentCompany(d))
+              .where((d) =>
+                  FirestoreService.isDocInCurrentCompany(d) &&
+                  FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
               .toList();
 
           final Map<String, List<Map<String, dynamic>>> deptMap = {};
@@ -72,9 +74,7 @@ class OrgDepartmentsScreen extends StatelessWidget {
           for (var doc in docs) {
             final data = doc.data() as Map<String, dynamic>;
             data['email'] = doc.id;
-            final dept = ((data['department'] as String?)?.trim().isNotEmpty ?? false)
-                ? (data['department'] as String).trim()
-                : 'General';
+            final dept = FirestoreService.deptOf(data);
 
             if (!deptMap.containsKey(dept)) {
               deptMap[dept] = [];

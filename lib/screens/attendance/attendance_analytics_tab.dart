@@ -10,7 +10,7 @@ import 'package:attendance_app/theme/app_theme.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 
-/// Analytics tab â€” Attendance Rate, metrics grid with period toggle.
+/// Analytics tab — Attendance Rate, metrics grid with period toggle.
 class AttendanceAnalyticsTab extends StatefulWidget {
   const AttendanceAnalyticsTab({super.key});
 
@@ -68,7 +68,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     );
   }
 
-  // â”€â”€â”€ Period Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Period Toggle ───────────────────────────────────────────────────
   Widget _buildPeriodToggle() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -104,7 +104,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     );
   }
 
-  // â”€â”€â”€ Main Rate Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Main Rate Card ──────────────────────────────────────────────────
   Widget _buildRateCard(_AnalyticsStats stats) {
     final periodLabel = _getPeriodLabel();
     final changeStr = stats.rateChange >= 0
@@ -134,7 +134,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Attendance Rate Â· $periodLabel',
+                    Text('Attendance Rate · $periodLabel',
                         style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
@@ -153,7 +153,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: changeColor.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text('$changeStr vs last period',
                           style: TextStyle(
@@ -172,7 +172,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -218,7 +218,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     );
   }
 
-  // â”€â”€â”€ Metrics Grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Metrics Grid ────────────────────────────────────────────────────
   Widget _buildMetricsGrid(_AnalyticsStats stats) {
     return Column(
       children: [
@@ -277,7 +277,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppTheme.divider.withOpacity(0.6)),
         ),
         child: Column(
@@ -318,13 +318,13 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     );
   }
 
-  // â”€â”€â”€ Monthly Summary Action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Monthly Summary Action ──────────────────────────────────────────
   Widget _buildMonthlySummaryAction() {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.divider.withOpacity(0.6)),
       ),
       child: InkWell(
@@ -375,7 +375,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     );
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Compute Stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ──────────────────────────────── Compute Stats ─────────────────────
   _AnalyticsStats _computeStats(List<QueryDocumentSnapshot> allDocs) {
     final now = DateTime.now();
     DateTime rangeStart;
@@ -493,7 +493,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
     String consistencyTrend;
     if (punctual >= 90) {
       consistency = 'High';
-      consistencyTrend = 'â†’Stable';
+      consistencyTrend = '→Stable';
     } else if (punctual >= 70) {
       consistency = 'Medium';
       consistencyTrend = '+1 level';
@@ -551,7 +551,7 @@ class _AttendanceAnalyticsTabState extends State<AttendanceAnalyticsTab> {
         final q = ((now.month - 1) ~/ 3) + 1;
         return 'Q$q ${now.year}';
       default:
-        return 'FY ${now.year - 1}â€“${now.year.toString().substring(2)}';
+        return 'FY ${now.year - 1}–${now.year.toString().substring(2)}';
     }
   }
 }

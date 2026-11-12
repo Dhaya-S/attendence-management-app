@@ -18,96 +18,96 @@ class DepartmentDetailScreen extends StatefulWidget {
 }
 
 class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
-  int _leaveUsedTotal = 0;
-  int _pendingApprovals = 0;
-  double _avgLeave = 0.0;
-  
+  // Everything below is computed live from Firestore (people, tasks, leave requests)
+  late final Stream<QuerySnapshot> _peopleStream = FirestoreService.employeesCol.snapshots();
+  late final Stream<QuerySnapshot> _tasksStream = FirestoreService.tasksCol.snapshots();
+  late final Stream<QuerySnapshot> _leaveStream = FirestoreService.leaveRequestsCol.snapshots();
+
   int _taskAssigned = 0;
   int _taskInProgress = 0;
   int _taskCompleted = 0;
   int _taskOverdue = 0;
+  int _leaveUsedTotal = 0;
+  int _pendingApprovals = 0;
+  double _avgLeave = 0.0;
+  Set<String> _onLeaveToday = {};
 
-  bool _isLoadingStats = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchStats();
+  List<Map<String, dynamic>> _membersFrom(QuerySnapshot? snap) {
+    final out = <Map<String, dynamic>>[];
+    for (final doc in snap?.docs ?? const <QueryDocumentSnapshot>[]) {
+      if (!FirestoreService.isDocInCurrentCompany(doc)) continue;
+      final data = Map<String, dynamic>.from(doc.data() as Map);
+      if (!FirestoreService.isActiveUserDoc(data)) continue;
+      if (FirestoreService.deptOf(data) != widget.departmentName) continue;
+      data['email'] = doc.id;
+      out.add(data);
+    }
+    out.sort((a, b) => (a['name'] ?? '').toString().compareTo((b['name'] ?? '').toString()));
+    return out;
   }
 
-  Future<void> _fetchStats() async {
-    int lUsed = 0;
-    int lPending = 0;
+  void _computeStats(List<Map<String, dynamic>> members, QuerySnapshot? tasks, QuerySnapshot? leaves) {
+    final emails = members.map((m) => (m['email'] ?? '').toString().toLowerCase()).toSet();
+    int tA = 0, tP = 0, tD = 0, tO = 0;
+    for (final doc in tasks?.docs ?? const <QueryDocumentSnapshot>[]) {
+      if (!FirestoreService.isDocInCurrentCompany(doc)) continue;
+      final d = doc.data() as Map<String, dynamic>;
+      final mine = members.any((m) => FirestoreService.taskAssignedTo(d, (m['email'] ?? '').toString(),
+          name: (m['name'] ?? '').toString(), uid: (m['uid'] ?? '').toString()));
+      if (!mine) continue;
+      switch (FirestoreService.taskBucket(d)) {
+        case 'Assigned':
+          tA++;
+          break;
+        case 'In Progress':
+          tP++;
+          break;
+        case 'Completed':
+          tD++;
+          break;
+        case 'Overdue':
+          tO++;
+          break;
+      }
+    }
 
-    int tAssigned = 0;
-    int tActive = 0;
-    int tDone = 0;
-    int tOverdue = 0;
-
-    final emails = widget.members.map((m) => m['email'] as String).toList();
-
-    // Fetch Tasks for the company and filter by members
-    try {
-      final tasksSnap = await FirestoreService.tasksCol.get();
-      for (var doc in tasksSnap.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final assignedTo = data['assignedTo'] as String?;
-        if (assignedTo != null && emails.contains(assignedTo)) {
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          if (status == 'assigned') tAssigned++;
-          else if (status == 'in progress') tActive++;
-          else if (status == 'completed') tDone++;
-          else if (status == 'overdue') tOverdue++;
+    int used = 0, pending = 0;
+    final onLeave = <String>{};
+    final today = DateTime.now();
+    final t0 = DateTime(today.year, today.month, today.day);
+    for (final doc in leaves?.docs ?? const <QueryDocumentSnapshot>[]) {
+      final d = doc.data() as Map<String, dynamic>;
+      final who = FirestoreService.requesterEmail(d);
+      if (!emails.contains(who)) continue;
+      final from = FirestoreService.parseAnyDate(d['fromDate'] ?? d['from']);
+      final to = FirestoreService.parseAnyDate(d['toDate'] ?? d['to']) ?? from;
+      if (FirestoreService.statusIs(d['status'], 'pending')) {
+        pending++;
+      } else if (FirestoreService.statusIs(d['status'], 'approved')) {
+        if (from != null && from.year == today.year) {
+          final raw = d['days'] ?? d['durationInDays'];
+          final n = raw is num
+              ? raw.toInt()
+              : int.tryParse((raw ?? '').toString().replaceAll(RegExp(r'[^0-9]'), '')) ??
+                  ((to ?? from).difference(from).inDays + 1);
+          used += n;
+        }
+        if (from != null && to != null) {
+          final f0 = DateTime(from.year, from.month, from.day);
+          final e0 = DateTime(to.year, to.month, to.day);
+          if (!t0.isBefore(f0) && !t0.isAfter(e0)) onLeave.add(who);
         }
       }
-    } catch (e) {
-      debugPrint("Error fetching tasks for department: $e");
     }
 
-    // Fetch Leaves per member
-    try {
-      for (String email in emails) {
-        final leavesSnap = await FirestoreService.userLeaveRequestsCol(email).get();
-        for (var doc in leavesSnap.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          
-          if (status == 'pending') {
-            lPending++;
-          } else if (status == 'approved') {
-            final startTs = data['startDate'] as Timestamp?;
-            final endTs = data['endDate'] as Timestamp?;
-            if (startTs != null && endTs != null) {
-              DateTime current = startTs.toDate();
-              final end = endTs.toDate();
-              int days = 0;
-              while (current.isBefore(end.add(const Duration(days: 1)))) {
-                days++;
-                current = current.add(const Duration(days: 1));
-              }
-              lUsed += days;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint("Error fetching leaves for department: $e");
-    }
-
-    if (mounted) {
-      setState(() {
-        _leaveUsedTotal = lUsed;
-        _pendingApprovals = lPending;
-        _avgLeave = emails.isEmpty ? 0 : lUsed / emails.length;
-
-        _taskAssigned = tAssigned;
-        _taskInProgress = tActive;
-        _taskCompleted = tDone;
-        _taskOverdue = tOverdue;
-        
-        _isLoadingStats = false;
-      });
-    }
+    _taskAssigned = tA;
+    _taskInProgress = tP;
+    _taskCompleted = tD;
+    _taskOverdue = tO;
+    _leaveUsedTotal = used;
+    _pendingApprovals = pending;
+    _avgLeave = emails.isEmpty ? 0 : used / emails.length;
+    _onLeaveToday = onLeave;
   }
 
   String _getInitials(String name) {
@@ -132,18 +132,6 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    int activeCount = 0;
-    int leaveCount = 0;
-
-    for (var m in widget.members) {
-      final status = (m['status'] ?? 'active').toString().toLowerCase();
-      if (status == 'on leave') {
-        leaveCount++;
-      } else if (status == 'active') {
-        activeCount++;
-      }
-    }
-
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
@@ -159,22 +147,47 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
         ),
         centerTitle: false,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildMetricRow(widget.members.length, leaveCount, activeCount),
-            const SizedBox(height: 24),
-            const Text('Team Members', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
-            const SizedBox(height: 12),
-            ...widget.members.map((m) => _buildMemberCard(context, m)).toList(),
-            const SizedBox(height: 24),
-            _buildLeaveStatusCard(),
-            const SizedBox(height: 24),
-            _buildTaskStatusCard(),
-            const SizedBox(height: 24),
-          ],
+      body: StreamBuilder<QuerySnapshot>(
+        stream: _peopleStream,
+        builder: (context, peopleSnap) => StreamBuilder<QuerySnapshot>(
+          stream: _tasksStream,
+          builder: (context, taskSnap) => StreamBuilder<QuerySnapshot>(
+            stream: _leaveStream,
+            builder: (context, leaveSnap) {
+              if (!peopleSnap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final members = _membersFrom(peopleSnap.data);
+              _computeStats(members, taskSnap.data, leaveSnap.data);
+              final leaveCount =
+                  members.where((m) => _onLeaveToday.contains((m['email'] ?? '').toString().toLowerCase())).length;
+              final activeCount = members.length - leaveCount;
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildMetricRow(members.length, leaveCount, activeCount),
+                    const SizedBox(height: 24),
+                    const Text('Team Members', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                    const SizedBox(height: 12),
+                    if (members.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Text('No active members in this department.', style: TextStyle(color: Color(0xFF6B7280))),
+                      ),
+                    ...members.map((m) => _buildMemberCard(context, m)),
+                    const SizedBox(height: 24),
+                    _buildLeaveStatusCard(),
+                    const SizedBox(height: 24),
+                    _buildTaskStatusCard(),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -219,9 +232,9 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
 
   Widget _buildMemberCard(BuildContext context, Map<String, dynamic> m) {
     final name = m['name'] ?? 'Unknown';
-    final role = m['role'] ?? 'Employee';
-    final dbStatus = (m['status'] ?? 'active').toString().toLowerCase();
+    final role = (m['designation'] ?? m['role'] ?? 'Employee').toString();
     final email = m['email'] ?? '';
+    final dbStatus = _onLeaveToday.contains(email.toString().toLowerCase()) ? 'on leave' : 'active';
     
     String statusLabel = 'Active';
     if (dbStatus == 'on leave') statusLabel = 'On Leave';
@@ -327,11 +340,11 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
         children: [
           const Text('LEAVE STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF6B7280), letterSpacing: 0.5)),
           const SizedBox(height: 20),
-          _buildInfoRow('Annual Leave Used', '$_leaveUsedTotal days total', isLoading: _isLoadingStats),
+          _buildInfoRow('Leave Used This Year', '$_leaveUsedTotal days total'),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildInfoRow('Pending Approvals', '$_pendingApprovals', isLoading: _isLoadingStats),
+          _buildInfoRow('Pending Approvals', '$_pendingApprovals'),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildInfoRow('Avg per Person', '${_avgLeave.toStringAsFixed(1)} days', isLoading: _isLoadingStats),
+          _buildInfoRow('Avg per Person', '${_avgLeave.toStringAsFixed(1)} days'),
         ],
       ),
     );
@@ -357,13 +370,13 @@ class _DepartmentDetailScreenState extends State<DepartmentDetailScreen> {
         children: [
           const Text('TASK STATUS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF6B7280), letterSpacing: 0.5)),
           const SizedBox(height: 20),
-          _buildInfoRow('Assigned', '$_taskAssigned', isLoading: _isLoadingStats),
+          _buildInfoRow('Assigned', '$_taskAssigned'),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildInfoRow('In Progress', '$_taskInProgress', isLoading: _isLoadingStats),
+          _buildInfoRow('In Progress', '$_taskInProgress'),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildInfoRow('Completed', '$_taskCompleted', isLoading: _isLoadingStats),
+          _buildInfoRow('Completed', '$_taskCompleted'),
           const Divider(height: 32, color: Color(0xFFF3F4F6)),
-          _buildInfoRow('Overdue', '$_taskOverdue', isLoading: _isLoadingStats),
+          _buildInfoRow('Overdue', '$_taskOverdue'),
         ],
       ),
     );

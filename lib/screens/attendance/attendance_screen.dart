@@ -6,7 +6,7 @@ import 'attendance_summary_tab.dart';
 import 'attendance_requests_tab.dart';
 import 'attendance_analytics_tab.dart';
 
-/// Universal Attendance Screen â€” shared across Employee, Manager, and Admin.
+/// Universal Attendance Screen — shared across Employee, Manager, and Admin.
 ///
 /// The screen adapts its data and interactions based on [AppSession().role].
 /// It shows four top-level tabs: Overview, Summary, Requests, and Analytics.
@@ -40,32 +40,48 @@ class _AttendanceScreenState extends State<AttendanceScreen>
       body: SafeArea(
         child: Column(
           children: [
-            // â”€â”€â”€ Tab Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ─── Tab Bar ─────────────────────────────────────────────
             Container(
               color: Colors.white,
-              child: TabBar(
-                controller: _tabController,
-                labelColor: AppTheme.primary,
-                unselectedLabelColor: AppTheme.textMuted,
-                indicatorColor: AppTheme.primary,
-                indicatorWeight: 2.5,
-                isScrollable: false,
-                labelStyle: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
-                unselectedLabelStyle: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w500),
-                dividerColor: Colors.transparent,
-                tabs: const [
-                  Tab(text: 'Overview'),
-                  Tab(text: 'Summary'),
-                  Tab(text: 'Requests'),
-                  Tab(text: 'Analytics'),
-                ],
+              height: 60,
+              child: AnimatedBuilder(
+                animation: _tabController.animation!,
+                builder: (context, _) {
+                  final current = _tabController.animation!.value.round();
+                  const labels = ['Overview', 'Summary', 'Requests', 'Analytics'];
+                  return ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    itemCount: labels.length,
+                    itemBuilder: (context, i) {
+                      final active = current == i;
+                      return GestureDetector(
+                        onTap: () => _tabController.animateTo(i),
+                        child: Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: active ? const Color(0xFF5C5CFF) : const Color(0xFFF3F4F6),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            labels[i],
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                              color: active ? Colors.white : const Color(0xFF6B7280),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFE5E7EB)),
 
-            // â”€â”€â”€ Tab Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ─── Tab Content ─────────────────────────────────────────
             Expanded(
               child: TabBarView(
                 controller: _tabController,

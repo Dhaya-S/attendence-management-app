@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/notification_prefs.dart';
 import 'package:attendance_app/utils/onesignal_helper.dart';
 
 class NotificationHelper {
@@ -31,6 +32,9 @@ class NotificationHelper {
       }
 
       // 2. Trigger OneSignal Push Notification for background delivery
+      // (skipped when the recipient switched this kind of notification off)
+      final prefs = await NotificationPrefs.load(employeeEmail);
+      if (!prefs.allows(type)) return;
       try {
         await OneSignalHelper.sendPushNotification(
           playerEmail: employeeEmail,

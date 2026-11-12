@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
+import 'package:attendance_app/utils/notification_prefs.dart';
 
 import 'package:attendance_app/screens/employee/attendance_history_screen.dart';
 import 'package:attendance_app/screens/employee/leave_tab.dart';
@@ -42,10 +43,11 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
     if (user == null) return;
     try {
       final allDocs = await FirestoreService.userNotificationsCol(user.email ?? '').get();
-      if (allDocs.docs.isNotEmpty) {
+      final real = allDocs.docs.where((d) => !NotificationPrefs.isMetaDoc(d.id)).toList();
+      if (real.isNotEmpty) {
         final batch = FirebaseFirestore.instance.batch();
-        for (var doc in allDocs.docs) {
-          batch.delete(doc.reference);
+        for (var doc in real) {
+          batch.delete(doc.reference); // never delete the notification settings
         }
         await batch.commit();
       }
@@ -136,13 +138,20 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
           ),
           // List
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirestoreService.userNotificationsCol(user?.email ?? '').limit(50).snapshots(),
+            child: StreamBuilder<NotificationPrefs>(
+              stream: NotificationPrefs.stream(user?.email ?? ''),
+              builder: (context, prefsSnap) => StreamBuilder<QuerySnapshot>(
+              stream: FirestoreService.userNotificationsCol(user?.email ?? '').limit(80).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}'));
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator(color: Color(0xFF4F46E5)));
-                
-                var docs = snapshot.data!.docs.toList();
+
+                final prefs = prefsSnap.data ?? NotificationPrefs.defaults;
+                var docs = snapshot.data!.docs
+                    .where((d) =>
+                        !NotificationPrefs.isMetaDoc(d.id) &&
+                        prefs.allows(((d.data() as Map<String, dynamic>)['type'] ?? '').toString()))
+                    .toList();
                 
                 // Filter
                 if (_selectedFilter != 'All') {
@@ -194,6 +203,7 @@ class _EmployeeNotificationsScreenState extends State<EmployeeNotificationsScree
                   },
                 );
               },
+            ),
             ),
           ),
         ],

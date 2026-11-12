@@ -9,7 +9,7 @@ import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/screens/attendance/attendance_request_detail_screen.dart';
 import 'package:attendance_app/screens/attendance/attendance_correction_form_screen.dart';
 
-/// Requests tab â€” Shows attendance correction / WFH requests with status badges.
+/// Requests tab — Shows attendance correction / WFH requests with status badges.
 /// For employees: shows their own requests.
 /// For managers/admins: shows all pending requests they need to act on +
 /// their own requests.
@@ -187,7 +187,7 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
     );
   }
 
-  // â”€â”€â”€ Request Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Request Card ────────────────────────────────────────────────────
   Widget _requestCard(_RequestItem req) {
     final statusInfo = _getStatusInfo(req.status);
 
@@ -195,7 +195,7 @@ class _AttendanceRequestsTabState extends State<AttendanceRequestsTab> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppTheme.divider.withOpacity(0.6)),
       ),
       child: Column(

@@ -11,13 +11,13 @@ class LocationService {
   factory LocationService() => _instance;
   LocationService._internal();
 
-  /// Dynamic office latitude â€” reads from AppSession.
+  /// Dynamic office latitude — reads from AppSession.
   static double? get officeLat => AppSession().officeLat;
 
-  /// Dynamic office longitude â€” reads from AppSession.
+  /// Dynamic office longitude — reads from AppSession.
   static double? get officeLng => AppSession().officeLng;
 
-  /// Dynamic allowed radius in metres â€” reads from AppSession, falls back to constant.
+  /// Dynamic allowed radius in metres — reads from AppSession, falls back to constant.
   static double get allowedRadius =>
       AppSession().allowedRadius;
 
@@ -35,7 +35,7 @@ class LocationService {
         }
       }
     } catch (e) {
-      print("âš ï¸ Static getAddress failed: $e");
+      print("⚠️ Static getAddress failed: $e");
     }
     return null;
   }
@@ -76,7 +76,7 @@ class LocationService {
       }
     }
 
-    print("ðŸ“ Initializing Location Service...");
+    print("📍 Initializing Location Service...");
     _isInitialized = true; // Mark as initialized to prevent concurrent calls
 
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -102,7 +102,7 @@ class LocationService {
     }
 
     _isInitialized = true;
-    print("âœ… Location Service Initialized");
+    print("✅ Location Service Initialized");
   }
 
   // No changes needed here, just context for previous replace
@@ -126,7 +126,7 @@ class LocationService {
     if (_isFetching) {
       if (forceRefresh) {
         // Wait for ongoing fetch to complete, then retry
-        print("â³ Refresh requested but fetch in progress. Waiting...");
+        print("⏳ Refresh requested but fetch in progress. Waiting...");
         await Future.delayed(const Duration(milliseconds: 500));
         return getLocation(forceRefresh: true); // Retry
       } else {
@@ -202,7 +202,7 @@ class LocationService {
       // Strategy: Try last known position first (instant, no timeout), then current position
       Position? position;
 
-      // 1ï¸âƒ£ Try to get last known position first (much faster)
+      // 1️⃣ Try to get last known position first (much faster)
       // BUT: Only use if it's recent (< 30 seconds old) AND accurate enough
       if (!kIsWeb) {
         try {
@@ -215,33 +215,33 @@ class LocationService {
 
             if (isRecent && isAccurate) {
               print(
-                  "ðŸ“ Using fresh+accurate last known position (${difference.inSeconds}s old, Â±${lastKnown.accuracy.toInt()}m)");
+                  "📍 Using fresh+accurate last known position (${difference.inSeconds}s old, ±${lastKnown.accuracy.toInt()}m)");
               position = lastKnown;
             } else {
               print(
-                  "âš ï¸ Last known position rejected: age=${difference.inSeconds}s, accuracy=Â±${lastKnown.accuracy.toInt()}m (threshold: ${_maxAcceptableAccuracy.toInt()}m). Fetching fresh.");
+                  "⚠️ Last known position rejected: age=${difference.inSeconds}s, accuracy=±${lastKnown.accuracy.toInt()}m (threshold: ${_maxAcceptableAccuracy.toInt()}m). Fetching fresh.");
             }
           }
         } catch (e) {
-          print("âš ï¸ No last known position available: $e");
+          print("⚠️ No last known position available: $e");
         }
       }
 
-      // 2ï¸âƒ£ If no accurate last known position, fetch current position
+      // 2️⃣ If no accurate last known position, fetch current position
       if (position == null) {
         try {
-          print("ðŸ“ Fetching current position with HIGH accuracy...");
+          print("📍 Fetching current position with HIGH accuracy...");
           position = await Geolocator.getCurrentPosition(
             desiredAccuracy: LocationAccuracy.high,
             timeLimit: _locationTimeout,
           );
           print(
-              "âœ… Got current position: ${position.latitude}, ${position.longitude} Â±${position.accuracy.toInt()}m");
+              "✅ Got current position: ${position.latitude}, ${position.longitude} ±${position.accuracy.toInt()}m");
 
-          // 3ï¸âƒ£ If accuracy is poor, wait briefly to get a better GPS fix
+          // 3️⃣ If accuracy is poor, wait briefly to get a better GPS fix
           if (position.accuracy > _maxAcceptableAccuracy) {
             print(
-                "âš ï¸ Accuracy poor (Â±${position.accuracy.toInt()}m). Waiting for a better fix...");
+                "⚠️ Accuracy poor (±${position.accuracy.toInt()}m). Waiting for a better fix...");
             await Future.delayed(const Duration(seconds: 3));
             try {
               final betterPosition = await Geolocator.getCurrentPosition(
@@ -250,29 +250,29 @@ class LocationService {
               );
               if (betterPosition.accuracy < position.accuracy) {
                 print(
-                    "âœ… Got a better position: Â±${betterPosition.accuracy.toInt()}m (was Â±${position.accuracy.toInt()}m)");
+                    "✅ Got a better position: ±${betterPosition.accuracy.toInt()}m (was ±${position.accuracy.toInt()}m)");
                 position = betterPosition;
               }
             } catch (_) {
-              print("âš ï¸ Second attempt failed. Using first position.");
+              print("⚠️ Second attempt failed. Using first position.");
             }
           }
         } catch (e) {
-          print("âŒ Current position failed: $e");
+          print("❌ Current position failed: $e");
 
-          // 4ï¸âƒ£ If timeout, try one more time with MEDIUM accuracy
+          // 4️⃣ If timeout, try one more time with MEDIUM accuracy
           if (e.toString().toLowerCase().contains("timeout")) {
             print(
-                "ðŸ“ Timeout on high accuracy. Retrying with MEDIUM accuracy...");
+                "📍 Timeout on high accuracy. Retrying with MEDIUM accuracy...");
             try {
               position = await Geolocator.getCurrentPosition(
                 desiredAccuracy: LocationAccuracy.medium,
                 timeLimit: const Duration(seconds: 10),
               );
               print(
-                  "âœ… Got position on retry: ${position.latitude}, ${position.longitude} Â±${position.accuracy.toInt()}m");
+                  "✅ Got position on retry: ${position.latitude}, ${position.longitude} ±${position.accuracy.toInt()}m");
             } catch (retryError) {
-              print("âŒ Retry also failed: $retryError");
+              print("❌ Retry also failed: $retryError");
               throw e;
             }
           } else {
@@ -313,7 +313,7 @@ class LocationService {
           }
         }
       } catch (e) {
-        print("âš ï¸ Address fetch failed: $e");
+        print("⚠️ Address fetch failed: $e");
       }
 
       // Update cache
@@ -325,7 +325,7 @@ class LocationService {
               ? "~GPS"
               : "Low Accuracy";
       _cachedDistanceInfo = hasOfficeLoc
-          ? "${distance.toInt()}m from Office ($accuracyLabel Â±${position.accuracy.toInt()}m)"
+          ? "${distance.toInt()}m from Office ($accuracyLabel ±${position.accuracy.toInt()}m)"
           : "Office Location Not Set";
       _cachedAddress = address;
 
@@ -342,11 +342,11 @@ class LocationService {
 
       return result;
     } catch (e) {
-      print("âŒ Location error: $e");
+      print("❌ Location error: $e");
 
-      // 4ï¸âƒ£ Best Effort Fallback: If we have ANY cached position, use it even if expired
+      // 4️⃣ Best Effort Fallback: If we have ANY cached position, use it even if expired
       if (_cachedPosition != null) {
-        print("âš ï¸ Fetch failed, using expired cache as best-effort fallback.");
+        print("⚠️ Fetch failed, using expired cache as best-effort fallback.");
         final fallback = LocationData(
           position: _cachedPosition,
           distanceInfo: "${_cachedDistanceInfo} (Old)",
@@ -411,7 +411,7 @@ class LocationService {
     }
 
     _isTracking = true;
-    print("ðŸ“ Starting realtime location tracking...");
+    print("📍 Starting realtime location tracking...");
 
     // Setup fast, high-performance realtime tracking settings
     late final LocationSettings locationSettings;
@@ -447,12 +447,12 @@ class LocationService {
               .listen((Position position) {
         _handlePositionUpdate(position);
       }, onError: (e) {
-        print("âŒ Realtime tracking error: $e");
+        print("❌ Realtime tracking error: $e");
         _emitError("Location error", e.toString());
         _isTracking = false;
       });
     } catch (e) {
-      print("âŒ Failed to start location stream: $e");
+      print("❌ Failed to start location stream: $e");
       _emitError("Failed to start tracking", e.toString());
       _isTracking = false;
     }
@@ -473,7 +473,7 @@ class LocationService {
     _isTracking = false;
     _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
-    print("ðŸ“ Stopped realtime location tracking");
+    print("📍 Stopped realtime location tracking");
   }
 
   /// Handle incoming position updates
@@ -516,7 +516,7 @@ class LocationService {
           _lastAddressFetchTime = DateTime.now();
         }
       } catch (e) {
-        print("âš ï¸ Realtime address fetch failed: $e");
+        print("⚠️ Realtime address fetch failed: $e");
       }
     }
 
@@ -556,7 +556,7 @@ class LocationService {
 
       return distance <= allowedRadius;
     } catch (e) {
-      print("âš ï¸ Office location check failed: $e");
+      print("⚠️ Office location check failed: $e");
       return false;
     }
   }

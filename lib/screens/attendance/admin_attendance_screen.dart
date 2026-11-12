@@ -351,47 +351,37 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
   }
 
   Widget _buildSubTabBar() {
-    final tabs = ['Overview', 'Exceptions', 'Analytics'];
+    const tabs = ['Overview', 'Exceptions', 'Analytics'];
     return Container(
       color: Colors.white,
-      child: Row(
-        children: tabs.asMap().entries.map((e) {
-          final i = e.key;
-          final label = e.value;
+      height: 60,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        itemCount: tabs.length,
+        itemBuilder: (context, i) {
           final isActive = _subTab == i;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _subTab = i),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: isActive
-                          ? AppTheme.primary
-                          : Colors.transparent,
-                      width: 2.5,
-                    ),
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isActive
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: isActive
-                          ? AppTheme.primary
-                          : const Color(0xFF9CA3AF),
-                    ),
-                  ),
+          return GestureDetector(
+            onTap: () => setState(() => _subTab = i),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isActive ? const Color(0xFF5C5CFF) : const Color(0xFFF3F4F6),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                tabs[i],
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                  color: isActive ? Colors.white : const Color(0xFF6B7280),
                 ),
               ),
             ),
           );
-        }).toList(),
+        },
       ),
     );
   }
@@ -523,7 +513,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
         SliverToBoxAdapter(
           child: Container(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            padding: const EdgeInsets.fromLTRB(13, 4, 13, 14),
             child: _buildStatsRow(stats),
           ),
         ),
@@ -598,7 +588,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [
@@ -633,7 +623,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: isActive ? AppTheme.primary : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(20),
@@ -654,7 +644,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: TextField(
@@ -667,7 +657,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
               Icon(Icons.search, color: Color(0xFF9CA3AF), size: 20),
           border: InputBorder.none,
           contentPadding:
-              EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
       ),
     );
@@ -761,7 +751,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: const Color(0xFFF3F4F6)),
         ),
         child: Row(
@@ -1056,8 +1046,8 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
       if (att == null) return false;
       final status = (att['status'] ?? att['attendanceStatus'] ?? '').toString().toLowerCase();
       if (status.contains('late')) return true;
-      final checkIn = att['checkIn'] as Timestamp?;
-      if (checkIn != null) return checkIn.toDate().isAfter(lateThreshold);
+      final checkIn = att['checkIn'];
+      if (checkIn is Timestamp) return checkIn.toDate().isAfter(lateThreshold);
       return false;
     }).toList();
 
@@ -1087,7 +1077,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
     }
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(top: 16),
       children: [
         if (lateList.isNotEmpty) ...[
           _sectionLabel('LATE ARRIVALS · ${lateList.length}'),
@@ -1108,13 +1098,16 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
   }
 
   Widget _sectionLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        color: Color(0xFF9CA3AF),
-        letterSpacing: 0.5,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF9CA3AF),
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }
@@ -1175,7 +1168,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFF3F4F6)),
       ),
       child: Column(
@@ -1241,7 +1234,7 @@ class _TeamAttendanceTabState extends State<_TeamAttendanceTab> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFF3F4F6)),
       ),
       child: Column(

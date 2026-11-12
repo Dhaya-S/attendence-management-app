@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -521,6 +522,23 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
     _leaveStream = FirestoreService.leaveRequestsCol.snapshots();
     _typesStream = FirestoreService.companyDoc().collection('leave_types').snapshots();
     _orgStream = FirestoreService.companyDoc().snapshots();
+    _joinSub = FirestoreService.userStreamByEmail(
+            FirebaseAuth.instance.currentUser?.email ?? widget.userEmail)
+        .listen((d) {
+      final u = d.data();
+      final j = FirestoreService.parseAnyDate(
+          u?['joinDate'] ?? u?['joiningDate'] ?? u?['createdAt'] ?? u?['joinedAt']);
+      if (mounted && j != _joinDate) setState(() => _joinDate = j);
+    }, onError: (_) {});
+  }
+
+  DateTime? _joinDate;
+  StreamSubscription? _joinSub;
+
+  @override
+  void dispose() {
+    _joinSub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -566,8 +584,6 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
                     const SizedBox(height: 12),
                     _buildHistoryFilterTabs(),
                     const SizedBox(height: 16),
-                    _buildDateFilters(),
-                    const SizedBox(height: 16),
                   ],
                 ),
               ),
@@ -584,16 +600,19 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
   Widget _buildOverviewAndApplySection(List<QueryDocumentSnapshot> docs) {
     // Same numbers as the Overview of the employee Leave tab: approved + pending days,
     // against the organization's live leave policy.
-    final usage = FirestoreService.leaveUsage(docs.map((d) => d.data() as Map<String, dynamic>));
-    final usedTotal = usage[0] + usage[1] + usage[2];
 
     return StreamBuilder<QuerySnapshot>(
       stream: _typesStream,
       builder: (context, typesSnap) => StreamBuilder<DocumentSnapshot>(
         stream: _orgStream,
         builder: (context, orgSnap) {
-          final limits = FirestoreService.leaveLimits(
-              typesSnap.data, orgSnap.data?.data() as Map<String, dynamic>?);
+          final bal = FirestoreService.leaveBalance(
+              typesSnap.data,
+              orgSnap.data?.data() as Map<String, dynamic>?,
+              docs.map((d) => d.data() as Map<String, dynamic>),
+              _joinDate);
+          final usage = bal.used;
+          final usedTotal = bal.usedAll;
           return Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -638,11 +657,11 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
                 // Balance chips row
                 Row(
                   children: [
-                    _leaveBalanceTile('Annual', usage[0], limits[0], const Color(0xFF5C5CFF), const Color(0xFFEEF2FF)),
+                    _leaveBalanceTile('Annual', usage[0], bal.total(0), const Color(0xFF5C5CFF), const Color(0xFFEEF2FF), carried: bal.carried[0]),
                     const SizedBox(width: 8),
-                    _leaveBalanceTile('Sick', usage[1], limits[1], const Color(0xFF1F2937), const Color(0xFFF3F4F6)),
+                    _leaveBalanceTile('Sick', usage[1], bal.total(1), const Color(0xFF1F2937), const Color(0xFFF3F4F6), carried: bal.carried[1]),
                     const SizedBox(width: 8),
-                    _leaveBalanceTile('Casual', usage[2], limits[2], const Color(0xFFD946EF), const Color(0xFFFDF4FF)),
+                    _leaveBalanceTile('Casual', usage[2], bal.total(2), const Color(0xFFD946EF), const Color(0xFFFDF4FF), carried: bal.carried[2]),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -656,7 +675,7 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
   }
 
   Widget _leaveBalanceTile(
-      String label, int used, int total, Color color, Color bgColor) {
+      String label, int used, int total, Color color, Color bgColor, {int carried = 0}) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
@@ -686,7 +705,7 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
             ),
             const SizedBox(height: 2),
             Text(
-              'of $total',
+              carried > 0 ? 'of $total (+$carried c/f)' : 'of $total',
               style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 12),
@@ -795,34 +814,7 @@ class _MySpaceLeaveTabState extends State<_MySpaceLeaveTab> {
     );
   }
 
-  // ── Date Filters ──────────────────────────────────────────
-  Widget _buildDateFilters() {
-    return Row(
-      children: [
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+
 
   // ── History List ─────────────────────────────────────────
   Widget _buildHistoryList(List<QueryDocumentSnapshot> allDocs) {

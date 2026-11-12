@@ -51,7 +51,9 @@ class TeamDepartmentsView extends StatelessWidget {
           }
 
           final docs = (snapshot.data?.docs ?? [])
-              .where((d) => FirestoreService.isDocInCurrentCompany(d))
+              .where((d) =>
+                  FirestoreService.isDocInCurrentCompany(d) &&
+                  FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
               .toList();
           
           if (docs.isEmpty) {
@@ -62,7 +64,7 @@ class TeamDepartmentsView extends StatelessWidget {
           for (var doc in docs) {
             final data = doc.data() as Map<String, dynamic>;
             data['email'] = doc.id; // inject email
-            final dept = data['department'] ?? 'Unknown';
+            final dept = FirestoreService.deptOf(data);
             if (!deptMap.containsKey(dept)) {
               deptMap[dept] = [];
             }
@@ -123,7 +125,7 @@ class TeamDepartmentsView extends StatelessWidget {
                         children: [
                           Text(dept, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                           const SizedBox(height: 4),
-                          Text('${members.length} member${members.length > 1 ? 's' : ''}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
+                          Text('${members.length} member${members.length == 1 ? '' : 's'}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
                         ],
                       ),
                     ),

@@ -110,23 +110,22 @@ class _EmployeeTasksDetailScreenState extends State<EmployeeTasksDetailScreen> {
 
   Widget _buildBody() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.tasksCol.where('assignedTo', isEqualTo: widget.employeeEmail).snapshots(),
+      stream: FirestoreService.tasksCol.snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final docs = snapshot.data?.docs ?? [];
-        
-        final filteredDocs = docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          
-          String uiStatus = 'Assigned';
-          if (status == 'in progress') uiStatus = 'In Progress';
-          if (status == 'completed') uiStatus = 'Completed';
-          if (status == 'overdue') uiStatus = 'Overdue';
+        final docs = (snapshot.data?.docs ?? [])
+            .where((doc) =>
+                FirestoreService.isDocInCurrentCompany(doc) &&
+                FirestoreService.taskAssignedTo(doc.data() as Map<String, dynamic>, widget.employeeEmail,
+                    name: widget.employeeName) &&
+                FirestoreService.taskBucket(doc.data() as Map<String, dynamic>) != 'Archived')
+            .toList();
 
+        final filteredDocs = docs.where((doc) {
+          final uiStatus = FirestoreService.taskBucket(doc.data() as Map<String, dynamic>);
           return _selectedStatus == 'All' || uiStatus == _selectedStatus;
         }).toList();
 
@@ -142,8 +141,8 @@ class _EmployeeTasksDetailScreenState extends State<EmployeeTasksDetailScreen> {
             return 3;
           }
           
-          int ra = _getRank((ad['status'] ?? '').toString().toLowerCase());
-          int rb = _getRank((bd['status'] ?? '').toString().toLowerCase());
+          int ra = _getRank(FirestoreService.taskBucket(ad).toLowerCase());
+          int rb = _getRank(FirestoreService.taskBucket(bd).toLowerCase());
           
           if (ra != rb) return ra.compareTo(rb);
           
@@ -232,7 +231,7 @@ class _EmployeeTasksDetailScreenState extends State<EmployeeTasksDetailScreen> {
               children: [
                 Text(widget.employeeName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
                 const SizedBox(height: 4),
-                Text('${widget.employeeRole} Â· ${widget.employeeDepartment}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
+                Text('${widget.employeeRole} · ${widget.employeeDepartment}', style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
               ],
             ),
           ),
@@ -273,12 +272,7 @@ class _EmployeeTasksDetailScreenState extends State<EmployeeTasksDetailScreen> {
     final title = data['title'] ?? 'Untitled Task';
     final dt = _parseDateTime(data['dueDate'] ?? data['due']);
     final dateStr = dt != null ? DateFormat('MMM d').format(dt) : (data['due']?.toString() ?? 'No date');
-    final dbStatus = (data['status'] ?? 'assigned').toString().toLowerCase();
-    
-    String statusLabel = 'Assigned';
-    if (dbStatus == 'in progress') statusLabel = 'In Progress';
-    if (dbStatus == 'completed') statusLabel = 'Completed';
-    if (dbStatus == 'overdue') statusLabel = 'Overdue';
+    final statusLabel = FirestoreService.taskBucket(data);
 
     Color bgColor;
     Color textColor;

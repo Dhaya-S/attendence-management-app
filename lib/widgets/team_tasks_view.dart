@@ -19,7 +19,7 @@ class _TeamTasksViewState extends State<TeamTasksView> {
   String _selectedDepartment = 'All';
   String _selectedStatus = 'All';
 
-  final List<String> _departments = ['All', 'Engineering', 'Design', 'Marketing', 'Sales', 'HR', 'Finance', 'Operations'];
+  List<String> _departments = ['All']; // filled from the company's real departments
   final List<String> _statuses = ['All', 'Assigned', 'In Progress', 'Completed', 'Overdue'];
 
   @override
@@ -183,12 +183,11 @@ class _TeamTasksViewState extends State<TeamTasksView> {
         int totalOverdue = 0;
 
         for (var doc in allTasks) {
-          final data = doc.data() as Map<String, dynamic>;
-          final status = (data['status'] ?? '').toString().toLowerCase();
-          if (status == 'assigned') totalAssigned++;
-          else if (status == 'in progress') totalInProgress++;
-          else if (status == 'completed') totalCompleted++;
-          else if (status == 'overdue') totalOverdue++;
+          final b = FirestoreService.taskBucket(doc.data() as Map<String, dynamic>);
+          if (b == 'Assigned') totalAssigned++;
+          else if (b == 'In Progress') totalInProgress++;
+          else if (b == 'Completed') totalCompleted++;
+          else if (b == 'Overdue') totalOverdue++;
         }
 
         return StreamBuilder<QuerySnapshot>(
@@ -198,14 +197,31 @@ class _TeamTasksViewState extends State<TeamTasksView> {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final allUsers = usersSnapshot.data?.docs.where((d) => FirestoreService.isDocInCurrentCompany(d)).toList() ?? [];
+            final allUsers = usersSnapshot.data?.docs
+                    .where((d) =>
+                        FirestoreService.isDocInCurrentCompany(d) &&
+                        FirestoreService.isActiveUserDoc(d.data() as Map<String, dynamic>))
+                    .toList() ??
+                [];
+            final deptSet = <String>{
+              for (final d in allUsers)
+                ((d.data() as Map<String, dynamic>)['dept'] ?? (d.data() as Map<String, dynamic>)['department'] ?? '')
+                    .toString()
+                    .trim()
+            }..remove('');
+            final deptList = ['All', ...(deptSet.toList()..sort())];
+            if (deptList.join('|') != _departments.join('|')) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(() => _departments = deptList);
+              });
+            }
             final myDept = (AppSession().userDepartment ?? '').toString().trim().toLowerCase();
 
             final filteredUsers = allUsers.where((doc) {
               final data = doc.data() as Map<String, dynamic>;
               final name = (data['name'] ?? '').toString().toLowerCase();
-              final department = (data['department'] ?? 'Unknown').toString();
-              
+              final department = (data['dept'] ?? data['department'] ?? 'Unknown').toString();
+
               bool matchesSearch = name.contains(_searchQuery.toLowerCase()) || 
                                    department.toLowerCase().contains(_searchQuery.toLowerCase());
               bool matchesDept = _selectedDepartment == 'All'
@@ -240,12 +256,14 @@ class _TeamTasksViewState extends State<TeamTasksView> {
                         
                         for (var taskDoc in allTasks) {
                           final td = taskDoc.data() as Map<String, dynamic>;
-                          if (td['assignedTo'] == email) {
-                            final st = (td['status'] ?? '').toString().toLowerCase();
-                            if (st == 'assigned') assigned++;
-                            else if (st == 'in progress') active++;
-                            else if (st == 'completed') done++;
-                            else if (st == 'overdue') overdue++;
+                          if (FirestoreService.taskAssignedTo(td, email,
+                              name: (userData['name'] ?? '').toString(),
+                              uid: (userData['uid'] ?? '').toString())) {
+                            final st = FirestoreService.taskBucket(td);
+                            if (st == 'Assigned') assigned++;
+                            else if (st == 'In Progress') active++;
+                            else if (st == 'Completed') done++;
+                            else if (st == 'Overdue') overdue++;
                           }
                         }
                         
@@ -293,7 +311,7 @@ class _TeamTasksViewState extends State<TeamTasksView> {
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: bgColor,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(20),
         ),
         child: Column(
           children: [
@@ -324,7 +342,7 @@ class _TeamTasksViewState extends State<TeamTasksView> {
   ) {
     final name = userData['name'] ?? 'Unknown';
     final role = userData['role'] ?? 'Employee';
-    final department = userData['department'] ?? 'Engineering';
+    final department = userData['dept'] ?? userData['department'] ?? '—';
 
     return GestureDetector(
       onTap: () {

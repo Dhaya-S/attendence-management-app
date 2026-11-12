@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/utils/notification_prefs.dart';
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
@@ -139,14 +140,19 @@ class NotificationService {
     
     final startTime = DateTime.now().subtract(const Duration(minutes: 1));
 
+    // live notification switches (Settings → Notifications)
+    _prefsSubscription?.cancel();
+    _prefsSubscription = NotificationPrefs.stream(email).listen((p) => _prefs = p, onError: (_) {});
+
     // 1. Listen to personal notifications
     _firestoreSubscription = FirestoreService.userNotificationsCol(email)
         .snapshots()
         .listen((snapshot) {
       for (var change in snapshot.docChanges) {
         if (change.type == DocumentChangeType.added) {
+          if (NotificationPrefs.isMetaDoc(change.doc.id)) continue; // settings / security records
           final data = change.doc.data() as Map<String, dynamic>?;
-          if (data != null) {
+          if (data != null && _prefs.allows((data['type'] ?? '').toString())) {
             final timestamp = data['timestamp'] as Timestamp?;
             // Accept the notification if it is a new write (null timestamp locally) or fresh
             if (timestamp == null || timestamp.toDate().isAfter(startTime)) {
@@ -188,7 +194,13 @@ class NotificationService {
     }
   }
 
+  NotificationPrefs _prefs = NotificationPrefs.defaults;
+  StreamSubscription? _prefsSubscription;
+
   void stopFirestoreListener() {
+    _prefsSubscription?.cancel();
+    _prefsSubscription = null;
+    _prefs = NotificationPrefs.defaults;
     _firestoreSubscription?.cancel();
     _firestoreSubscription = null;
     _managerSubscription?.cancel();
@@ -248,7 +260,7 @@ class NotificationService {
     
     await _localNotifications.zonedSchedule(
       id: 999,
-      title: 'Shift Ending Soon â°',
+      title: 'Shift Ending Soon ⏰',
       body: 'Don\'t forget to check out! Your shift ends at ${DateFormat('hh:mm a').format(shiftEndTime)}.',
       scheduledDate: tz.TZDateTime.from(shiftEndTime, tz.local),
       notificationDetails: NotificationDetails(android: androidDetails),

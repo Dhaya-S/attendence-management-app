@@ -9,7 +9,7 @@ import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
 import 'package:attendance_app/screens/employee/employee_attendance_detail_screen.dart';
 
-/// Summary tab â€” Weekly list view and Monthly calendar view with toggle.
+/// Summary tab — Weekly list view and Monthly calendar view with toggle.
 class AttendanceSummaryTab extends StatefulWidget {
   const AttendanceSummaryTab({super.key});
 
@@ -44,7 +44,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
           children: [
             const SizedBox(height: 12),
 
-            // â”€â”€â”€ Toggle Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ─── Toggle Bar ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
@@ -59,7 +59,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
             ),
             const SizedBox(height: 12),
 
-            // â”€â”€â”€ Content â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ─── Content ─────────────────────────────────────────
             Expanded(
               child: _isWeekly
                   ? _buildWeeklyList(docs)
@@ -71,7 +71,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     );
   }
 
-  // â”€â”€â”€ Toggle chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Toggle chip ─────────────────────────────────────────────────────
   Widget _toggleChip(String label, bool isActive, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -157,9 +157,9 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  WEEKLY LIST VIEW
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   Widget _buildWeeklyList(List<QueryDocumentSnapshot> docs) {
     // Filter docs for selected month and sort descending
     final filtered = docs.where((d) {
@@ -292,7 +292,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(color: AppTheme.divider.withOpacity(0.6)),
         ),
         child: Row(
@@ -371,9 +371,9 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  MONTHLY CALENDAR VIEW
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   Widget _buildMonthlyCalendar(List<QueryDocumentSnapshot> docs) {
     final now = DateTime.now();
 
@@ -449,10 +449,8 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
 
                 // Weekday headers
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-                      .map((d) => SizedBox(
-                            width: 36,
+                      .map((d) => Expanded(
                             child: Center(
                               child: Text(d,
                                   style: const TextStyle(
@@ -472,6 +470,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
 
                 // Legend
                 Wrap(
+                  alignment: WrapAlignment.center,
                   spacing: 16,
                   runSpacing: 6,
                   children: [
@@ -541,7 +540,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     final cells = <Widget>[];
     // Leading empty cells
     for (int i = 0; i < offset; i++) {
-      cells.add(const SizedBox(width: 36, height: 36));
+      cells.add(const SizedBox());
     }
 
     for (int day = 1; day <= daysInMonth; day++) {
@@ -557,13 +556,14 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
       }
 
       cells.add(
-        Container(
-          width: 36,
-          height: 36,
+        Center(
+         child: Container(
+          width: 38,
+          height: 38,
           decoration: isToday
               ? BoxDecoration(
                   color: const Color(0xFF5C5CFF),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(19),
                 )
               : null,
           child: Column(
@@ -586,13 +586,16 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
               ],
             ],
           ),
+         ),
         ),
       );
     }
 
-    return Wrap(
-      spacing: (MediaQuery.of(context).size.width - 32 - 40 - 7 * 36) / 6,
-      runSpacing: 4,
+    return GridView.count(
+      crossAxisCount: 7,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 4,
       children: cells,
     );
   }
@@ -643,7 +646,7 @@ class _AttendanceSummaryTabState extends State<AttendanceSummaryTab> {
     );
   }
 
-  // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Helpers ─────────────────────────────────────────────────────────
   String _getStatus(Map<String, dynamic> data) {
     final rawStatus = (data['status'] ?? data['attendanceStatus'] ?? '').toString().toLowerCase();
     final workMode = (data['workMode'] ?? '').toString().toLowerCase();

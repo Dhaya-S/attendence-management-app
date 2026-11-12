@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:attendance_app/utils/firestore_service.dart';
 import 'package:attendance_app/utils/app_session.dart';
+import 'package:attendance_app/widgets/user_avatar.dart';
 import 'package:attendance_app/features/attendance/screens/manager/employee_workspace_screen.dart';
 
 class TeamMembersView extends StatefulWidget {
@@ -285,13 +286,11 @@ class _TeamMembersViewState extends State<TeamMembersView> {
               children: [
                 Stack(
                   children: [
-                    CircleAvatar(
+                    UserAvatar(
+                      name: name,
+                      imageData: (data['profileImageUrl'] ?? '').toString(),
                       radius: 22,
-                      backgroundColor: _getAvatarColor(name),
-                      child: Text(
-                        _getInitials(name),
-                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                      ),
+                      color: _getAvatarColor(name),
                     ),
                     if (checkedIn)
                       Positioned(

@@ -3,6 +3,7 @@ import 'dart:io' show File;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:excel/excel.dart' as xl;
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -86,12 +87,38 @@ class ReportExporter {
           break;
       }
 
-      await _deliver(bytes, fileName, mime, data.title, origin);
+      final rows = data.sections.fold<int>(0, (s, e) => s + e.rows.length);
+
+      // 1) Save to the device (system "Save as" dialog → Downloads / Drive / any folder)
+      String? saved;
+      try {
+        saved = await FilePicker.platform.saveFile(
+          dialogTitle: 'Save ${data.title}',
+          fileName: fileName,
+          bytes: bytes,
+        );
+      } catch (_) {
+        saved = null;
+      }
+
+      if (saved == null) {
+        // the save dialog was cancelled or is unavailable → offer the share sheet instead
+        await _deliver(bytes, fileName, mime, data.title, origin);
+        messenger.hideCurrentSnackBar();
+        return;
+      }
+
       messenger
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-          content: Text('${data.title} ready · ${data.sections.fold<int>(0, (s, e) => s + e.rows.length)} rows'),
+          content: Text('${data.title} saved · $rows rows'),
           backgroundColor: const Color(0xFF10B981),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'SHARE',
+            textColor: Colors.white,
+            onPressed: () => _deliver(bytes, fileName, mime, data.title, null),
+          ),
         ));
     } catch (e) {
       messenger
@@ -115,6 +142,8 @@ class ReportExporter {
         return _leaveReport();
       case 'Announcement':
         return _announcementReport();
+      case 'Schedule':
+        return _scheduleReport();
       default:
         throw 'This report cannot be exported yet';
     }
@@ -698,6 +727,69 @@ class ReportExporter {
   }
 
   // ── 5. Announcement report ──────────────────────────────────────────────────
+
+  /// Shifts of the company and which shift every active employee works.
+  static Future<ReportData> _scheduleReport() async {
+    final shiftSnap = await _fresh(FirestoreService.shiftsCol);
+    final peopleSnap = await _fresh(FirestoreService.employeesCol);
+    final shifts = shiftSnap.docs.map((d) => {...d.data(), 'id': d.data()['id'] ?? d.id}).toList();
+    final people = peopleSnap.docs
+        .where((d) => FirestoreService.isActiveUserDoc(d.data()))
+        .toList();
+
+    final counts = <String, int>{};
+    final assignRows = <List<String>>[];
+    for (final p in people) {
+      final m = p.data();
+      final shift = FirestoreService.pickShiftFor(m, shifts);
+      final label = shifts.isEmpty ? '' : FirestoreService.shiftLabel(shift);
+      final key = _s(shift?['id']);
+      if (key.isNotEmpty) counts[key] = (counts[key] ?? 0) + 1;
+      assignRows.add([
+        _s(m['name']).isEmpty ? p.id : _s(m['name']),
+        p.id,
+        FirestoreService.deptOf(m),
+        label,
+        _s(m['weeklyOff']),
+        _s(m['workMode']),
+      ]);
+    }
+    assignRows.sort((a, b) => a[0].toLowerCase().compareTo(b[0].toLowerCase()));
+
+    String t(Map<String, dynamic> s, List<String> keys) {
+      for (final k in keys) {
+        final v = FirestoreService.formatTime12(s[k]);
+        if (v.isNotEmpty) return v;
+      }
+      return '';
+    }
+
+    final shiftRows = <List<String>>[
+      for (final s in shifts)
+        [
+          _s(s['name'] ?? s['shiftName'] ?? s['title']),
+          t(s, ['checkin', 'checkIn', 'checkInTime', 'startTime', 'start']),
+          t(s, ['checkout', 'checkOut', 'checkOutTime', 'endTime', 'end']),
+          _s(s['grace'] ?? s['gracePeriod'] ?? s['graceMinutes']),
+          _s(s['days']),
+          '${counts[_s(s['id'])] ?? 0}',
+        ],
+    ];
+
+    return ReportData(
+      'Schedule Report',
+      DateFormat('d MMMM yyyy').format(DateTime.now()),
+      [
+        MapEntry('Shifts', '${shifts.length}'),
+        MapEntry('Active Employees', '${people.length}'),
+      ],
+      [
+        ReportSection('Shifts', ['Shift', 'Start', 'End', 'Grace (min)', 'Days', 'Employees'], shiftRows),
+        ReportSection('Employee Shift Assignment',
+            ['Employee', 'Email', 'Department', 'Shift', 'Weekly Off', 'Work Mode'], assignRows),
+      ],
+    );
+  }
 
   static Future<ReportData> _announcementReport() async {
     final orgSnap = await _fresh(FirestoreService.announcementsCol);

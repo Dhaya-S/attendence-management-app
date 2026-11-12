@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
@@ -50,6 +51,20 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
     _orgDocStream = FirestoreService.companyDoc().snapshots();
     _holidaysStream = FirestoreService.orgHolidaysCol(FirestoreService.companyId).snapshots();
     _policiesStream = FirestoreService.policiesCol.snapshots();
+    _listenJoinDate((FirebaseAuth.instance.currentUser?.email ?? AppSession().email ?? ''));
+  }
+
+  // Joining date of this employee (decides whether last year's unused leave carries forward)
+  DateTime? _joinDate;
+  StreamSubscription? _joinSub;
+
+  void _listenJoinDate(String email) {
+    _joinSub = FirestoreService.userStreamByEmail(email).listen((d) {
+      final u = d.data();
+      final j = FirestoreService.parseAnyDate(
+          u?['joinDate'] ?? u?['joiningDate'] ?? u?['createdAt'] ?? u?['joinedAt']);
+      if (mounted && j != _joinDate) setState(() => _joinDate = j);
+    }, onError: (_) {});
   }
 
   // ── Date / field helpers (leaves made on the web store from/to "yyyy-MM-dd" strings) ──
@@ -100,6 +115,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
 
   @override
   void dispose() {
+    _joinSub?.cancel();
     _reasonController.dispose();
     super.dispose();
   }
@@ -392,29 +408,29 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
   }
 
   Widget _buildLeaveBalanceCard(List<QueryDocumentSnapshot> requests) {
-    final usage = _leaveUsage(requests);
-    final usedAnnual = usage[0], usedSick = usage[1], usedCasual = usage[2];
-
     return StreamBuilder<QuerySnapshot>(
       stream: _leaveTypesStream,
       builder: (context, typesSnap) => StreamBuilder<DocumentSnapshot>(
         stream: _orgDocStream,
-        builder: (context, orgSnap) {
-          final limits = _leaveLimits(
-              typesSnap.data, orgSnap.data?.data() as Map<String, dynamic>?);
-          return _leaveBalanceContent(
-              usedAnnual, usedSick, usedCasual, limits[0], limits[1], limits[2]);
-        },
+        builder: (context, orgSnap) => _leaveBalanceContent(_balanceFor(
+            typesSnap.data, orgSnap.data?.data() as Map<String, dynamic>?, requests)),
       ),
     );
   }
 
-  Widget _leaveBalanceContent(int usedAnnual, int usedSick, int usedCasual,
-      int maxAnnual, int maxSick, int maxCasual) {
-    int totalUsed = usedAnnual + usedSick + usedCasual;
-    int totalMax = maxAnnual + maxSick + maxCasual;
-    int remaining = totalMax - totalUsed;
-    if (remaining < 0) remaining = 0;
+  /// Current-year balance incl. days carried forward from last year.
+  LeaveBalance _balanceFor(QuerySnapshot? types, Map<String, dynamic>? org,
+      List<QueryDocumentSnapshot> requests) {
+    return FirestoreService.leaveBalance(
+      types,
+      org,
+      requests.map((d) => Map<String, dynamic>.from(d.data() as Map)),
+      _joinDate,
+    );
+  }
+
+  Widget _leaveBalanceContent(LeaveBalance b) {
+    final remaining = b.leftAll;
 
     return Container(
       width: double.infinity,
@@ -455,18 +471,23 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
               ),
             ],
           ),
+          const SizedBox(height: 6),
+          Text(
+              '${b.totalAll} total  ·  ${b.usedAll} used' +
+                  (b.carriedAll > 0 ? '  ·  ${b.carriedAll} carried forward' : ''),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF9CA3AF), fontWeight: FontWeight.w500)),
           const SizedBox(height: 24),
-          _buildLeaveProgress('Casual Leave', usedCasual, maxCasual, const Color(0xFF5C5CFF)),
+          _buildLeaveProgress('Casual Leave', b.used[2], b.total(2), const Color(0xFF5C5CFF), carried: b.carried[2]),
           const SizedBox(height: 16),
-          _buildLeaveProgress('Sick Leave', usedSick, maxSick, const Color(0xFF10B981)),
+          _buildLeaveProgress('Sick Leave', b.used[1], b.total(1), const Color(0xFF10B981), carried: b.carried[1]),
           const SizedBox(height: 16),
-          _buildLeaveProgress('Annual Leave', usedAnnual, maxAnnual, const Color(0xFF8B5CF6)),
+          _buildLeaveProgress('Annual Leave', b.used[0], b.total(0), const Color(0xFF8B5CF6), carried: b.carried[0]),
         ],
       ),
     );
   }
 
-  Widget _buildLeaveProgress(String label, int used, int total, Color color) {
+  Widget _buildLeaveProgress(String label, int used, int total, Color color, {int carried = 0}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -474,7 +495,8 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF6B7280))),
-            Text('$used/$total', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            Text('$used/$total' + (carried > 0 ? '  (incl. $carried carried)' : ''),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
           ],
         ),
         const SizedBox(height: 8),
@@ -1150,7 +1172,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
               children: [
                 const Icon(Icons.event_outlined, color: Color(0xFF9CA3AF), size: 14),
                 const SizedBox(width: 6),
-                Text('$dateRangeStr  Â·  $days days', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
+                Text('$dateRangeStr  ·  $days days', style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280), fontWeight: FontWeight.w500)),
               ],
             ),
             const SizedBox(height: 16),
@@ -1335,7 +1357,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
     final days = _leaveDays(data);
 
     final dateRangeStr = (fromDate != null && toDate != null)
-        ? '${DateFormat('MMM d').format(fromDate)} â€“ ${DateFormat('MMM d').format(toDate)}'
+        ? '${DateFormat('MMM d').format(fromDate)} – ${DateFormat('MMM d').format(toDate)}'
         : 'Unknown Dates';
 
     return ListTile(
@@ -1345,7 +1367,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
         decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       ),
       title: Text(_leaveTypeName(data), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppTheme.textPrimary)),
-      subtitle: Text('$dateRangeStr Â· ${days}d Â· ${status == 'approved' ? 'Approved' : 'Pending'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+      subtitle: Text('$dateRangeStr · ${days}d · ${status == 'approved' ? 'Approved' : 'Pending'}', style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB)),
     );
   }
@@ -1592,11 +1614,12 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
             stream: _policiesStream,
             builder: (context, polSnap) {
               final org = (orgSnap.data?.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
-              final limits = _leaveLimits(typesSnap.data, org);
-              final usage = _leaveUsage(requests);
-              final totalMax = limits[0] + limits[1] + limits[2];
-              final totalUsed = usage[0] + usage[1] + usage[2];
-              final remaining = (totalMax - totalUsed) < 0 ? 0 : totalMax - totalUsed;
+              final bal = _balanceFor(typesSnap.data, org, requests);
+              final limits = bal.base;
+              final usage = bal.used;
+              final totalMax = bal.totalAll;
+              final totalUsed = bal.usedAll;
+              final remaining = bal.leftAll;
 
               const typeColors = [Color(0xFF8B5CF6), Color(0xFF10B981), Color(0xFF5C5CFF)];
 
@@ -1711,7 +1734,7 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
                 ],
                 [
                   'How many leaves do I receive?',
-                  'Your organization allows ${limits[0]} Annual, ${limits[1]} Sick and ${limits[2]} Casual days per year ($totalMax in total). You have used $totalUsed so far, so $remaining days remain. These numbers update live if HR changes the policy.'
+                  'Your organization allows ${limits[0]} Annual, ${limits[1]} Sick and ${limits[2]} Casual days per year' + (bal.carriedAll > 0 ? ', plus ${bal.carriedAll} days carried forward from last year' : '') + ' ($totalMax in total). You have used $totalUsed so far, so $remaining days remain. These numbers update live if HR changes the policy.'
                 ],
                 [
                   'How is my leave balance calculated?',
@@ -1751,12 +1774,13 @@ class _UniversalLeaveTabState extends State<UniversalLeaveTab> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     _policySection('LEAVE TYPES', typeRows),
                     _policySection('MY LEAVE ALLOCATION — ${today.year}', [
-                      _buildLeaveProgress('Annual Leave', usage[0], limits[0], typeColors[0]),
+                      _buildLeaveProgress('Annual Leave', usage[0], bal.total(0), typeColors[0], carried: bal.carried[0]),
                       const SizedBox(height: 14),
-                      _buildLeaveProgress('Sick Leave', usage[1], limits[1], typeColors[1]),
+                      _buildLeaveProgress('Sick Leave', usage[1], bal.total(1), typeColors[1], carried: bal.carried[1]),
                       const SizedBox(height: 14),
-                      _buildLeaveProgress('Casual Leave', usage[2], limits[2], typeColors[2]),
+                      _buildLeaveProgress('Casual Leave', usage[2], bal.total(2), typeColors[2], carried: bal.carried[2]),
                       const SizedBox(height: 14),
+                      if (bal.carriedAll > 0) _policyRow('Carried forward from ${DateTime.now().year - 1}', '${bal.carriedAll} days'),
                       _policyRow('Remaining', '$remaining of $totalMax days'),
                     ]),
                     _policySection('COMPANY LEAVE RULES', ruleRows),

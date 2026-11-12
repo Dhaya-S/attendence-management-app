@@ -15,7 +15,7 @@ import 'package:attendance_app/screens/employee/attendance_history_screen.dart';
 import 'package:attendance_app/screens/employee/employee_attendance_correction_screen.dart';
 import 'package:attendance_app/screens/employee/employee_calendar_tab.dart';
 
-/// Overview tab â€” shows today's attendance card, this week progress,
+/// Overview tab — shows today's attendance card, this week progress,
 /// monthly summary, today's shift, and quick actions.
 /// Real-time via Firestore streams + a 1-second timer for the live clock.
 class AttendanceOverviewTab extends StatefulWidget {
@@ -35,6 +35,46 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
   }
   Timer? _timer;
   bool _isCheckingInOut = false;
+  late final Stream<QuerySnapshot> _leaveStream = FirestoreService.leaveRequestsCol.snapshots();
+  late final Stream<QuerySnapshot> _holidayStream =
+      FirestoreService.orgHolidaysCol(FirestoreService.companyId).snapshots();
+
+  /// Builds [builder] with this employee's approved-leave days, the company holidays and the
+  /// working weekdays of their shift — all live from Firestore.
+  Widget _withDayContext(
+      Widget Function(Set<String> leaveDays, Set<String> holidayKeys, Set<int> workDays) builder) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _leaveStream,
+      builder: (context, leaveSnap) => StreamBuilder<QuerySnapshot>(
+        stream: _holidayStream,
+        builder: (context, holSnap) {
+          final me = _userEmail.toLowerCase();
+          final fmt = DateFormat('yyyy-MM-dd');
+          final leaveDays = <String>{};
+          for (final d in leaveSnap.data?.docs ?? const <QueryDocumentSnapshot>[]) {
+            final m = d.data() as Map<String, dynamic>;
+            if (!FirestoreService.statusIs(m['status'], 'approved')) continue;
+            if (FirestoreService.requesterEmail(m) != me) continue;
+            final from = FirestoreService.parseAnyDate(m['fromDate'] ?? m['from']);
+            final to = FirestoreService.parseAnyDate(m['toDate'] ?? m['to']) ?? from;
+            if (from == null || to == null) continue;
+            var c = DateTime(from.year, from.month, from.day);
+            final end = DateTime(to.year, to.month, to.day);
+            while (!c.isAfter(end)) {
+              leaveDays.add(fmt.format(c));
+              c = c.add(const Duration(days: 1));
+            }
+          }
+          final holidayKeys = <String>{};
+          for (final d in holSnap.data?.docs ?? const <QueryDocumentSnapshot>[]) {
+            final dt = FirestoreService.holidayDate(d.data() as Map<String, dynamic>);
+            if (dt != null) holidayKeys.add(fmt.format(dt));
+          }
+          return builder(leaveDays, holidayKeys, FirestoreService.workingWeekdays(AppSession().shiftDays));
+        },
+      ),
+    );
+  }
 
   String get _role => AppSession().role?.toLowerCase() ?? 'employee';
 
@@ -52,7 +92,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     super.dispose();
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Check-In / Check-Out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ──────────────────────────────── Check-In / Check-Out ─────────────────
   String _getDocId() => DateFormat('yyyy-MM-dd').format(DateTime.now());
 
   Future<void> _handleCheckInOut(String status, bool isCheckIn) async {
@@ -75,7 +115,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
       await NotificationHelper.notifyEmployee(
         employeeEmail: email,
         title:
-            isCheckIn ? 'Check-In Successful âœ…' : 'Check-Out Successful ðŸ‘‹',
+            isCheckIn ? 'Check-In Successful ✅' : 'Check-Out Successful 👋',
         body:
             'You have successfully ${isCheckIn ? 'checked in' : 'checked out'} at ${DateFormat('hh:mm a').format(now)}.',
         type: isCheckIn ? 'check_in' : 'check_out',
@@ -100,7 +140,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     }
   }
 
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ──────────────────────────────── Build ────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
@@ -115,36 +155,40 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
         final now = DateTime.now();
         final todayStr = DateFormat('yyyy-MM-dd').format(now);
 
-        return SingleChildScrollView(
+        final recs = <String, Map<String, dynamic>>{
+          for (final d in docs) d.id: d.data() as Map<String, dynamic>,
+        };
+
+        return _withDayContext((leaveDays, holidayKeys, workDays) => SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildThisWeek(docs, now),
+              _buildThisWeek(recs, now, leaveDays, holidayKeys, workDays),
               const SizedBox(height: 20),
-              _buildMonthlySummary(docs, now),
+              _buildMonthlySummary(recs, now, leaveDays, holidayKeys, workDays),
               const SizedBox(height: 20),
               _buildTodayShift(),
               const SizedBox(height: 20),
               _buildQuickActions(),
             ],
           ),
-        );
+        ));
       },
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  TODAY'S ATTENDANCE CARD
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   Widget _buildTodayCard(Map<String, dynamic>? data, DateTime now) {
     final hasCheckIn = data != null && data['checkIn'] != null;
     final hasCheckOut = data != null && data['checkOut'] != null;
     final Timestamp? checkInTs = data?['checkIn'];
     final Timestamp? checkOutTs = data?['checkOut'];
 
-    // â”€â”€â”€ Compute times â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Compute times ──────────────────────────────────────────────
     String checkInStr = '--:--';
     if (checkInTs != null) {
       checkInStr = DateFormat('hh:mm a').format(checkInTs.toDate());
@@ -157,7 +201,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
       workingHrs = '${diff.inHours}h ${(diff.inMinutes % 60).toString().padLeft(2, '0')}m';
     }
 
-    // Late buffer â€” compare check-in time against shift start
+    // Late buffer — compare check-in time against shift start
     String lateBuffer = '0 min';
     bool isLate = false;
     if (hasCheckIn && checkInTs != null) {
@@ -409,12 +453,59 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  THIS WEEK
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  Widget _buildThisWeek(List<QueryDocumentSnapshot> docs, DateTime now) {
+  // ══════════════════════════════════════════════════════════════════════
+  // ─────────────────────────────────────────────────────────────────────────
+  //  Day status (one rule for the week strip AND the monthly summary)
+  //  present · late · wfh · leave · holiday · absent · pending (today, not yet in) ·
+  //  weekend (not a working day) · future
+  // ─────────────────────────────────────────────────────────────────────────
+  String _dayStatus(
+    DateTime day,
+    DateTime now,
+    Map<String, Map<String, dynamic>> recs,
+    Set<String> leaveDays,
+    Set<String> holidayKeys,
+    Set<int> workDays,
+  ) {
+    final key = DateFormat('yyyy-MM-dd').format(day);
+    final today = DateTime(now.year, now.month, now.day);
+    final d0 = DateTime(day.year, day.month, day.day);
+
+    final d = recs[key];
+    if (d != null) {
+      final rawStatus = (d['status'] ?? d['attendanceStatus'] ?? '').toString().toLowerCase();
+      final workMode = (d['workMode'] ?? '').toString().toLowerCase();
+      if (rawStatus.contains('leave')) return 'leave';
+      if (workMode == 'wfh' || workMode == 'work_from_home' || rawStatus == 'wfh') return 'wfh';
+      if (rawStatus.contains('late') || d['isLate'] == true) return 'late';
+      if (d['checkIn'] != null ||
+          d['checkInTime'] != null ||
+          d['lastCheckIn'] != null ||
+          rawStatus.contains('present') ||
+          rawStatus.contains('checked') ||
+          rawStatus.contains('completed')) {
+        return 'present';
+      }
+    }
+    if (d0.isAfter(today)) return 'future';
+    if (leaveDays.contains(key)) return 'leave';
+    if (holidayKeys.contains(key)) return 'holiday';
+    if (!workDays.contains(day.weekday)) return 'weekend';
+    if (d0 == today) return 'pending';
+    return 'absent';
+  }
+
+  Widget _buildThisWeek(
+    Map<String, Map<String, dynamic>> recs,
+    DateTime now,
+    Set<String> leaveDays,
+    Set<String> holidayKeys,
+    Set<int> workDays,
+  ) {
     // Find Monday of this week
-    final monday = now.subtract(Duration(days: now.weekday - 1));
+    final monday = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
     final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
     return Container(
@@ -460,30 +551,9 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(5, (i) {
               final day = monday.add(Duration(days: i));
-              final dayStr = DateFormat('yyyy-MM-dd').format(day);
-              final isToday = dayStr == DateFormat('yyyy-MM-dd').format(now);
-              final isFuture = day.isAfter(now);
-
-              // Find attendance for this day
-              String status = 'absent';
-              try {
-                final doc = docs.firstWhere((d) => d.id == dayStr);
-                final d = doc.data() as Map<String, dynamic>;
-                final rawStatus = (d['status'] ?? d['attendanceStatus'] ?? '').toString().toLowerCase();
-                final workMode = (d['workMode'] ?? '').toString().toLowerCase();
-                if (rawStatus.contains('leave')) {
-                  status = 'leave';
-                } else if (workMode == 'wfh' || workMode == 'work_from_home') {
-                  status = 'wfh';
-                } else if (rawStatus.contains('late')) {
-                  status = 'late';
-                } else if (d['checkIn'] != null || d['checkInTime'] != null || d['lastCheckIn'] != null || rawStatus.contains('present') || rawStatus.contains('checked')) {
-                  status = 'present';
-                }
-              } catch (_) {}
-
-              if (isFuture) status = 'future';
-
+              final isToday = DateFormat('yyyy-MM-dd').format(day) ==
+                  DateFormat('yyyy-MM-dd').format(now);
+              final status = _dayStatus(day, now, recs, leaveDays, holidayKeys, workDays);
               return _weekDayChip(weekDays[i], status, isToday);
             }),
           ),
@@ -518,8 +588,20 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
         dotColor = const Color(0xFF8B5CF6);
         break;
       case 'leave':
-        bgColor = AppTheme.danger;
+        bgColor = const Color(0xFF0EA5E9);
         textColor = Colors.white;
+        statusLetter = 'LV';
+        dotColor = const Color(0xFF0EA5E9);
+        break;
+      case 'holiday':
+        bgColor = const Color(0xFFFEE2E2);
+        textColor = const Color(0xFFDC2626);
+        statusLetter = 'H';
+        dotColor = const Color(0xFFDC2626);
+        break;
+      case 'absent':
+        bgColor = AppTheme.danger.withOpacity(0.12);
+        textColor = AppTheme.danger;
         statusLetter = 'A';
         dotColor = AppTheme.danger;
         break;
@@ -575,36 +657,46 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  MONTHLY SUMMARY
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-  Widget _buildMonthlySummary(List<QueryDocumentSnapshot> docs, DateTime now) {
+  // ══════════════════════════════════════════════════════════════════════
+  Widget _buildMonthlySummary(
+    Map<String, Map<String, dynamic>> recs,
+    DateTime now,
+    Set<String> leaveDays,
+    Set<String> holidayKeys,
+    Set<int> workDays,
+  ) {
     final monthStr = DateFormat('MMMM yyyy').format(now).toUpperCase();
 
-    int present = 0, late = 0, wfh = 0, leave = 0;
-    for (final doc in docs) {
-      final d = doc.data() as Map<String, dynamic>;
-      final date = doc.id; // yyyy-MM-dd
-      if (!date.startsWith(DateFormat('yyyy-MM').format(now))) continue;
-
-      final rawStatus = (d['status'] ?? d['attendanceStatus'] ?? '').toString().toLowerCase();
-      final workMode = (d['workMode'] ?? '').toString().toLowerCase();
-
-      if (rawStatus.contains('leave')) {
-        leave++;
-      } else if (workMode == 'wfh' || workMode == 'work_from_home') {
-        wfh++;
-      } else if (rawStatus.contains('late')) {
-        late++;
-      } else if (d['checkIn'] != null || d['checkInTime'] != null || d['lastCheckIn'] != null || rawStatus.contains('present') || rawStatus.contains('checked')) {
-        present++;
+    // Every day of this month up to today is counted exactly once
+    int present = 0, late = 0, wfh = 0, leave = 0, absent = 0;
+    for (var d = DateTime(now.year, now.month, 1);
+        !d.isAfter(DateTime(now.year, now.month, now.day));
+        d = d.add(const Duration(days: 1))) {
+      switch (_dayStatus(d, now, recs, leaveDays, holidayKeys, workDays)) {
+        case 'present':
+          present++;
+          break;
+        case 'late':
+          late++;
+          break;
+        case 'wfh':
+          wfh++;
+          break;
+        case 'leave':
+          leave++;
+          break;
+        case 'absent':
+          absent++;
+          break;
       }
     }
 
-    final totalWorkingDays = present + late + wfh;
-    final total = totalWorkingDays + leave;
+    final worked = present + late + wfh;
+    final expected = worked + absent;
     final attendanceRate =
-        total > 0 ? ((totalWorkingDays / total) * 100).toStringAsFixed(1) : '0.0';
+        expected > 0 ? ((worked / expected) * 100).toStringAsFixed(1) : '0.0';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -616,7 +708,7 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('$monthStr â€“ MONTHLY',
+          Text('$monthStr – MONTHLY',
               style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -626,12 +718,14 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
           Row(
             children: [
               _monthStatCircle('$present', 'Present', AppTheme.primary),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _monthStatCircle('$late', 'Late', AppTheme.warning),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               _monthStatCircle('$wfh', 'WFH', const Color(0xFF8B5CF6)),
-              const SizedBox(width: 12),
-              _monthStatCircle('$leave', 'Leave', AppTheme.danger),
+              const SizedBox(width: 8),
+              _monthStatCircle('$leave', 'Leave', const Color(0xFF0EA5E9)),
+              const SizedBox(width: 8),
+              _monthStatCircle('$absent', 'Absent', AppTheme.danger),
             ],
           ),
           const SizedBox(height: 16),
@@ -690,13 +784,12 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  TODAY'S SHIFT
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   Widget _buildTodayShift() {
     final shiftStart = AppSession().shiftStartTime;
     final shiftEnd = AppSession().shiftEndTime;
-    final managerName = AppSession().userName ?? 'N/A';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -746,19 +839,17 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(_role == 'employee' ? 'Manager' : 'Role',
+                  Text('Role',
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                           color: AppTheme.textHint)),
                   const SizedBox(height: 2),
-                  Text(
-                      _role == 'employee'
-                          ? managerName
-                          : AppSession().displayRole,
+                  Text(AppSession().displayRole,
                       style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -772,9 +863,9 @@ class _AttendanceOverviewTabState extends State<AttendanceOverviewTab> {
     );
   }
 
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   //  QUICK ACTIONS
-  // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  // ══════════════════════════════════════════════════════════════════════
   Widget _buildQuickActions() {
     return Container(
       padding: const EdgeInsets.all(20),

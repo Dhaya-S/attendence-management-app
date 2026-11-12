@@ -259,7 +259,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // â”€â”€ Shift Timing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+              // ── Shift Timing ─────────────────────────────────────────
               _buildSectionHeader('Shift Timing'),
               const SizedBox(height: 16),
               _buildSettingCard(
@@ -361,7 +361,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
               const SizedBox(height: 28),
 
-              // â”€â”€ Leave Policy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+              // ── Leave Policy ──────────────────────────────────────────
               _buildSectionHeader('Leave Policy'),
               const SizedBox(height: 16),
               _buildSettingCard(
@@ -481,7 +481,7 @@ class _CompanySettingsScreenState extends State<CompanySettingsScreen> {
 
               const SizedBox(height: 40),
 
-              // â”€â”€ Save Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+              // ── Save Button ───────────────────────────────────────────
               SizedBox(
                 width: double.infinity,
                 height: 56,

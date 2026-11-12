@@ -257,7 +257,7 @@ class _LateAdjustmentReviewScreenState
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textPrimary)),
-                    Text('Date: $recordDate  â€¢  $timeAgo',
+                    Text('Date: $recordDate  •  $timeAgo',
                         style:
                             TextStyle(fontSize: 12, color: AppTheme.textHint)),
                   ],
@@ -726,7 +726,7 @@ class _LateAdjustmentReviewScreenState
       // Notify the employee
       await NotificationHelper.notifyEmployee(
         employeeEmail: employeeEmail,
-        title: 'Adjustment Approved âœ…',
+        title: 'Adjustment Approved ✅',
         body:
             'Hi $userName, your late adjustment for $recordDate has been approved. Check-in set to ${approvedTime.format(context)}.',
         type: 'adjustment_approved',
@@ -809,7 +809,7 @@ class _LateAdjustmentReviewScreenState
       // Notify the employee
       await NotificationHelper.notifyEmployee(
         employeeEmail: employeeEmail,
-        title: 'Adjustment Request Denied âŒ',
+        title: 'Adjustment Request Denied ❌',
         body: note.isNotEmpty
             ? 'Your adjustment request for $recordDate was denied: "$note"'
             : 'Your adjustment request for $recordDate was denied by the manager.',

@@ -412,7 +412,7 @@ class _LeaveApprovalScreenState extends State<LeaveApprovalScreen> {
         if (employeeEmail.isNotEmpty) {
           await NotificationHelper.notifyEmployee(
             employeeEmail: employeeEmail,
-            title: newStatus == 'approved' ? 'Leave Approved âœ…' : 'Leave Rejected âŒ',
+            title: newStatus == 'approved' ? 'Leave Approved ✅' : 'Leave Rejected ❌',
             body: 'Your ${data['leaveType'] ?? data['type'] ?? 'leave'} request for ${(() { final d = FirestoreService.parseAnyDate(data['fromDate'] ?? data['from']); return d == null ? '' : DateFormat('MMM dd').format(d); })()} has been $newStatus.',
             type: newStatus == 'approved' ? 'leave_approved' : 'leave_rejected',
             extraData: {
